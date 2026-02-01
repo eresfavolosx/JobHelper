@@ -1,0 +1,13 @@
+{
+    "manifest_version": 3,
+    "name": "Job Tracker Helper",
+    "version": "1.0",
+    "description": "One-click save to your local Job Tracker.",
+    "permissions": [
+        "activeTab",
+        "scripting"
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}

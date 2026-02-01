@@ -1,10 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { NextResponse } from 'next/server';
 
-const processFile = async (file) => {
-    const bytes = await file.arrayBuffer();
-    return Buffer.from(bytes).toString('base64');
-};
+import { NextResponse } from 'next/server';
+import { getGeminiModel, processFile, getMimeType } from '@/lib/gemini';
 
 export async function POST(req) {
     try {
@@ -17,22 +13,7 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing resume or job description' }, { status: 400 });
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json({ error: 'API Key not configured' }, { status: 500 });
-        }
-
-        const genAI = new GoogleGenerativeAI(apiKey);
-        // Using Gemini 3 Flash Preview as requested ("version 3 flash")
-        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-
-        // Helper to normalize mime types
-        const getMimeType = (file, defaultType) => {
-            if (!file.type || file.type === 'application/octet-stream') {
-                return defaultType;
-            }
-            return file.type;
-        };
+        const model = getGeminiModel();
 
         // Prepare resume
         const resumePart = {
@@ -57,30 +38,30 @@ export async function POST(req) {
 
         const promptPart = {
             text: `You are an expert resume editor.
-        I have attached a Resume (first file) and potential additional context files.
-        
-        TASK:
+        I have attached a Resume(first file) and potential additional context files.
+
+    TASK:
         Analyze the resume against the provided Job Description.
         Output ONLY the specific sections of the resume that should be changed to target this job.
         Provide the EXACT text for me to copy and paste.
-        NO conversational filler (e.g., "Here is a tailored version...").
-        NO explanations. JUST the content.
+        NO conversational filler(e.g., "Here is a tailored version...").
+        NO explanations.JUST the content.
 
         REQUIRED SECTIONS:
         
         ## Professional Summary
-        (Rewrite the summary to strictly target the job keywords and requirements)
+    (Rewrite the summary to strictly target the job keywords and requirements)
 
         ## Key Skills
-        (List the top 10 most relevant skills for this specific job, comma-separated)
+    (List the top 10 most relevant skills for this specific job, comma - separated)
 
         ## Experience Updates
-        (Suggest 3-4 specific bullet points from the resume that should be rewritten to better highlight results relevant to this job. key: "Old Bullet" -> "New Bullet")
+    (Suggest 3 - 4 specific bullet points from the resume that should be rewritten to better highlight results relevant to this job.key: "Old Bullet" -> "New Bullet")
 
         JOB DESCRIPTION:
         ${jobDescription}
-        
-        Output in Markdown format.
+
+Output in Markdown format.
         `
         };
 

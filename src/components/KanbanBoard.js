@@ -96,7 +96,11 @@ export default function KanbanBoard() {
                 })}
             </div>
             <DragOverlay>
-                {activeId ? <div className="card" style={{ opacity: 0.8 }}>Dragging...</div> : null}
+                {activeId ? (
+                    <div style={{ transform: 'rotate(3deg)' }}> {/* Tilt effect */}
+                        <JobCard job={jobs.find(j => j.id === activeId)} />
+                    </div>
+                ) : null}
             </DragOverlay>
         </DndContext>
     );

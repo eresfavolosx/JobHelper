@@ -1,12 +1,38 @@
 "use client";
 import './globals.css';
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Plus } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useUIStore } from '@/lib/uiStore';
+
+// Separate component to use useSearchParams safely inside Suspense
+function UrlListener() {
+    const searchParams = useSearchParams();
+    const openEditJobModal = useUIStore(s => s.openEditJobModal);
+
+    useEffect(() => {
+        const action = searchParams.get('action');
+        if (action === 'auto-open') {
+            const role = searchParams.get('role');
+            const company = searchParams.get('company');
+            const url = searchParams.get('url');
+            const status = searchParams.get('status');
+
+            // Clean URL
+            window.history.replaceState({}, '', '/');
+
+            // Open modal with this "phantom" job data
+            openEditJobModal({ role, company, url, status });
+        }
+    }, [searchParams, openEditJobModal]);
+
+    return null;
+}
 
 export default function RootLayout({ children }) {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const { isJobModalOpen, closeJobModal, openNewJobModal, editingJob } = useUIStore();
 
     return (
         <html lang="en">
@@ -25,7 +51,7 @@ export default function RootLayout({ children }) {
                     </h1>
 
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={openNewJobModal}
                         className="btn-primary"
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
@@ -36,6 +62,8 @@ export default function RootLayout({ children }) {
                         <Link href="/" style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Dashboard</Link>
                         <Link href="/kanban" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>Board</Link>
                         <Link href="/tailor" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>AI Tailor</Link>
+                        <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
+                        <Link href="/profile" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>My Profile</Link>
                     </div>
                 </nav>
 
@@ -43,7 +71,15 @@ export default function RootLayout({ children }) {
                     {children}
                 </main>
 
-                <AddJobModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+                <AddJobModal
+                    isOpen={isJobModalOpen}
+                    onClose={closeJobModal}
+                    initialData={editingJob}
+                />
+
+                <Suspense fallback={null}>
+                    <UrlListener />
+                </Suspense>
             </body>
         </html>
     );
