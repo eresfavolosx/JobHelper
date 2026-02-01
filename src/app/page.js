@@ -9,6 +9,8 @@ export default function Home() {
 
     useEffect(() => {
         setMounted(true);
+        // Reset daily reminder timer when user visits dashboard
+        localStorage.setItem('lastJobCheckDate', new Date().toISOString());
     }, []);
 
     if (!mounted) return null; // Prevent hydration mismatch

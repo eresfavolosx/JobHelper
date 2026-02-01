@@ -13,7 +13,7 @@ export async function POST(req) {
             return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const processedDocs = [];
 
         for (const file of files) {
