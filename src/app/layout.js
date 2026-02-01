@@ -6,6 +6,8 @@ import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
+import DailyReminder from '@/components/DailyReminder';
+import { Toaster } from 'sonner';
 
 // Separate component to use useSearchParams safely inside Suspense
 function UrlListener() {
@@ -71,16 +73,12 @@ export default function RootLayout({ children }) {
                     {children}
                 </main>
 
-                <AddJobModal
-                    isOpen={isJobModalOpen}
-                    onClose={closeJobModal}
-                    initialData={editingJob}
-                />
-
                 <Suspense fallback={null}>
                     <UrlListener />
                 </Suspense>
+                <DailyReminder />
+                <Toaster />
             </body>
-        </html>
+        </html >
     );
 }

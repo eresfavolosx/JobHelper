@@ -1,3 +1,4 @@
+// Google Generative AI Library
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const processFile = async (file) => {
@@ -18,5 +19,17 @@ export const getGeminiModel = () => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use the latest confirmed working model
-    return genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+};
+
+export const fileToGenerativePart = async (file) => {
+    const bytes = await file.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString('base64');
+
+    return {
+        inlineData: {
+            data: base64,
+            mimeType: file.type || 'application/pdf',
+        },
+    };
 };
