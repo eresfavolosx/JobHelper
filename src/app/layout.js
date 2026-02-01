@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
 import DailyReminder from '@/components/DailyReminder';
-import { Toaster } from 'sonner';
+
 
 // Separate component to use useSearchParams safely inside Suspense
 function UrlListener() {
@@ -63,7 +63,7 @@ export default function RootLayout({ children }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <Link href="/" style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Dashboard</Link>
                         <Link href="/kanban" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>Board</Link>
-                        <Link href="/tailor" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>AI Tailor</Link>
+
                         <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
                         <Link href="/profile" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>My Profile</Link>
                     </div>
@@ -77,7 +77,7 @@ export default function RootLayout({ children }) {
                     <UrlListener />
                 </Suspense>
                 <DailyReminder />
-                <Toaster />
+
             </body>
         </html >
     );
