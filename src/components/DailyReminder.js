@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Bell } from 'lucide-react';
-import { toast } from 'sonner';
 
 export default function DailyReminder() {
     useEffect(() => {
@@ -21,20 +19,9 @@ export default function DailyReminder() {
                 if (Notification.permission === 'granted') {
                     new Notification('Job Tracker Reminder', {
                         body: 'It takes consistency to land a job! Check for new listings today.',
-                        icon: '/icon.png' // Assuming an icon exists or default
+                        icon: '/icon.png'
                     });
                 }
-
-                // Show in-app toast
-                toast('Time to check for new jobs!', {
-                    description: 'Consistency is key. Click to open LinkedIn.',
-                    action: {
-                        label: 'Open LinkedIn',
-                        onClick: () => window.open('https://www.linkedin.com/jobs', '_blank')
-                    },
-                    duration: 10000,
-                    icon: <Bell className="w-5 h-5 text-yellow-500" />
-                });
             }
         };
 
