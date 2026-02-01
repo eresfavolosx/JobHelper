@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎯 AI Job Tracker
 
-## Getting Started
+A private, self-hosted job application tracker with AI superpowers.
+Built with Next.js, Zustand, and Google Gemini.
 
-First, run the development server:
+## ✨ Features
 
+- **KANBAN BOARD**: Drag-and-drop board to track applications (Wishlist -> Applied -> Interview -> Offer).
+- **CHROME EXTENSION**: Save jobs from any website with one click.
+- **AI RESUME TAILOR**: Auto-generate cover letters and custom resume bullets for any job description.
+- **LOCAL & PRIVATE**: All data is stored locally on your machine. No cloud necessary.
+- **SECURE ACCESS**: Protected by a customizable PIN.
+
+## 🚀 Getting Started
+
+### 1. Run the App
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+Open [http://localhost:3000](http://localhost:3000).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install the Extension
+1. Go to `chrome://extensions`.
+2. Enable "Developer Mode" (top right).
+3. Click "Load Unpacked".
+4. Select the `src/extension` folder inside this project.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Usage
+- **Add Jobs**: Use the extension ("Save Job") or click "+ New Job" in the app.
+- **Track**: Drag cards across columns as you progress.
+- **Tailor**: Go to "AI Tailor", upload your Resume text, and paste a Job Description to get AI advice.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠 Configuration
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **PIN Code**: Currently hardcoded as `1234` in `src/app/login/page.js`.
+- **Gemini API**: Add your API key to `.env.local` as `GEMINI_API_KEY`.
