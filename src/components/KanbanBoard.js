@@ -25,7 +25,9 @@ export default function KanbanBoard() {
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 5,
+                distance: 10, // Increased from 5 for less accidental drags
+                delay: 100,   // Small delay before drag starts
+                tolerance: 5  // Allow small movement during delay
             },
         })
     );

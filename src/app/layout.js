@@ -77,6 +77,11 @@ export default function RootLayout({ children }) {
                     <UrlListener />
                 </Suspense>
                 <DailyReminder />
+                <AddJobModal
+                    isOpen={isJobModalOpen}
+                    onClose={closeJobModal}
+                    initialData={editingJob}
+                />
 
             </body>
         </html >

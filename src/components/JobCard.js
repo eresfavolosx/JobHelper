@@ -27,9 +27,7 @@ export default function JobCard({ job }) {
     const handleDelete = (e) => {
         e.stopPropagation(); // Prevent drag start
         e.preventDefault();
-        if (confirm('Delete this application?')) {
-            deleteJob(job.id);
-        }
+        deleteJob(job.id);
     };
 
     const handleEdit = (e) => {
@@ -49,9 +47,9 @@ export default function JobCard({ job }) {
             <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h4 style={{ fontWeight: 'bold' }}>{job.role}</h4>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onPointerDown={e => e.stopPropagation()}>
-                        <button onClick={handleEdit} className="p-1 hover:text-blue-400 text-gray-400"><Pencil size={14} /></button>
-                        <button onClick={handleDelete} className="p-1 hover:text-red-400 text-gray-400"><Trash2 size={14} /></button>
+                    <div style={{ display: 'flex', gap: '8px' }} onPointerDown={e => e.stopPropagation()}>
+                        <button onClick={handleEdit} style={{ padding: '6px', color: '#888', cursor: 'pointer', background: 'none', border: 'none' }}><Pencil size={16} /></button>
+                        <button onClick={handleDelete} style={{ padding: '6px', color: '#ef4444', cursor: 'pointer', background: 'none', border: 'none' }}><Trash2 size={16} /></button>
                     </div>
                 </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{job.company}</p>
