@@ -1,19 +1,34 @@
 "use client";
 import { useAppStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Home() {
     const { jobs } = useAppStore();
+    const { user, loading } = useAuth();
+    const router = useRouter();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
         setMounted(true);
-        // Reset daily reminder timer when user visits dashboard
-        localStorage.setItem('lastJobCheckDate', new Date().toISOString());
+        // Clear any potential legacy auth flags that might conflict
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('is_authenticated');
+        }
     }, []);
 
-    if (!mounted) return null; // Prevent hydration mismatch
+    // Separate effect for auth redirect - only runs once when auth state is settled
+    useEffect(() => {
+        if (!loading && !user && mounted) {
+            // Use window.location for static export compatibility
+            window.location.href = '/login';
+        }
+    }, [loading, user, mounted]);
+
+    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
+    if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     const stats = {
         total: jobs.length,

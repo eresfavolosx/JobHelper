@@ -2,11 +2,23 @@
 import { useState, useEffect, Suspense } from 'react';
 import { User } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { useSearchParams } from 'next/navigation';
 
 function ProfileContent() {
     const { profile, updateProfile } = useAppStore();
-    const router = useRouter();
+    const { user, loading } = useAuth();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (mounted && !loading && !user) {
+            window.location.href = '/login';
+        }
+    }, [mounted, loading, user]);
 
     // Local state to handle form inputs before saving to global store
     const [formData, setFormData] = useState({
@@ -26,6 +38,8 @@ function ProfileContent() {
             setFormData(prev => ({ ...prev, ...profile }));
         }
     }, [profile]);
+
+    if (loading) return null; // Wait for auth check
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -57,6 +71,19 @@ function ProfileContent() {
             </header>
 
             <div style={{ display: 'grid', gap: '32px' }}>
+                {/* 0. Cloud Sync - ONLY SHOW IF NOT MIGRATED OR FOR MANUAL SYNC */}
+                <div className="card" style={{ background: 'var(--bg-panel)', border: '1px solid var(--accent-primary)', padding: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Sync Local Data</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+                                Push your locally saved jobs to the cloud so you can see them on other devices.
+                            </p>
+                        </div>
+                        <SyncButton />
+                    </div>
+                </div>
+
                 {/* 1. Profile Form */}
                 <div className="card">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
@@ -140,6 +167,44 @@ function ProfileContent() {
                 </div>
             </div>
         </div>
+    );
+}
+
+function SyncButton() {
+    const { user } = useAuth();
+    const { jobs, profile } = useAppStore();
+    const [syncing, setSyncing] = useState(false);
+    const [status, setStatus] = useState('idle'); // idle, success, error
+
+    const handleSync = async () => {
+        if (!user) return;
+        setSyncing(true);
+        setStatus('idle');
+        try {
+            // Dynamically import to avoid server-side issues if any
+            const { syncLocalDataToFirestore } = await import('@/lib/firestore-sync');
+            await syncLocalDataToFirestore(user.uid, jobs, profile);
+            setStatus('success');
+            setTimeout(() => setStatus('idle'), 3000);
+        } catch (err) {
+            console.error(err);
+            setStatus('error');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    if (!user) return null;
+
+    return (
+        <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn-primary"
+            style={{ minWidth: '120px' }}
+        >
+            {syncing ? 'Syncing...' : status === 'success' ? 'Done!' : status === 'error' ? 'Error' : 'Sync Now'}
+        </button>
     );
 }
 

@@ -7,6 +7,10 @@
         "activeTab",
         "scripting"
     ],
+    "host_permissions": [
+        "http://localhost:3000/*",
+        "https://jobhelper-c3cd7.web.app/*"
+    ],
     "action": {
         "default_popup": "popup.html"
     }

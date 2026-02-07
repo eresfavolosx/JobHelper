@@ -1,12 +1,34 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel } from '@/lib/gemini';
 
+// Handle OPTIONS for CORS
+export async function OPTIONS(request) {
+    return new NextResponse(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+    });
+}
+
 export async function POST(req) {
+    // Add CORS headers to response
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
     try {
         const { pageText, pageUrl } = await req.json();
 
         if (!pageText) {
-            return NextResponse.json({ error: 'No page text provided' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'No page text provided' },
+                { status: 400, headers }
+            );
         }
 
         const model = getGeminiModel();
@@ -45,13 +67,13 @@ If you cannot find a field, use an empty string. Do not guess or make up values.
                 jobTitle: '',
                 company: '',
                 error: 'Failed to parse AI response'
-            });
+            }, { headers });
         }
 
         return NextResponse.json({
             jobTitle: parsed.jobTitle || '',
             company: parsed.company || ''
-        });
+        }, { headers });
 
     } catch (error) {
         console.error('AI extraction error:', error);
@@ -59,6 +81,6 @@ If you cannot find a field, use an empty string. Do not guess or make up values.
             jobTitle: '',
             company: '',
             error: error.message
-        }, { status: 500 });
+        }, { status: 500, headers });
     }
 }
