@@ -1,9 +1,8 @@
-const statusSelect = document.getElementById('statusSelect'); // ID was statusSelect in HTML? Let's check HTML.
-// HTML line 47: id="statusSelect"
-// HTML line 54: class="status" id="status" -> this is a div.
-// So the select is statusSelect.
-
+const statusSelect = document.getElementById('statusSelect');
 const saveBtn = document.getElementById('saveBtn');
+
+// Configuration - Use the live Firebase Hosting URL
+const APP_URL = 'https://jobhelper-c3cd7.web.app';
 
 saveBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -27,8 +26,8 @@ saveBtn.addEventListener('click', async () => {
             }
         });
 
-        // Call AI extraction API
-        const response = await fetch('http://localhost:3000/api/extract-job', {
+        // Call AI extraction API on the live server
+        const response = await fetch(`${APP_URL}/api/extract-job`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -41,7 +40,7 @@ saveBtn.addEventListener('click', async () => {
         const status = statusSelect.value;
 
         // Open the app with extracted data
-        const targetUrl = `http://localhost:3000/?action=auto-open&role=${encodeURIComponent(extracted.jobTitle || '')}&company=${encodeURIComponent(extracted.company || '')}&url=${encodeURIComponent(pageData.url)}&status=${status}`;
+        const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(extracted.jobTitle || '')}&company=${encodeURIComponent(extracted.company || '')}&url=${encodeURIComponent(pageData.url)}&status=${status}`;
         chrome.tabs.create({ url: targetUrl });
 
     } catch (error) {
@@ -58,7 +57,7 @@ saveBtn.addEventListener('click', async () => {
             if (results?.[0]?.result) {
                 const data = results[0].result;
                 const status = statusSelect.value;
-                const targetUrl = `http://localhost:3000/?action=auto-open&role=${encodeURIComponent(data.title)}&company=${encodeURIComponent(data.company)}&url=${encodeURIComponent(data.url)}&status=${status}`;
+                const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&company=${encodeURIComponent(data.company)}&url=${encodeURIComponent(data.url)}&status=${status}`;
                 chrome.tabs.create({ url: targetUrl });
             }
         });

@@ -1,35 +1,53 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "@/lib/firebase";
 import { Lock } from "lucide-react";
 
 export default function LoginPage() {
-    alignItems: 'center',
-        justifyContent: 'center',
+    const [error, setError] = useState('');
+    const router = useRouter();
+
+    const handleLogin = async () => {
+        try {
+            await signInWithPopup(auth, googleProvider);
+            router.push('/');
+        } catch (err) {
+            console.error(err);
+            setError(err.message);
+        }
+    };
+
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             minHeight: '100vh',
-                background: 'var(--bg-app)'
-}}>
-    <div className="card" style={{ width: '400px', textAlign: 'center', padding: '40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-            <Briefcase size={48} color="var(--accent-primary)" />
-        </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '8px' }}>JobTracker</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Sign in to manage your applications</p>
+            background: 'var(--bg-app)'
+        }}>
+            <div className="card" style={{ width: '400px', textAlign: 'center', padding: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                    <Lock size={48} color="var(--accent-primary)" />
+                </div>
+                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '8px' }}>JobTracker</h1>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Sign in to manage your applications</p>
 
-        {error && (
-            <div style={{ padding: '10px', background: 'rgba(255, 0, 0, 0.1)', color: '#ff6b6b', borderRadius: '6px', marginBottom: '20px', fontSize: '0.9rem' }}>
-                {error}
+                {error && (
+                    <div style={{ padding: '10px', background: 'rgba(255, 0, 0, 0.1)', color: '#ff6b6b', borderRadius: '6px', marginBottom: '20px', fontSize: '0.9rem' }}>
+                        {error}
+                    </div>
+                )}
+
+                <button
+                    onClick={handleLogin}
+                    className="btn-primary"
+                    style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+                >
+                    Sign in
+                </button>
             </div>
-        )}
-
-        <button
-            onClick={handleLogin}
-            className="btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-        >
-            Sign in with Google
-        </button>
-    </div>
-        </div >
+        </div>
     );
 }

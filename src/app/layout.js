@@ -1,12 +1,15 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
 import DailyReminder from '@/components/DailyReminder';
+import { useAuth } from '@/lib/auth-context';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 
 // Separate component to use useSearchParams safely inside Suspense
@@ -33,57 +36,197 @@ function UrlListener() {
     return null;
 }
 
-export default function RootLayout({ children }) {
-    const { isJobModalOpen, closeJobModal, openNewJobModal, editingJob } = useUIStore();
+import { AuthProvider } from '@/lib/auth-context';
 
+/* ... imports ... */
+
+function AuthenticatedLayout({ children }) {
+    const { user, loading } = useAuth();
+    const { isJobModalOpen, closeJobModal, editingJob } = useUIStore();
+
+    // If loading, AuthProvider shows the spinner, so this won't render
+    // If no user, show only the children (login page) without sidebar
+    if (!user) {
+        return (
+            <main style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+                {children}
+            </main>
+        );
+    }
+
+    // User is authenticated - show full layout
+    return (
+        <>
+            <NavContent />
+            <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+                {children}
+            </main>
+
+            <Suspense fallback={null}>
+                <UrlListener />
+            </Suspense>
+            <DailyReminder />
+            <AddJobModal
+                isOpen={isJobModalOpen}
+                onClose={closeJobModal}
+                initialData={editingJob}
+            />
+        </>
+    );
+}
+
+export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body style={{ display: 'flex', minHeight: '100vh' }}>
-                <nav style={{
-                    width: '250px',
-                    backgroundColor: 'var(--bg-panel)',
-                    borderRight: '1px solid var(--border-subtle)',
-                    padding: '24px',
+                <AuthProvider>
+                    <AuthenticatedLayout>
+                        {children}
+                    </AuthenticatedLayout>
+                </AuthProvider>
+            </body>
+        </html>
+    );
+}
+
+function NavContent() {
+    const { openNewJobModal } = useUIStore();
+    const { user } = useAuth();
+    const router = useRouter();
+
+    const handleSignOut = async () => {
+        try {
+            await signOut(auth);
+            router.push('/login');
+        } catch (error) {
+            console.error('Sign out error:', error);
+        }
+    };
+
+    return (
+        <nav style={{
+            width: '250px',
+            backgroundColor: 'var(--bg-panel)',
+            borderRight: '1px solid var(--border-subtle)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px'
+        }}>
+            <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
+            </h1>
+
+            <button
+                onClick={openNewJobModal}
+                className="btn-primary"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+                <Plus size={18} /> New Job
+            </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Link href="/" style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <LayoutDashboard size={18} /> Dashboard
+                </Link>
+                <Link href="/kanban" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Columns size={18} /> Board
+                </Link>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
+                <Link href="/profile" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <User size={18} /> My Profile
+                </Link>
+                <Link href="/install" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Download size={18} /> Install Extension
+                </Link>
+            </div>
+
+            {/* User Profile & Sign Out Section */}
+            {user && (
+                <div style={{
+                    marginTop: 'auto',
+                    borderTop: '1px solid var(--border-subtle)',
+                    paddingTop: '16px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '20px'
+                    gap: '12px'
                 }}>
-                    <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                        Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
-                    </h1>
-
-                    <button
-                        onClick={openNewJobModal}
-                        className="btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                    >
-                        <Plus size={18} /> New Job
-                    </button>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <Link href="/" style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Dashboard</Link>
-                        <Link href="/kanban" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>Board</Link>
-
-                        <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
-                        <Link href="/profile" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)' }}>My Profile</Link>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '8px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-card)'
+                    }}>
+                        {user.photoURL ? (
+                            <img
+                                src={user.photoURL}
+                                alt="Profile"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '50%',
+                                    objectFit: 'cover'
+                                }}
+                            />
+                        ) : (
+                            <div style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                background: 'var(--accent-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                fontWeight: 'bold'
+                            }}>
+                                {user.email?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                        )}
+                        <div style={{ overflow: 'hidden' }}>
+                            <p style={{
+                                fontSize: '0.85rem',
+                                fontWeight: 'bold',
+                                color: 'var(--text-primary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}>
+                                {user.displayName || 'User'}
+                            </p>
+                            <p style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}>
+                                {user.email}
+                            </p>
+                        </div>
                     </div>
-                </nav>
-
-                <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-                    {children}
-                </main>
-
-                <Suspense fallback={null}>
-                    <UrlListener />
-                </Suspense>
-                <DailyReminder />
-                <AddJobModal
-                    isOpen={isJobModalOpen}
-                    onClose={closeJobModal}
-                    initialData={editingJob}
-                />
-
-            </body>
-        </html >
+                    <button
+                        onClick={handleSignOut}
+                        style={{
+                            padding: '10px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-subtle)',
+                            background: 'transparent',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <LogOut size={16} /> Sign Out
+                    </button>
+                </div>
+            )}
+        </nav>
     );
 }
