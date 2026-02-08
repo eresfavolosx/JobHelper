@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Sparkles } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -189,6 +189,9 @@ function NavContent() {
                     </Link>
                     <Link href="/install" onClick={closeMobileMenu} style={linkStyle('/install')} className="desktop-only">
                         <Download size={18} /> Install Extension
+                    </Link>
+                    <Link href="/privacy" onClick={closeMobileMenu} style={linkStyle('/privacy')}>
+                        <Shield size={18} /> Privacy Policy
                     </Link>
                 </div>
 
