@@ -71,7 +71,18 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </h2>
                     <button
                         onClick={onClose}
-                        style={{ padding: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', transition: 'background 0.2s' }}
+                        style={{
+                            width: '36px',
+                            height: '36px',
+                            minWidth: '36px',
+                            minHeight: '36px',
+                            borderRadius: '50%',
+                            background: 'rgba(255,255,255,0.05)',
+                            transition: 'background 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
                         className="hover:bg-white/10"
                     >
                         <X size={20} color="var(--text-secondary)" />
