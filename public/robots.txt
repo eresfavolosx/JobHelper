@@ -1,0 +1,16 @@
+# robots.txt for JobTracker
+# https://jobhelper-c3cd7.web.app
+
+User-agent: *
+Allow: /
+Allow: /kanban
+Allow: /profile
+Allow: /install
+Allow: /privacy
+Allow: /terms
+
+# Disallow login page from indexing (no value to search engines)
+Disallow: /login
+
+# Sitemap
+Sitemap: https://jobhelper-c3cd7.web.app/sitemap.xml
