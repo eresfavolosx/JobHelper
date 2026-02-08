@@ -24,7 +24,8 @@ export default function LoginPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: '100vh',
+            minHeight: '100dvh',
+            boxSizing: 'border-box', // Ensure padding doesn't add to height
             position: 'relative',
             padding: '20px'
         }}>
