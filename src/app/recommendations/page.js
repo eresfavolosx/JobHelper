@@ -1,0 +1,178 @@
+"use client";
+import { useState, useEffect } from 'react';
+import { useAppStore } from '@/lib/store';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+
+export default function RecommendationsPage() {
+    const { profile } = useAppStore();
+    const addJob = useAppStore((state) => state.addJob);
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const findJobs = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const body = {};
+
+            if (profile?.resumeAnalysis) {
+                // Use resume analysis if available
+                body.keywords = [...(profile.resumeAnalysis.keywords || []), ...(profile.resumeAnalysis.skills || [])].slice(0, 5);
+                body.resumeData = profile.resumeAnalysis;
+            } else {
+                // Fallback to profile manual fields
+                body.keywords = profile.keywords ? profile.keywords.split(',').map(k => k.trim()) : ['remote'];
+                body.resumeData = {
+                    targetRole: profile.targetRole,
+                    experienceLevel: profile.experienceLevel,
+                    skills: profile.keywords ? profile.keywords.split(',') : []
+                };
+            }
+
+            const res = await fetch('/api/find-jobs', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            setJobs(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Auto-fetch on mount if no jobs
+    useEffect(() => {
+        if (jobs.length === 0) {
+            findJobs();
+        }
+    }, []);
+
+    return (
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Sparkles className="text-accent-primary" /> Job Recommendations
+                    </h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        AI-curated matches based on your resume and profile.
+                    </p>
+                </div>
+                <button
+                    onClick={findJobs}
+                    disabled={loading}
+                    className="btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                    <RefreshCw size={18} className={loading ? "spin" : ""} />
+                    Refresh Matches
+                </button>
+            </header>
+
+            {loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', gap: '24px' }}>
+                    <Loader size={48} className="spin" color="var(--accent-primary)" />
+                    <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Scouring the web for your perfect role...</p>
+                </div>
+            ) : error ? (
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--error)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px' }}>
+                    <AlertCircle size={48} style={{ marginBottom: '16px', display: 'inline-block' }} />
+                    <p style={{ fontSize: '1.1rem', marginBottom: '24px' }}>{error}</p>
+                    <button onClick={findJobs} className="btn-primary">Try Again</button>
+                </div>
+            ) : jobs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '64px', color: 'var(--text-secondary)', background: 'var(--bg-card)', borderRadius: '16px' }}>
+                    <p style={{ fontSize: '1.1rem' }}>No matches found yet. Try adjusting your profile keywords or uploading a new resume.</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
+                    {jobs.map((job, i) => (
+                        <div key={i} className="card animate-scale-in" style={{
+                            padding: '24px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '100%',
+                            animationDelay: `${i * 50}ms`
+                        }}>
+                            <div style={{ marginBottom: '16px', flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                    <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', lineHeight: '1.3' }}>{job.title}</h3>
+                                    <span style={{
+                                        background: job.relevanceScore > 80 ? 'rgba(34, 197, 94, 0.2)' : job.relevanceScore > 50 ? 'rgba(234, 179, 8, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                                        color: job.relevanceScore > 80 ? 'var(--success)' : job.relevanceScore > 50 ? 'var(--warning)' : 'var(--text-secondary)',
+                                        padding: '4px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold',
+                                        whiteSpace: 'nowrap', marginLeft: '12px'
+                                    }}>
+                                        {job.relevanceScore}%
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                                    <span>{job.source}</span>
+                                    <span>•</span>
+                                    <span>{new Date(job.pubDate).toLocaleDateString()}</span>
+                                </div>
+
+                                <div style={{
+                                    fontSize: '0.9rem',
+                                    color: 'var(--accent-primary)',
+                                    background: 'rgba(56, 189, 248, 0.05)',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    marginBottom: '16px',
+                                    fontStyle: 'italic'
+                                }}>
+                                    "{job.matchReason}"
+                                </div>
+
+                                <p style={{
+                                    fontSize: '0.95rem',
+                                    lineHeight: '1.6',
+                                    color: 'var(--text-secondary)',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 4,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                }}>
+                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                <a
+                                    href={job.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn-secondary"
+                                    style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                >
+                                    View <ExternalLink size={14} />
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        addJob({
+                                            company: 'Unknown',
+                                            role: job.title,
+                                            url: job.link,
+                                            status: 'wishlist',
+                                            notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
+                                        });
+                                        // Simple alert for feedback - could be improved with toast
+                                        alert('Job added to Wishlist!');
+                                    }}
+                                    className="btn-primary"
+                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                >
+                                    <Plus size={16} /> Add to Board
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

@@ -1,0 +1,54 @@
+{
+	"motd": {
+		"cloudBuildErrorAfter": 1594252800000,
+		"cloudBuildWarnAfter": 1590019200000,
+		"defaultNode10After": 1594252800000,
+		"minVersion": "3.0.5",
+		"node8DeploysDisabledAfter": 1613390400000,
+		"node8RuntimeDisabledAfter": 1615809600000,
+		"node8WarnAfter": 1600128000000,
+		"fetched": 1770507871191
+	},
+	"usage": true,
+	"analytics-uuid": "a32becb4-dab0-46fd-ad08-cdb192934061",
+	"user": {
+		"iss": "accounts.google.com",
+		"azp": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"aud": "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+		"sub": "109717990609606347889",
+		"email": "fabian.velez1996@gmail.com",
+		"email_verified": true,
+		"at_hash": "63sw1Yl6X4qLWLWN-AuN8Q",
+		"iat": 1770325090,
+		"exp": 1770328690
+	},
+	"tokens": {
+		"expires_at": 1770514195172,
+		"refresh_token": "1//05FeW3gwwcXBkCgYIARAAGAUSNwF-L9IrUE0ohfvTjpQRmZ7zxa-gK3IFRR7AWGVhfpJOuSFlvo5ABrE_fzZrubh4BhlKXD5kLkA",
+		"scopes": [],
+		"access_token": "ya29.a0AUMWg_Kgk3sKHFPu2YH4MQzz-Gisn_7JqTxPBzJjauAIKhrQN8li0OkfFRHl_A3rsJhOjRAPgFrZq3cVj7oV_d71RvNayji1wv812ifERVe5TWTlOzNkmVvubq40i5MGsv-v-7AhCq7DBf2JyOQ5q6APJ8-5YR09XI28z4z-2e7aUbxH2jD565VE2xWrEmF3FYeMo3-4So3G0waCgYKAc4SARMSFQHGX2MiaFAN2ghxoGr7WPs5SBBPuA0213",
+		"expires_in": 3599,
+		"scope": "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/cloudplatformprojects.readonly https://www.googleapis.com/auth/firebase openid",
+		"token_type": "Bearer",
+		"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImMyN2JhNDBiMDk1MjlhZDRmMTY4MjJjZTgzMTY3YzFiYzM5MTAxMjIiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhY2NvdW50cy5nb29nbGUuY29tIiwiYXpwIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwiYXVkIjoiNTYzNTg0MzM1ODY5LWZncmhnbWQ0N2JxbmVraWo1aThiNXByMDNobzg0OWU2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTA5NzE3OTkwNjA5NjA2MzQ3ODg5IiwiZW1haWwiOiJmYWJpYW4udmVsZXoxOTk2QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoicWdHX0xMUWp4SXc5b192aGE0V201QSIsImlhdCI6MTc3MDUxMDU5NiwiZXhwIjoxNzcwNTE0MTk2fQ.Jf33G02QtdG0qI3dmogtzPvQ7UcYvXJ-odasrxgA-PtHhjk9Jajw4Cfqct7ibl0ZKlCyi1wwrXQcZtsZ7Di7uu-4qoqxEwcXoCwkfjJ3-vKLAPtOSFWbCSL8EKRrRIql3NGLMhGS_X1-k1kNTYTjJjWTcJkRypc2KXVhnPIHDjd2sn3jbFHjMXIZMHQj0Lqo012LmMfs2t868rr5g4d-7xJFg1hYfXkI3HWFri14sf2fv1lwgmO3zwCY7LlrG00WhemslJH-KUq7Bt1p_jBEitUKTuLYsEP78NFVuF3gxz7OV4jtOhN1UHKOVifIPwQuNJYzwOiUpAJsbQWnCbXeUA"
+	},
+	"mcp": {
+		"clientConfigs": {
+			"antigravity-client:/": {
+				"projectRoot": "/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker"
+			}
+		}
+	},
+	"activeProjects": {
+		"/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker": "jobhelper-c3cd7"
+	},
+	"apiEnablementCache": {
+		"jobhelper-c3cd7": {
+			"cloudresourcemanager.googleapis.com": true
+		}
+	},
+	"previews": {
+		"webframeworks": true
+	},
+	"lastError": 1770512273428
+}
