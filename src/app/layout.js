@@ -193,6 +193,9 @@ function NavContent() {
                     <Link href="/privacy" onClick={closeMobileMenu} style={linkStyle('/privacy')}>
                         <Shield size={18} /> Privacy Policy
                     </Link>
+                    <Link href="/terms" onClick={closeMobileMenu} style={linkStyle('/terms')}>
+                        <Shield size={18} /> Terms of Service
+                    </Link>
                 </div>
 
                 {/* User Profile & Sign Out Section */}
