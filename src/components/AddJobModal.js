@@ -49,15 +49,33 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
     return (
         <div style={{
-            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+            animation: 'fadeIn 0.2s ease-out'
         }}>
-            <div className="card" style={{ width: '500px', maxWidth: '90%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                    <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+            <div
+                className="card animate-scale-in"
+                style={{
+                    width: '500px',
+                    maxWidth: '90%',
+                    background: 'rgba(20, 20, 30, 0.95)', // Much more opaque
+                    backdropFilter: 'blur(24px)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                }}
+            >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '1.4rem', fontWeight: '800', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {(initialData && initialData.id) ? 'Edit Application' : 'Add Application'}
                     </h2>
-                    <button onClick={onClose}><X size={24} color="var(--text-secondary)" /></button>
+                    <button
+                        onClick={onClose}
+                        style={{ padding: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', transition: 'background 0.2s' }}
+                        className="hover:bg-white/10"
+                    >
+                        <X size={20} color="var(--text-secondary)" />
+                    </button>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
