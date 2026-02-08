@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -94,6 +94,11 @@ function NavContent() {
     const { user } = useAuth();
     const router = useRouter();
 
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
     const handleSignOut = async () => {
         try {
             await signOut(auth);
@@ -104,129 +109,166 @@ function NavContent() {
     };
 
     return (
-        <nav style={{
-            width: '250px',
-            backgroundColor: 'var(--bg-panel)',
-            borderRight: '1px solid var(--border-subtle)',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px'
-        }}>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
-            </h1>
-
+        <>
+            {/* Mobile Menu Button */}
             <button
-                onClick={openNewJobModal}
-                className="btn-primary"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                className="mobile-menu-btn"
+                onClick={toggleMobileMenu}
+                aria-label="Toggle menu"
             >
-                <Plus size={18} /> New Job
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <Link href="/" style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <LayoutDashboard size={18} /> Dashboard
-                </Link>
-                <Link href="/kanban" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Columns size={18} /> Board
-                </Link>
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
-                <Link href="/profile" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <User size={18} /> My Profile
-                </Link>
-                <Link href="/install" style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Download size={18} /> Install Extension
-                </Link>
-            </div>
+            {/* Sidebar Overlay */}
+            <div
+                className={`sidebar-overlay ${isMobileMenuOpen ? 'open' : ''}`}
+                onClick={closeMobileMenu}
+            />
 
-            {/* User Profile & Sign Out Section */}
-            {user && (
-                <div style={{
-                    marginTop: 'auto',
-                    borderTop: '1px solid var(--border-subtle)',
-                    paddingTop: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px'
-                }}>
+            {/* FAB for adding jobs (Mobile Only via CSS) */}
+            <button
+                className="fab-btn"
+                onClick={openNewJobModal}
+                aria-label="Add New Job"
+            >
+                <Plus size={24} />
+            </button>
+
+            <nav className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+                <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                    Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
+                </h1>
+
+                <button
+                    onClick={() => {
+                        openNewJobModal();
+                        closeMobileMenu();
+                    }}
+                    className="btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                    <Plus size={18} /> New Job
+                </button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Link
+                        href="/"
+                        onClick={closeMobileMenu}
+                        style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                    >
+                        <LayoutDashboard size={18} /> Dashboard
+                    </Link>
+                    <Link
+                        href="/kanban"
+                        onClick={closeMobileMenu}
+                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                    >
+                        <Columns size={18} /> Board
+                    </Link>
+                    <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
+                    <Link
+                        href="/profile"
+                        onClick={closeMobileMenu}
+                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                    >
+                        <User size={18} /> My Profile
+                    </Link>
+                    <Link
+                        href="/install"
+                        onClick={closeMobileMenu}
+                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                    >
+                        <Download size={18} /> Install Extension
+                    </Link>
+                </div>
+
+                {/* User Profile & Sign Out Section */}
+                {user && (
                     <div style={{
+                        marginTop: 'auto',
+                        borderTop: '1px solid var(--border-subtle)',
+                        paddingTop: '16px',
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '8px',
-                        borderRadius: '8px',
-                        background: 'var(--bg-card)'
+                        flexDirection: 'column',
+                        gap: '12px'
                     }}>
-                        {user.photoURL ? (
-                            <img
-                                src={user.photoURL}
-                                alt="Profile"
-                                style={{
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px',
+                            borderRadius: '8px',
+                            background: 'var(--bg-card)'
+                        }}>
+                            {user.photoURL ? (
+                                <img
+                                    src={user.photoURL}
+                                    alt="Profile"
+                                    style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '50%',
+                                        objectFit: 'cover'
+                                    }}
+                                />
+                            ) : (
+                                <div style={{
                                     width: '36px',
                                     height: '36px',
                                     borderRadius: '50%',
-                                    objectFit: 'cover'
-                                }}
-                            />
-                        ) : (
-                            <div style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '50%',
-                                background: 'var(--accent-primary)',
+                                    background: 'var(--accent-primary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'white',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {user.email?.charAt(0).toUpperCase() || 'U'}
+                                </div>
+                            )}
+                            <div style={{ overflow: 'hidden' }}>
+                                <p style={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold',
+                                    color: 'var(--text-primary)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {user.displayName || 'User'}
+                                </p>
+                                <p style={{
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-secondary)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {user.email}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSignOut}
+                            style={{
+                                padding: '10px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-subtle)',
+                                background: 'transparent',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: 'white',
-                                fontWeight: 'bold'
-                            }}>
-                                {user.email?.charAt(0).toUpperCase() || 'U'}
-                            </div>
-                        )}
-                        <div style={{ overflow: 'hidden' }}>
-                            <p style={{
-                                fontSize: '0.85rem',
-                                fontWeight: 'bold',
-                                color: 'var(--text-primary)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                            }}>
-                                {user.displayName || 'User'}
-                            </p>
-                            <p style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--text-secondary)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                            }}>
-                                {user.email}
-                            </p>
-                        </div>
+                                gap: '8px',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <LogOut size={16} /> Sign Out
+                        </button>
                     </div>
-                    <button
-                        onClick={handleSignOut}
-                        style={{
-                            padding: '10px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border-subtle)',
-                            background: 'transparent',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <LogOut size={16} /> Sign Out
-                    </button>
-                </div>
-            )}
-        </nav>
+                )}
+            </nav>
+        </>
     );
 }
