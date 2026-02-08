@@ -4,6 +4,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import Onboarding from '@/components/Onboarding';
+import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
 export default function Home() {
     const { jobs } = useAppStore();
@@ -36,6 +38,10 @@ export default function Home() {
         offers: jobs.filter(j => j.status === 'offer').length
     };
 
+    if (jobs.length === 0) {
+        return <Onboarding />;
+    }
+
     return (
         <div className="container">
             <header style={{ marginBottom: '32px' }}>
@@ -46,7 +52,7 @@ export default function Home() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                 <div className="card">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <Briefcase size={20} color="var(--accent-primary)" />
+                        <Briefcase size={24} color="var(--accent-primary)" />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Total Applications</h3>
                     </div>
                     <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.total}</p>
@@ -54,7 +60,7 @@ export default function Home() {
 
                 <div className="card">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <Calendar size={20} color="var(--warning)" />
+                        <Calendar size={24} color="var(--warning)" style={{ minWidth: '24px' }} />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Interviews</h3>
                     </div>
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--warning)' }}>{stats.interviewing}</p>
@@ -62,12 +68,14 @@ export default function Home() {
 
                 <div className="card">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <CheckCircle size={20} color="var(--success)" />
+                        <CheckCircle size={24} color="var(--success)" style={{ minWidth: '24px' }} />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Offers</h3>
                     </div>
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
                 </div>
             </div>
+
+            <ApplicationHistoryChart jobs={jobs} />
         </div>
     );
 }

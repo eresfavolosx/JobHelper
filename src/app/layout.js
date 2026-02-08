@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
 import DailyReminder from '@/components/DailyReminder';
 import { useAuth } from '@/lib/auth-context';
@@ -93,8 +93,14 @@ function NavContent() {
     const { openNewJobModal } = useUIStore();
     const { user } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
     const closeMobileMenu = () => setIsMobileMenuOpen(false);
@@ -106,6 +112,21 @@ function NavContent() {
         } catch (error) {
             console.error('Sign out error:', error);
         }
+    };
+
+    // Helper for link styling - only apply after client mount
+    const linkStyle = (href) => {
+        const isActive = mounted && pathname === href;
+        return {
+            padding: '10px',
+            borderRadius: '6px',
+            background: isActive ? 'var(--bg-card)' : 'transparent',
+            color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+            fontWeight: isActive ? 'bold' : 'normal',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+        };
     };
 
     return (
@@ -151,33 +172,17 @@ function NavContent() {
                 </button>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <Link
-                        href="/"
-                        onClick={closeMobileMenu}
-                        style={{ padding: '10px', borderRadius: '6px', background: 'var(--bg-card)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    >
+                    <Link href="/" onClick={closeMobileMenu} style={linkStyle('/')}>
                         <LayoutDashboard size={18} /> Dashboard
                     </Link>
-                    <Link
-                        href="/kanban"
-                        onClick={closeMobileMenu}
-                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    >
+                    <Link href="/kanban" onClick={closeMobileMenu} style={linkStyle('/kanban')}>
                         <Columns size={18} /> Board
                     </Link>
                     <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
-                    <Link
-                        href="/profile"
-                        onClick={closeMobileMenu}
-                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    >
+                    <Link href="/profile" onClick={closeMobileMenu} style={linkStyle('/profile')}>
                         <User size={18} /> My Profile
                     </Link>
-                    <Link
-                        href="/install"
-                        onClick={closeMobileMenu}
-                        style={{ padding: '10px', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    >
+                    <Link href="/install" onClick={closeMobileMenu} style={linkStyle('/install')}>
                         <Download size={18} /> Install Extension
                     </Link>
                 </div>

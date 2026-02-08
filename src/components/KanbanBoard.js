@@ -1,6 +1,6 @@
 "use client";
 import { useAppStore } from '@/lib/store';
-import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useState, useEffect } from 'react';
 import JobCard from './JobCard';
@@ -23,11 +23,15 @@ export default function KanbanBoard() {
     }, []);
 
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 10, // Increased from 5 for less accidental drags
-                delay: 100,   // Small delay before drag starts
-                tolerance: 5  // Allow small movement during delay
+                distance: 5, // Lowered to 5px for snappier feel
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 150, // Lowered to 150ms (quicker engagement)
+                tolerance: 8, // Increased tolerance for shaky fingers
             },
         })
     );
@@ -68,24 +72,26 @@ export default function KanbanBoard() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
-            <div style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '20px', height: 'calc(100vh - 100px)' }}>
-                {COLUMNS.map(column => {
+            <div className="kanban-board">
+                {COLUMNS.map((column, index) => {
                     const columnJobs = jobs.filter(j => j.status === column.id);
 
                     return (
-                        <div key={column.id} style={{ minWidth: '300px', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-                            <h3 style={{ marginBottom: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div
+                            key={column.id}
+                            className="glass-panel kanban-column animate-scale-in"
+                            style={{
+                                padding: '20px',
+                                animationDelay: `${index * 100}ms`
+                            }}
+                        >
+                            <h3 style={{ marginBottom: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
                                 {column.title}
-                                <span style={{ fontSize: '0.8rem', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '10px' }}>{columnJobs.length}</span>
+                                <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>{columnJobs.length}</span>
                             </h3>
 
                             <SortableContext items={columnJobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '100px' }} id={column.id}> {/* id matches status for drop target */}
-                                    {/* Droppable area logic handled via SortableContext + DndContext detecting collision with this ID if empty, or items otherwise */}
-                                    {/* Actually dnd-kit needs a UseDroppable for the Empty column case. 
-                       Wait, SortableContext handles items. If list is empty, we need a Droppable on the column.
-                       Or we can just rely on collision detection returning the column ID if we make the container droppable.
-                   */}
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
                                     <ColumnDroppable id={column.id}>
                                         {columnJobs.map(job => (
                                             <JobCard key={job.id} job={job} />

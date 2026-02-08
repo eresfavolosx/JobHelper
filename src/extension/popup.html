@@ -3,55 +3,172 @@
 
 <head>
   <style>
+    /* Liquid Glass Palette Injection */
+    :root {
+      --bg-app: #0f172a;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --accent-primary: #0ea5e9;
+      --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+      --glass-panel: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
+    }
+
     body {
-      width: 250px;
-      padding: 15px;
-      font-family: sans-serif;
+      width: 340px;
+      padding: 0;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background: #0f172a;
-      color: white;
+      /* Fallback */
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* Aurora Background */
+    .background-aurora {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.15), transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.15), transparent 50%);
+      z-index: -1;
+    }
+
+    .container {
+      padding: 20px;
+      position: relative;
     }
 
     h2 {
-      font-size: 16px;
-      margin-top: 0;
-      color: #38bdf8;
+      margin: 0 0 20px 0;
+      font-size: 20px;
+      font-weight: 800;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--accent-primary);
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .card {
+      background: var(--glass-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
     }
 
     button {
       width: 100%;
-      padding: 10px;
-      background: linear-gradient(135deg, #38bdf8, #818cf8);
-      border: none;
+      padding: 12px;
+      background: var(--accent-gradient);
       color: white;
-      border-radius: 6px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
       cursor: pointer;
-      font-weight: bold;
+      font-size: 14px;
+      transition: transform 0.1s, opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
     }
 
     button:hover {
-      opacity: 0.9;
+      box-shadow: 0 6px 16px rgba(14, 165, 233, 0.5);
+      transform: translateY(-1px);
     }
 
-    .status {
-      margin-top: 10px;
-      font-size: 12px;
-      color: #94a3b8;
-      text-align: center;
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .key-input-wrapper {
+      display: flex;
+      gap: 8px;
+    }
+
+    #toggleKeyBtn {
+      width: auto;
+      padding: 0 12px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+      border: 1px solid var(--glass-border);
+      font-size: 11px;
+    }
+
+    a {
+      color: var(--accent-primary);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 
 <body>
-  <h2>Job Tracker</h2>
-  <div style="margin-bottom: 10px;">
-    <select id="statusSelect"
-      style="width:100%; padding:8px; border-radius:6px; background:#1e293b; color:white; border:1px solid #334155;">
-      <option value="wishlist">Bookmark (For later)</option>
-      <option value="applied">Applied (I just applied)</option>
-    </select>
-  </div>
-  <button id="saveBtn">Save this Job +</button>
+  <div class="background-aurora"></div>
+  <div class="container">
+    <h2>🚀 Save to JobTracker</h2>
 
+    <div class="card" id="apiKeyContainer">
+      <label for="apiKeyInput">Gemini API Key</label>
+      <div class="key-input-wrapper">
+        <input type="password" id="apiKeyInput" placeholder="Paste key..." />
+        <button id="toggleKeyBtn">Show</button>
+      </div>
+      <p style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 16px;">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener"
+          style="color: var(--accent-primary);">Get your free API key</a>
+      </p>
+    </div>
+
+    <div class="form-group" style="margin-bottom: 20px;">
+      <label for="statusSelect">Initial Status</label>
+      <select id="statusSelect">
+        <option value="wishlist">Saved / Wishlist</option>
+        <option value="applied">Applied</option>
+        <option value="interviewing">Interviewing</option>
+        <option value="offer">Offer</option>
+      </select>
+    </div>
+
+    <button id="saveBtn">✨ Auto-Fill with AI</button>
+  </div>
   <script src="popup.js"></script>
 </body>
 

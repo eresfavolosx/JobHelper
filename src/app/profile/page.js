@@ -59,10 +59,10 @@ function ProfileContent() {
 
     return (
         <div className="container" style={{ maxWidth: '800px', paddingBottom: '100px' }}>
-            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <header className="animate-slide-up" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h2 style={{ fontSize: '2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <User size={32} /> Your Profile
+                        <User size={32} color="var(--accent-primary)" /> Your Profile
                     </h2>
                     <p style={{ color: 'var(--text-secondary)' }}>
                         Manage your personal details and preferences.
@@ -72,7 +72,7 @@ function ProfileContent() {
 
             <div style={{ display: 'grid', gap: '32px' }}>
                 {/* 0. Cloud Sync - ONLY SHOW IF NOT MIGRATED OR FOR MANUAL SYNC */}
-                <div className="card" style={{ background: 'var(--bg-panel)', border: '1px solid var(--accent-primary)', padding: '24px' }}>
+                <div className="card animate-slide-up delay-100" style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Sync Local Data</h3>
@@ -85,64 +85,59 @@ function ProfileContent() {
                 </div>
 
                 {/* 1. Profile Form */}
-                <div className="card">
+                <div className="card animate-slide-up delay-200">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontWeight: 'bold' }}>Full Name</label>
+                            <label style={{ fontWeight: '600' }}>Full Name</label>
                             <input
                                 name="fullName"
                                 value={formData.fullName}
                                 onChange={handleChange}
                                 placeholder="e.g. Jane Doe"
-                                style={{ padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>Job Title</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
                                 <input
                                     name="targetRole"
                                     value={formData.targetRole}
                                     onChange={handleChange}
-                                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>Keywords</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
                                 <input
                                     name="keywords"
                                     value={formData.keywords}
                                     onChange={handleChange}
-                                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 />
                             </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>Target Location</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location</label>
                                 <input
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
-                                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>Experience Level</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
                                 <select
                                     name="experienceLevel"
                                     value={formData.experienceLevel}
                                     onChange={handleChange}
-                                    style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 >
-                                    <option>Intern / Junior</option>
-                                    <option>Mid-Level</option>
-                                    <option>Senior</option>
-                                    <option>Lead / Manager</option>
-                                    <option>Executive</option>
+                                    <option style={{ background: 'var(--bg-panel)' }}>Intern / Junior</option>
+                                    <option style={{ background: 'var(--bg-panel)' }}>Mid-Level</option>
+                                    <option style={{ background: 'var(--bg-panel)' }}>Senior</option>
+                                    <option style={{ background: 'var(--bg-panel)' }}>Lead / Manager</option>
+                                    <option style={{ background: 'var(--bg-panel)' }}>Executive</option>
                                 </select>
                             </div>
                         </div>
@@ -154,14 +149,14 @@ function ProfileContent() {
                                     name="isRemote"
                                     checked={formData.isRemote}
                                     onChange={handleChange}
-                                    style={{ transform: 'scale(1.2)' }}
+                                    style={{ width: '20px', height: '20px' }}
                                 />
                                 <span>I am interested in Remote / Hybrid roles</span>
                             </label>
                         </div>
 
                         <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
-                            {saved ? 'Saved!' : 'Save Preferences'}
+                            {saved ? 'Changes Saved!' : 'Save Preferences'}
                         </button>
                     </form>
                 </div>
@@ -201,7 +196,10 @@ function SyncButton() {
             onClick={handleSync}
             disabled={syncing}
             className="btn-primary"
-            style={{ minWidth: '120px' }}
+            style={{
+                minWidth: '120px',
+                background: status === 'error' ? 'var(--error)' : status === 'success' ? 'var(--success)' : undefined
+            }}
         >
             {syncing ? 'Syncing...' : status === 'success' ? 'Done!' : status === 'error' ? 'Error' : 'Sync Now'}
         </button>
