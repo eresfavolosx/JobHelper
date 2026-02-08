@@ -1,10 +1,21 @@
 "use client";
 import Link from 'next/link';
-import { Download, Plus, LayoutDashboard } from 'lucide-react';
+import { Download, Plus, LayoutDashboard, Monitor } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
+import { useState, useEffect } from 'react';
 
 export default function Onboarding() {
     const { openNewJobModal } = useUIStore();
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     return (
         <div className="container" style={{ maxWidth: '800px', marginTop: '40px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}>
@@ -18,42 +29,65 @@ export default function Onboarding() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-                {/* Option 1: Extension */}
+                {/* Option 1: Manual (now first) */}
                 <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s', border: '2px solid var(--accent-primary)' }}
                     onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    onClick={openNewJobModal}
                 >
                     <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-                        <Download size={32} color="var(--accent-primary)" />
-                    </div>
-                    <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>Use the Extension</h3>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
-                        Automatically capture jobs from LinkedIn, Indeed, and more with one click.
-                    </p>
-                    <Link href="/install" className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                        <Download size={18} /> Install Extension
-                    </Link>
-                </div>
-
-                {/* Option 2: Manual */}
-                <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-                        <Plus size={32} color="var(--text-primary)" />
+                        <Plus size={32} color="var(--accent-primary)" />
                     </div>
                     <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>Add Manually</h3>
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
                         Have a job link ready? Add it directly to your dashboard.
                     </p>
                     <button
-                        onClick={openNewJobModal}
+                        onClick={(e) => { e.stopPropagation(); openNewJobModal(); }}
                         className="btn-primary"
-                        style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}
+                        style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                     >
-                        <Plus size={18} /> Add Job
+                        <Plus size={18} /> Add Your First Job
                     </button>
+                </div>
+
+                {/* Option 2: Extension (now second, with mobile-specific content) */}
+                <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: isMobile ? 'default' : 'pointer', transition: 'transform 0.2s', opacity: isMobile ? 0.8 : 1 }}
+                    onMouseOver={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-5px)')}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+                        {isMobile ? <Monitor size={32} color="var(--text-secondary)" /> : <Download size={32} color="var(--text-primary)" />}
+                    </div>
+                    <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
+                        {isMobile ? 'Browser Extension' : 'Use the Extension'}
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
+                        {isMobile
+                            ? 'Our Chrome extension lets you save jobs with one click. Visit this page on your desktop to install it.'
+                            : 'Automatically capture jobs from LinkedIn, Indeed, and more with one click.'
+                        }
+                    </p>
+                    {isMobile ? (
+                        <div style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            borderRadius: '12px',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.9rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            justifyContent: 'center'
+                        }}>
+                            <Monitor size={16} /> Desktop Only
+                        </div>
+                    ) : (
+                        <Link href="/install" className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
+                            <Download size={18} /> Install Extension
+                        </Link>
+                    )}
                 </div>
             </div>
 
