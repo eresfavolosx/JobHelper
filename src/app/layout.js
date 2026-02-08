@@ -185,7 +185,7 @@ function NavContent() {
                     <Link href="/profile" onClick={closeMobileMenu} style={linkStyle('/profile')}>
                         <User size={18} /> My Profile
                     </Link>
-                    <Link href="/install" onClick={closeMobileMenu} style={linkStyle('/install')}>
+                    <Link href="/install" onClick={closeMobileMenu} style={linkStyle('/install')} className="desktop-only">
                         <Download size={18} /> Install Extension
                     </Link>
                 </div>
