@@ -2,6 +2,9 @@
   "name": "job-tracker",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "18"
+  },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -22,8 +25,5 @@
     "firebase-functions": "^6.0.1",
     "firebase-admin": "^11.11.1"
   },
-  "main": "server.js",
-  "engines": {
-    "node": "20"
-  }
+  "main": "server.js"
 }
