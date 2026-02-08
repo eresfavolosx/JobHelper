@@ -1,0 +1,37 @@
+# llms.txt - Information for AI/LLM crawlers
+# https://jobhelper-c3cd7.web.app
+
+# About
+JobTracker is a personal job application tracking tool that helps job seekers
+organize and manage their job search process.
+
+# Features
+- Kanban board for tracking job applications across stages (Wishlist, Applied, Interview, Offer, Rejected)
+- Chrome extension for one-click job saving from LinkedIn, Indeed, and other job boards
+- AI-powered job extraction using Google Gemini API
+- Google Sign-In authentication
+- Cloud sync across devices
+- Mobile-optimized experience
+- GDPR-compliant data management (export, delete account)
+
+# Pages
+/           - Dashboard with job statistics and quick actions
+/kanban     - Kanban board view for managing job applications
+/profile    - User profile and preferences
+/install    - Chrome extension installation instructions
+/privacy    - Privacy Policy (GDPR compliant)
+/terms      - Terms of Service
+
+# Technology Stack
+- Next.js 16 (React 19)
+- Firebase Authentication & Firestore
+- Zustand for state management
+- Chrome Extension (Manifest V3)
+- Google Gemini API for AI features
+
+# Contact
+privacy@jobtracker.app
+legal@jobtracker.app
+
+# License
+Proprietary - All rights reserved
