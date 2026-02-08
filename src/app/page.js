@@ -50,7 +50,13 @@ export default function Home() {
             </header>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                <div className="card">
+                <div
+                    className="card"
+                    onClick={() => router.push('/kanban')}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Briefcase size={24} color="var(--accent-primary)" />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Total Applications</h3>
@@ -58,7 +64,13 @@ export default function Home() {
                     <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.total}</p>
                 </div>
 
-                <div className="card">
+                <div
+                    className="card"
+                    onClick={() => router.push('/kanban#interviewing')}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Calendar size={24} color="var(--warning)" style={{ minWidth: '24px' }} />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Interviews</h3>
@@ -66,7 +78,13 @@ export default function Home() {
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--warning)' }}>{stats.interviewing}</p>
                 </div>
 
-                <div className="card">
+                <div
+                    className="card"
+                    onClick={() => router.push('/kanban#offer')}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <CheckCircle size={24} color="var(--success)" style={{ minWidth: '24px' }} />
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Offers</h3>
