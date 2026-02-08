@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
 import DailyReminder from '@/components/DailyReminder';
+import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -66,6 +67,7 @@ function AuthenticatedLayout({ children }) {
                 <UrlListener />
             </Suspense>
             <DailyReminder />
+            <UndoToast />
             <AddJobModal
                 isOpen={isJobModalOpen}
                 onClose={closeJobModal}
