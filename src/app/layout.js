@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Sparkles } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -177,6 +177,9 @@ function NavContent() {
                     </Link>
                     <Link href="/kanban" onClick={closeMobileMenu} style={linkStyle('/kanban')}>
                         <Columns size={18} /> Board
+                    </Link>
+                    <Link href="/recommendations" onClick={closeMobileMenu} style={linkStyle('/recommendations')}>
+                        <Sparkles size={18} /> Recommendations
                     </Link>
                     <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
                     <Link href="/profile" onClick={closeMobileMenu} style={linkStyle('/profile')}>

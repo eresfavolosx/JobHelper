@@ -107,7 +107,8 @@ export const useAppStore = create(
                 keywords: '',
                 isRemote: false,
                 experienceLevel: 'Mid-Senior',
-                contextDocuments: [] // { name, content, type }
+                contextDocuments: [], // { name, content, type }
+                resumeAnalysis: null // { skills, summary, targetRoles, etc }
             },
             updateProfile: (newProfile) => set((state) => ({
                 profile: { ...state.profile, ...newProfile }
