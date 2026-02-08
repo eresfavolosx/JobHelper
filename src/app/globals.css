@@ -215,10 +215,12 @@ button {
       position: fixed;
       top: 0;
       left: 0;
-      height: 100vh;
+      height: 100dvh;
       transform: translateX(-100%);
-      background: rgba(15, 23, 42, 0.85);
-      /* Slightly darker for legibility on mobile */
+      background: rgba(15, 23, 42, 0.95);
+      overflow-y: auto;
+      padding-bottom: 40px;
+      /* Ensure sign-out button is visible */
     }
 
     .sidebar.open {
@@ -242,6 +244,10 @@ button {
 
     .sidebar {
       padding-top: 80px;
+    }
+
+    .desktop-only {
+      display: none !important;
     }
   }
 

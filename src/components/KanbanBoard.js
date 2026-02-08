@@ -22,6 +22,22 @@ export default function KanbanBoard() {
         setMounted(true);
     }, []);
 
+    // Scroll to column based on URL hash
+    useEffect(() => {
+        if (mounted && typeof window !== 'undefined') {
+            const hash = window.location.hash.replace('#', '');
+            if (hash) {
+                // Small delay to ensure DOM is ready
+                setTimeout(() => {
+                    const element = document.getElementById(hash);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            }
+        }
+    }, [mounted]);
+
     const sensors = useSensors(
         useSensor(MouseSensor, {
             activationConstraint: {

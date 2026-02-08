@@ -1,7 +1,35 @@
 "use client";
-import { Download } from "lucide-react";
+import { Download, Monitor } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function InstallPage() {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        // Check if device is mobile
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    if (isMobile) {
+        return (
+            <div className="container" style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center', paddingTop: '60px' }}>
+                <div className="card" style={{ padding: '48px 32px' }}>
+                    <Monitor size={64} color="var(--accent-primary)" style={{ marginBottom: '24px' }} />
+                    <h1 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '16px' }}>Desktop Only</h1>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                        The Job Tracker browser extension is only available for desktop browsers like Chrome.
+                        Please visit this page on your computer to download and install the extension.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="container" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <header className="animate-slide-up" style={{ marginBottom: '40px', textAlign: 'center' }}>
