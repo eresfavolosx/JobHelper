@@ -77,3 +77,28 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
     console.log("Sync complete!");
     return { success: true, jobCount: jobs?.length || 0 };
 }
+
+/**
+ * Deletes all user data from Firestore (for account deletion - GDPR compliance)
+ */
+export async function deleteAllUserData(userId) {
+    if (!userId) throw new Error("User ID is required for deletion");
+
+    const app = getFirebaseApp();
+    const db = getFirestore(app);
+
+    const { collection, getDocs, deleteDoc } = await import("firebase/firestore");
+
+    // Delete all jobs
+    const jobsRef = collection(db, "users", userId, "jobs");
+    const jobsSnapshot = await getDocs(jobsRef);
+    const deletePromises = jobsSnapshot.docs.map(d => deleteDoc(d.ref));
+
+    // Delete profile
+    const profileRef = doc(db, "users", userId, "data", "profile");
+    deletePromises.push(deleteDoc(profileRef));
+
+    await Promise.all(deletePromises);
+    console.log("All user data deleted for:", userId);
+    return { success: true };
+}

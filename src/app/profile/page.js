@@ -181,8 +181,147 @@ function ProfileContent() {
                         </button>
                     </form>
                 </div>
+                {/* 2. Data Management */}
+                <div className="card animate-slide-up delay-300">
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Data Management</h3>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                        Export your data or delete your account. These actions help you stay in control of your information.
+                    </p>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        <ExportDataButton />
+                        <DeleteAccountButton />
+                    </div>
+                </div>
             </div>
         </div>
+    );
+}
+
+function ExportDataButton() {
+    const { jobs, profile } = useAppStore();
+    const { user } = useAuth();
+
+    const handleExport = () => {
+        const exportData = {
+            exportDate: new Date().toISOString(),
+            user: user ? { email: user.email, displayName: user.displayName } : null,
+            profile,
+            jobs,
+            totalJobs: jobs.length
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `jobtracker-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    return (
+        <button
+            onClick={handleExport}
+            style={{
+                padding: '12px 20px',
+                borderRadius: '12px',
+                background: 'var(--bg-panel)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+            }}
+        >
+            📦 Export My Data
+        </button>
+    );
+}
+
+function DeleteAccountButton() {
+    const { user } = useAuth();
+    const [confirming, setConfirming] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!user) return;
+
+        setDeleting(true);
+        try {
+            // Delete Firestore data
+            const { deleteAllUserData } = await import('@/lib/firestore-sync');
+            await deleteAllUserData(user.uid);
+
+            // Delete Firebase auth account
+            await user.delete();
+
+            // Clear local storage
+            localStorage.clear();
+
+            // Redirect to login
+            window.location.href = '/login';
+        } catch (err) {
+            console.error('Delete account error:', err);
+            alert('Failed to delete account. You may need to re-authenticate first.');
+            setDeleting(false);
+        }
+    };
+
+    if (confirming) {
+        return (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Are you sure?</span>
+                <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    style={{
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        background: 'var(--error)',
+                        color: 'white',
+                        border: 'none',
+                        cursor: deleting ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    {deleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+                <button
+                    onClick={() => setConfirming(false)}
+                    style={{
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-panel)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-subtle)',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Cancel
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <button
+            onClick={() => setConfirming(true)}
+            style={{
+                padding: '12px 20px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: 'var(--error)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+            }}
+        >
+            🗑️ Delete Account
+        </button>
     );
 }
 
