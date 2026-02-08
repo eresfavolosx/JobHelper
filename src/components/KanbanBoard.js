@@ -11,6 +11,7 @@ const COLUMNS = [
     { id: 'interviewing', title: 'Interviewing' },
     { id: 'offer', title: 'Offer' },
     { id: 'rejected', title: 'Rejected' },
+    { id: 'deleted', title: 'Deleted', isTrash: true },
 ];
 
 export default function KanbanBoard() {
