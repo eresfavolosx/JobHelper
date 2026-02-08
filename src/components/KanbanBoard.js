@@ -30,8 +30,8 @@ export default function KanbanBoard() {
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 150, // Lowered to 150ms (quicker engagement)
-                tolerance: 8, // Increased tolerance for shaky fingers
+                delay: 250, // Increased to 250ms to distinguish from scroll
+                tolerance: 5, // Reduced tolerance to avoid accidental drags
             },
         })
     );

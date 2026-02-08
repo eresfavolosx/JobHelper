@@ -7,7 +7,7 @@ export default function Onboarding() {
     const { openNewJobModal } = useUIStore();
 
     return (
-        <div className="container" style={{ maxWidth: '800px', marginTop: '40px' }}>
+        <div className="container" style={{ maxWidth: '800px', marginTop: '40px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}>
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '16px' }}>
                     Welcome to Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>

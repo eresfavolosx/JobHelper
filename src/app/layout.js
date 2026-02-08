@@ -58,7 +58,7 @@ function AuthenticatedLayout({ children }) {
     return (
         <>
             <NavContent />
-            <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+            <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
                 {children}
             </main>
 

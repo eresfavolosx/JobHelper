@@ -12,6 +12,7 @@ import {
     Area
 } from 'recharts';
 import { format, parseISO, startOfDay, eachDayOfInterval, subDays } from 'date-fns';
+import { safeDate } from '@/lib/utils';
 
 export default function ApplicationHistoryChart({ jobs }) {
     const data = useMemo(() => {
@@ -19,13 +20,13 @@ export default function ApplicationHistoryChart({ jobs }) {
 
         // 1. Sort jobs by dateAdded
         const sortedJobs = [...jobs].sort((a, b) => {
-            const dateA = new Date(a.dateAdded || a.createdAt || new Date());
-            const dateB = new Date(b.dateAdded || b.createdAt || new Date());
+            const dateA = safeDate(a.dateAdded || a.createdAt);
+            const dateB = safeDate(b.dateAdded || b.createdAt);
             return dateA - dateB;
         });
 
         // 2. Get date range (from first job to today)
-        const firstJobDate = new Date(sortedJobs[0].dateAdded || sortedJobs[0].createdAt || new Date());
+        const firstJobDate = safeDate(sortedJobs[0].dateAdded || sortedJobs[0].createdAt);
         const today = new Date();
         // Ensure we show at least the last 7 days if only 1 job
         const startDate = subDays(today, 7) < firstJobDate ? subDays(today, 7) : firstJobDate;
@@ -43,7 +44,7 @@ export default function ApplicationHistoryChart({ jobs }) {
             // Add jobs that happened on or before this day
             while (
                 jobIndex < sortedJobs.length &&
-                new Date(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt || new Date()) < day
+                safeDate(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt) < day
             ) {
                 cumulativeCount++;
                 jobIndex++;
@@ -52,7 +53,7 @@ export default function ApplicationHistoryChart({ jobs }) {
             // Handle jobs added exactly on this day (simplified)
             // Re-check current index for exact match if needed, but < day logic holds for cumulative
             // Actually, let's just count how many jobs satisfy date <= end of this day
-            const count = sortedJobs.filter(j => new Date(j.dateAdded || j.createdAt || new Date()) <= new Date(day.setHours(23, 59, 59))).length;
+            const count = sortedJobs.filter(j => safeDate(j.dateAdded || j.createdAt) <= new Date(day.setHours(23, 59, 59))).length;
 
             return {
                 date: format(day, 'MMM d'),
