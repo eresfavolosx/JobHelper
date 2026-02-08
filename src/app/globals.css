@@ -157,6 +157,22 @@ button {
     transform: translateY(-2px);
   }
 
+  /* Group hover pattern for showing edit/delete buttons */
+  .group:hover .group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+
+  /* Interactive card (Kanban cards) */
+  .interactive-card {
+    padding: 16px;
+    touch-action: none;
+  }
+
+  .interactive-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
   /* Mobile Responsiveness */
   .sidebar {
     width: 280px;

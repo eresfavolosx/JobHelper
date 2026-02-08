@@ -93,6 +93,23 @@ export const useAppStore = create(
                 jobs: state.jobs.map((job) => (job.id === id ? { ...job, ...updates } : job))
             })),
             deleteJob: (id) => set((state) => ({
+                // Soft delete - move to deleted status instead of removing
+                jobs: state.jobs.map((job) =>
+                    job.id === id
+                        ? { ...job, status: 'deleted', deletedAt: new Date().toISOString(), previousStatus: job.status }
+                        : job
+                )
+            })),
+            restoreJob: (id) => set((state) => ({
+                // Restore from deleted - move back to previous status
+                jobs: state.jobs.map((job) =>
+                    job.id === id
+                        ? { ...job, status: job.previousStatus || 'wishlist', deletedAt: null, previousStatus: null }
+                        : job
+                )
+            })),
+            permanentDeleteJob: (id) => set((state) => ({
+                // Permanently remove job
                 jobs: state.jobs.filter((job) => job.id !== id)
             })),
             moveJob: (id, newStatus) => set((state) => ({
