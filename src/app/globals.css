@@ -266,6 +266,11 @@ button {
     .desktop-only {
       display: none !important;
     }
+
+    /* Make hover buttons always visible on mobile */
+    .group-hover\:opacity-100 {
+      opacity: 1 !important;
+    }
   }
 
   /* Floating Action Button */
