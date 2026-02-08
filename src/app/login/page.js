@@ -1,21 +1,66 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
-import { Lock } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
     const [error, setError] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [isSignUp, setIsSignUp] = useState(false);
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    const handleLogin = async () => {
+    const handleGoogleLogin = async () => {
         try {
+            setError('');
             await signInWithPopup(auth, googleProvider);
             router.push('/');
         } catch (err) {
             console.error(err);
             setError(err.message);
+        }
+    };
+
+    const handleEmailAuth = async (e) => {
+        e.preventDefault();
+        if (!email || !password) {
+            setError('Please enter email and password');
+            return;
+        }
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            if (isSignUp) {
+                await createUserWithEmailAndPassword(auth, email, password);
+            } else {
+                await signInWithEmailAndPassword(auth, email, password);
+            }
+            router.push('/');
+        } catch (err) {
+            console.error(err);
+            if (err.code === 'auth/user-not-found') {
+                setError('No account found. Try signing up instead.');
+            } else if (err.code === 'auth/wrong-password') {
+                setError('Incorrect password. Please try again.');
+            } else if (err.code === 'auth/email-already-in-use') {
+                setError('Email already in use. Try signing in instead.');
+            } else if (err.code === 'auth/invalid-email') {
+                setError('Invalid email address.');
+            } else {
+                setError(err.message);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -35,8 +80,8 @@ export default function LoginPage() {
                     width: '100%',
                     maxWidth: '420px',
                     textAlign: 'center',
-                    padding: '48px 40px',
-                    backdropFilter: 'blur(40px)', // Extra blur for focus
+                    padding: '40px 36px',
+                    backdropFilter: 'blur(40px)',
                     background: 'rgba(25, 25, 35, 0.6)'
                 }}
             >
@@ -45,47 +90,150 @@ export default function LoginPage() {
                     style={{
                         display: 'flex',
                         justifyContent: 'center',
-                        marginBottom: '24px',
                         background: 'rgba(255,255,255,0.05)',
-                        width: '80px',
-                        height: '80px',
+                        width: '70px',
+                        height: '70px',
                         borderRadius: '50%',
                         alignItems: 'center',
-                        margin: '0 auto 24px auto'
+                        margin: '0 auto 20px auto'
                     }}
                 >
-                    <Lock size={40} color="var(--accent-primary)" />
+                    <Lock size={35} color="var(--accent-primary)" />
                 </div>
 
-                <h1 className="animate-slide-up delay-100" style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '8px', letterSpacing: '-0.5px' }}>
+                <h1 className="animate-slide-up delay-100" style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '6px', letterSpacing: '-0.5px' }}>
                     JobTracker
                 </h1>
 
-                <p className="animate-slide-up delay-200" style={{ color: 'var(--text-secondary)', marginBottom: '40px', fontSize: '1.1rem' }}>
+                <p className="animate-slide-up delay-200" style={{ color: 'var(--text-secondary)', marginBottom: '28px', fontSize: '1rem' }}>
                     Your personal career command center.
                 </p>
 
                 {error && (
-                    <div className="animate-fade-in" style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', borderRadius: '12px', marginBottom: '24px', fontSize: '0.9rem', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <div className="animate-fade-in" style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', borderRadius: '12px', marginBottom: '20px', fontSize: '0.85rem', border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'left' }}>
                         {error}
                     </div>
                 )}
 
+                {/* Email/Password Form */}
+                <form onSubmit={handleEmailAuth} className="animate-slide-up delay-300" style={{ marginBottom: '20px' }}>
+                    <div style={{ marginBottom: '12px' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '14px 14px 14px 44px',
+                                    borderRadius: '12px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-app)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '1rem'
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <div style={{ marginBottom: '16px' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '14px 44px 14px 44px',
+                                    borderRadius: '12px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-app)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '1rem'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '14px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px'
+                                }}
+                            >
+                                {showPassword ? <EyeOff size={18} color="var(--text-secondary)" /> : <Eye size={18} color="var(--text-secondary)" />}
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="btn-primary"
+                        style={{
+                            width: '100%',
+                            justifyContent: 'center',
+                            padding: '14px',
+                            fontSize: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            opacity: loading ? 0.7 : 1
+                        }}
+                    >
+                        <Mail size={18} />
+                        {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                    </button>
+                </form>
+
                 <button
-                    onClick={handleLogin}
-                    className="btn-primary animate-slide-up delay-300"
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        marginBottom: '20px'
+                    }}
+                >
+                    {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>or</span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+                </div>
+
+                <button
+                    onClick={handleGoogleLogin}
+                    className="animate-slide-up delay-400"
                     style={{
                         width: '100%',
                         justifyContent: 'center',
-                        padding: '16px',
-                        fontSize: '1.1rem',
+                        padding: '14px',
+                        fontSize: '1rem',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '12px'
+                        gap: '10px',
+                        background: 'var(--bg-panel)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '12px',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
                     }}
                 >
-                    <img src="https://www.google.com/favicon.ico" alt="G" style={{ width: '20px', height: '20px', filter: 'brightness(0) invert(1)' }} />
-                    Sign in with Google
+                    <img src="https://www.google.com/favicon.ico" alt="G" style={{ width: '18px', height: '18px' }} />
+                    Continue with Google
                 </button>
             </div>
         </div>
