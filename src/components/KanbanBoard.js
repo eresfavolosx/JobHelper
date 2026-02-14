@@ -1,8 +1,8 @@
 "use client";
 import { useAppStore } from '@/lib/store';
 import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState, useEffect } from 'react';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState, useEffect, useMemo } from 'react';
 import JobCard from './JobCard';
 
 const COLUMNS = [
@@ -20,6 +20,7 @@ export default function KanbanBoard() {
     const [activeId, setActiveId] = useState(null);
 
     useEffect(() => {
+        // eslint-disable-next-line
         setMounted(true);
     }, []);
 
@@ -52,6 +53,17 @@ export default function KanbanBoard() {
             },
         })
     );
+
+    const columnsData = useMemo(() => {
+        const data = {};
+        COLUMNS.forEach(c => data[c.id] = []);
+        jobs.forEach(j => {
+            if (data[j.status]) {
+                data[j.status].push(j);
+            }
+        });
+        return data;
+    }, [jobs]);
 
     if (!mounted) return null;
 
@@ -91,7 +103,7 @@ export default function KanbanBoard() {
         >
             <div className="kanban-board">
                 {COLUMNS.map((column, index) => {
-                    const columnJobs = jobs.filter(j => j.status === column.id);
+                    const columnJobs = columnsData[column.id] || [];
 
                     return (
                         <div
