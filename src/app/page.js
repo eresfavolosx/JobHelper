@@ -8,7 +8,7 @@ import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
 export default function Home() {
-    const { jobs } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
     const { user, loading } = useAuth();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
@@ -24,12 +24,31 @@ export default function Home() {
     // Separate effect for auth redirect - only runs once when auth state is settled
     useEffect(() => {
         if (!loading && !user && mounted) {
-            // Use window.location for static export compatibility
-            window.location.href = '/login';
+            router.push('/login');
         }
-    }, [loading, user, mounted]);
+    }, [loading, user, mounted, router]);
 
-    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
+    if (!mounted || loading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
+                <div style={{
+                    width: '40px',
+                    height: '40px',
+                    border: '3px solid rgba(255,255,255,0.1)',
+                    borderTop: '3px solid var(--accent-primary)',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                }}></div>
+                <style jsx>{ `
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                ` }</style>
+            </div>
+        );
+    }
+
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     const stats = {
@@ -51,11 +70,9 @@ export default function Home() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                 <div
-                    className="card"
+                    className="card interactive-card"
                     onClick={() => router.push('/kanban')}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    style={{ cursor: 'pointer' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Briefcase size={24} color="var(--accent-primary)" />
@@ -65,11 +82,9 @@ export default function Home() {
                 </div>
 
                 <div
-                    className="card"
+                    className="card interactive-card"
                     onClick={() => router.push('/kanban#interviewing')}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    style={{ cursor: 'pointer' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Calendar size={24} color="var(--warning)" style={{ minWidth: '24px' }} />
@@ -79,11 +94,9 @@ export default function Home() {
                 </div>
 
                 <div
-                    className="card"
+                    className="card interactive-card"
                     onClick={() => router.push('/kanban#offer')}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    style={{ cursor: 'pointer' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <CheckCircle size={24} color="var(--success)" style={{ minWidth: '24px' }} />

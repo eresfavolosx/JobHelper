@@ -1,9 +1,10 @@
 "use client";
 import { useAppStore } from '@/lib/store';
 import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState, useEffect } from 'react';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState, useEffect, useMemo } from 'react';
 import JobCard from './JobCard';
+import { useDroppable } from '@dnd-kit/core';
 
 const COLUMNS = [
     { id: 'wishlist', title: 'Wishlist' },
@@ -15,7 +16,8 @@ const COLUMNS = [
 ];
 
 export default function KanbanBoard() {
-    const { jobs, moveJob } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
+    const moveJob = useAppStore(state => state.moveJob);
     const [mounted, setMounted] = useState(false);
     const [activeId, setActiveId] = useState(null);
 
@@ -53,6 +55,14 @@ export default function KanbanBoard() {
         })
     );
 
+    const columnJobsMap = useMemo(() => {
+        const map = {};
+        COLUMNS.forEach(col => {
+            map[col.id] = jobs.filter(j => j.status === col.id);
+        });
+        return map;
+    }, [jobs]);
+
     if (!mounted) return null;
 
     const handleDragStart = (event) => {
@@ -82,6 +92,8 @@ export default function KanbanBoard() {
         }
     };
 
+    const activeJob = activeId ? jobs.find(j => j.id === activeId) : null;
+
     return (
         <DndContext
             sensors={sensors}
@@ -91,7 +103,7 @@ export default function KanbanBoard() {
         >
             <div className="kanban-board">
                 {COLUMNS.map((column, index) => {
-                    const columnJobs = jobs.filter(j => j.status === column.id);
+                    const columnJobs = columnJobsMap[column.id] || [];
 
                     return (
                         <div
@@ -121,9 +133,9 @@ export default function KanbanBoard() {
                 })}
             </div>
             <DragOverlay>
-                {activeId ? (
+                {activeJob ? (
                     <div style={{ transform: 'rotate(3deg)' }}> {/* Tilt effect */}
-                        <JobCard job={jobs.find(j => j.id === activeId)} />
+                        <JobCard job={activeJob} />
                     </div>
                 ) : null}
             </DragOverlay>
@@ -132,7 +144,6 @@ export default function KanbanBoard() {
 }
 
 // Helper for dropping into empty columns
-import { useDroppable } from '@dnd-kit/core';
 function ColumnDroppable({ id, children }) {
     const { setNodeRef } = useDroppable({ id });
     return <div ref={setNodeRef} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>{children}</div>;
