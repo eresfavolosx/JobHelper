@@ -1,4 +1,5 @@
 "use client";
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -11,6 +12,7 @@ import { safeDate } from '@/lib/utils';
 export default function JobCard({ job }) {
     const deleteJob = useAppStore(s => s.deleteJob);
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
+    const [isFocused, setIsFocused] = useState(false);
 
     const {
         attributes,
@@ -37,6 +39,13 @@ export default function JobCard({ job }) {
         openEditJobModal(job);
     };
 
+    const handleFocus = () => setIsFocused(true);
+    const handleBlur = (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            setIsFocused(false);
+        }
+    };
+
     return (
         <div
             ref={setNodeRef}
@@ -48,9 +57,29 @@ export default function JobCard({ job }) {
             <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h4 style={{ fontWeight: '600', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{job.role}</h4>
-                    <div style={{ display: 'flex', gap: '4px', opacity: 0, transition: 'opacity 0.2s' }} className="group-hover:opacity-100" onPointerDown={e => e.stopPropagation()}>
-                        <button onClick={handleEdit} style={{ padding: '6px', color: 'var(--text-secondary)', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}><Pencil size={14} /></button>
-                        <button onClick={handleDelete} style={{ padding: '6px', color: '#f87171', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}><Trash2 size={14} /></button>
+                    <div
+                        style={{ display: 'flex', gap: '4px', opacity: isFocused ? 1 : 0, transition: 'opacity 0.2s' }}
+                        className="group-hover:opacity-100"
+                        onPointerDown={e => e.stopPropagation()}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                    >
+                        <button
+                            aria-label={`Edit ${job.role} at ${job.company}`}
+                            title="Edit Application"
+                            onClick={handleEdit}
+                            style={{ padding: '6px', color: 'var(--text-secondary)', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
+                        >
+                            <Pencil size={14} />
+                        </button>
+                        <button
+                            aria-label={`Delete ${job.role} at ${job.company}`}
+                            title="Delete Application"
+                            onClick={handleDelete}
+                            style={{ padding: '6px', color: '#f87171', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
+                        >
+                            <Trash2 size={14} />
+                        </button>
                     </div>
                 </div>
                 <p style={{ color: 'var(--accent-primary)', fontSize: '0.9rem', fontWeight: '500' }}>{job.company}</p>
@@ -60,6 +89,8 @@ export default function JobCard({ job }) {
                 <span style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}>{formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}</span>
                 {job.url && (
                     <a
+                        aria-label={`Source for ${job.role} at ${job.company}`}
+                        title="View Job Source"
                         href={job.url}
                         target="_blank"
                         onPointerDown={e => e.stopPropagation()}
