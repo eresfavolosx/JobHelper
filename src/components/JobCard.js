@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
-import { safeDate } from '@/lib/utils';
+import { safeDate, sanitizeUrl } from '@/lib/utils';
 
 export default function JobCard({ job }) {
     const deleteJob = useAppStore(s => s.deleteJob);
@@ -37,6 +37,8 @@ export default function JobCard({ job }) {
         openEditJobModal(job);
     };
 
+    const sanitizedUrl = sanitizeUrl(job.url);
+
     return (
         <div
             ref={setNodeRef}
@@ -58,10 +60,11 @@ export default function JobCard({ job }) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '16px' }}>
                 <span style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}>{formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}</span>
-                {job.url && (
+                {sanitizedUrl && (
                     <a
-                        href={job.url}
+                        href={sanitizedUrl}
                         target="_blank"
+                        rel="noopener noreferrer"
                         onPointerDown={e => e.stopPropagation()}
                         className="hover:text-blue-400"
                         style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', transition: 'background 0.2s' }}
