@@ -29,3 +29,43 @@ export const safeDate = (input) => {
 
     return d;
 };
+
+/**
+ * Sanitizes a URL to ensure it's safe for display and navigation.
+ *
+ * - Removes whitespace
+ * - Blocks javascript:, vbscript:, and data: schemes (prevents XSS)
+ * - Prepends https:// if protocol is missing
+ * - Ensures the final URL uses http: or https:
+ *
+ * @param {string} url - The user-provided URL
+ * @returns {string|null} - The sanitized URL, or null if invalid
+ */
+export const sanitizeUrl = (url) => {
+    if (!url) return null;
+    let stringUrl = String(url).trim();
+
+    // Explicitly block schemes that can execute code
+    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
+    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
+    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(stringUrl);
+    } catch {
+        try {
+            // If it fails parsing, try prepending https://
+            // This handles domain.com and //domain.com
+            parsed = new URL('https://' + stringUrl);
+        } catch {
+            return null;
+        }
+    }
+
+    // Whitelist http and https
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+        return parsed.toString();
+    }
+    return null;
+};
