@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel } from '@/lib/gemini';
+import { verifyAuth } from '@/lib/auth-util';
 
 // Handle OPTIONS for CORS
 export async function OPTIONS(request) {
@@ -20,6 +21,15 @@ export async function POST(req) {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
+
+    // 🔒 Security: Check authentication
+    const user = await verifyAuth(req);
+    if (!user) {
+        return NextResponse.json(
+            { error: 'Unauthorized' },
+            { status: 401, headers }
+        );
+    }
 
     try {
         const { pageText, pageUrl } = await req.json();
