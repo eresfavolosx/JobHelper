@@ -1,0 +1,14 @@
+
+> job-tracker@1.0.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+
+✓ Starting...
+✓ Ready in 1100ms
+ GET /kanban 200 in 1962ms (compile: 1515ms, render: 447ms)
+ GET /login 200 in 92ms (compile: 34ms, render: 58ms)
+ GET /kanban 200 in 76ms (compile: 5ms, render: 71ms)
+ GET /login 200 in 56ms (compile: 4ms, render: 52ms)
