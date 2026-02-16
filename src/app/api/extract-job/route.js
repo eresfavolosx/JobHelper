@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel } from '@/lib/gemini';
+import { verifyIdToken } from '@/lib/auth-util';
 
 // Handle OPTIONS for CORS
 export async function OPTIONS(request) {
@@ -20,6 +21,19 @@ export async function POST(req) {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
+
+    // Verify Authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const user = await verifyIdToken(token);
+
+    if (!user) {
+        return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers });
+    }
 
     try {
         const { pageText, pageUrl } = await req.json();
