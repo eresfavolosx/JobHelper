@@ -162,6 +162,11 @@ button {
     opacity: 1 !important;
   }
 
+  /* Focus within pattern for accessibility */
+  .focus-within\:opacity-100:focus-within {
+    opacity: 1 !important;
+  }
+
   /* Interactive card (Kanban cards) */
   .interactive-card {
     padding: 16px;
