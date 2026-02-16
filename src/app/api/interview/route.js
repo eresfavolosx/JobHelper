@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel, processFile, getMimeType } from '@/lib/gemini';
+import { verifyIdToken } from '@/lib/auth-util';
 
 export async function POST(req) {
+    // Verify Authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const user = await verifyIdToken(token);
+
+    if (!user) {
+        return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     try {
         const formData = await req.formData();
         const resume = formData.get('resume');
