@@ -2,7 +2,7 @@
 import { useAppStore } from '@/lib/store';
 import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import JobCard from './JobCard';
 
 const COLUMNS = [
@@ -59,6 +59,22 @@ export default function KanbanBoard() {
         setActiveId(event.active.id);
     };
 
+    // Group jobs by status to prevent expensive filtering on every render
+    const columnsData = useMemo(() => {
+        const data = {};
+        COLUMNS.forEach(col => {
+            data[col.id] = { jobs: [], ids: [] };
+        });
+
+        jobs.forEach(job => {
+            if (data[job.status]) {
+                data[job.status].jobs.push(job);
+                data[job.status].ids.push(job.id);
+            }
+        });
+        return data;
+    }, [jobs]);
+
     const handleDragEnd = (event) => {
         const { active, over } = event;
         setActiveId(null);
@@ -91,7 +107,7 @@ export default function KanbanBoard() {
         >
             <div className="kanban-board">
                 {COLUMNS.map((column, index) => {
-                    const columnJobs = jobs.filter(j => j.status === column.id);
+                    const { jobs: columnJobs, ids: columnIds } = columnsData[column.id];
 
                     return (
                         <div
@@ -107,7 +123,7 @@ export default function KanbanBoard() {
                                 <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>{columnJobs.length}</span>
                             </h3>
 
-                            <SortableContext items={columnJobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
+                            <SortableContext items={columnIds} strategy={verticalListSortingStrategy}>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
                                     <ColumnDroppable id={column.id}>
                                         {columnJobs.map(job => (
