@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel, processFile, getMimeType } from '@/lib/gemini';
+import { verifyAuth } from '@/lib/auth-util';
 
 export async function POST(req) {
+    const user = await verifyAuth(req);
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const formData = await req.formData();
         const resume = formData.get('resume');
