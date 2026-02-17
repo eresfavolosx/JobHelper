@@ -3,7 +3,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-const firebaseConfig = {
+export const firebaseConfig = {
     apiKey: "AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY",
     authDomain: "jobhelper-c3cd7.firebaseapp.com",
     projectId: "jobhelper-c3cd7",
