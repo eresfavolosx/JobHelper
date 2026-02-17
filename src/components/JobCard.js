@@ -1,5 +1,6 @@
 "use client";
 import { formatDistanceToNow } from 'date-fns';
+import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -8,7 +9,7 @@ import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { safeDate } from '@/lib/utils';
 
-export default function JobCard({ job }) {
+const JobCard = memo(function JobCard({ job }) {
     const deleteJob = useAppStore(s => s.deleteJob);
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
 
@@ -73,4 +74,6 @@ export default function JobCard({ job }) {
             {job.notes && <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '8px', lineHeight: '1.4' }}>{job.notes}</div>}
         </div>
     );
-}
+});
+
+export default JobCard;
