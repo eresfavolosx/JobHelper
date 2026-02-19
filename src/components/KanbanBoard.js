@@ -1,8 +1,8 @@
 "use client";
 import { useAppStore } from '@/lib/store';
-import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import JobCard from './JobCard';
 
 const COLUMNS = [
@@ -13,6 +13,35 @@ const COLUMNS = [
     { id: 'rejected', title: 'Rejected' },
     { id: 'deleted', title: 'Deleted', isTrash: true },
 ];
+
+const KanbanColumn = memo(function KanbanColumn({ column, jobs, index }) {
+    const itemIds = useMemo(() => jobs.map(j => j.id), [jobs]);
+
+    return (
+        <div
+            className="glass-panel kanban-column animate-scale-in"
+            style={{
+                padding: '20px',
+                animationDelay: `${index * 100}ms`
+            }}
+        >
+            <h3 style={{ marginBottom: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
+                {column.title}
+                <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>{jobs.length}</span>
+            </h3>
+
+            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
+                    <ColumnDroppable id={column.id}>
+                        {jobs.map(job => (
+                            <JobCard key={job.id} job={job} />
+                        ))}
+                    </ColumnDroppable>
+                </div>
+            </SortableContext>
+        </div>
+    );
+});
 
 export default function KanbanBoard() {
     const { jobs, moveJob } = useAppStore();
@@ -104,31 +133,13 @@ export default function KanbanBoard() {
             <div className="kanban-board">
                 {COLUMNS.map((column, index) => {
                     const columnJobs = columnsData[column.id] || [];
-
                     return (
-                        <div
+                        <KanbanColumn
                             key={column.id}
-                            className="glass-panel kanban-column animate-scale-in"
-                            style={{
-                                padding: '20px',
-                                animationDelay: `${index * 100}ms`
-                            }}
-                        >
-                            <h3 style={{ marginBottom: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                                {column.title}
-                                <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>{columnJobs.length}</span>
-                            </h3>
-
-                            <SortableContext items={columnJobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
-                                    <ColumnDroppable id={column.id}>
-                                        {columnJobs.map(job => (
-                                            <JobCard key={job.id} job={job} />
-                                        ))}
-                                    </ColumnDroppable>
-                                </div>
-                            </SortableContext>
-                        </div>
+                            column={column}
+                            jobs={columnJobs}
+                            index={index}
+                        />
                     );
                 })}
             </div>
@@ -144,7 +155,6 @@ export default function KanbanBoard() {
 }
 
 // Helper for dropping into empty columns
-import { useDroppable } from '@dnd-kit/core';
 function ColumnDroppable({ id, children }) {
     const { setNodeRef } = useDroppable({ id });
     return <div ref={setNodeRef} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>{children}</div>;
