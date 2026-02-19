@@ -1,21 +1,5 @@
-import { doc, writeBatch, getFirestore } from "firebase/firestore";
-import { getApps, getApp, initializeApp } from "firebase/app";
-
-// Firebase config - must match firebase.js
-const firebaseConfig = {
-    apiKey: "AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY",
-    authDomain: "jobhelper-c3cd7.firebaseapp.com",
-    projectId: "jobhelper-c3cd7",
-    storageBucket: "jobhelper-c3cd7.firebasestorage.app",
-    messagingSenderId: "435778146376",
-    appId: "1:435778146376:web:1571ed01d7c1e1d23a487d",
-    measurementId: "G-MN93GZLYQL"
-};
-
-// Get or initialize Firebase app
-function getFirebaseApp() {
-    return getApps().length ? getApp() : initializeApp(firebaseConfig);
-}
+import { doc, writeBatch } from "firebase/firestore";
+import { db } from "./firebase";
 
 /**
  * Pushes all local jobs and profile to Firestore for the given user.
@@ -27,10 +11,6 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
     console.log("Starting sync for user:", userId);
     console.log("Jobs to sync:", jobs?.length || 0);
     console.log("Profile:", profile);
-
-    // Get Firestore instance directly
-    const app = getFirebaseApp();
-    const db = getFirestore(app);
 
     console.log("Firestore instance:", db);
 
@@ -83,9 +63,6 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
  */
 export async function deleteAllUserData(userId) {
     if (!userId) throw new Error("User ID is required for deletion");
-
-    const app = getFirebaseApp();
-    const db = getFirestore(app);
 
     const { collection, getDocs, deleteDoc } = await import("firebase/firestore");
 

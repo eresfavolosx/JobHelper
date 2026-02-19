@@ -4,14 +4,19 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 export const firebaseConfig = {
-    apiKey: "AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY",
-    authDomain: "jobhelper-c3cd7.firebaseapp.com",
-    projectId: "jobhelper-c3cd7",
-    storageBucket: "jobhelper-c3cd7.firebasestorage.app",
-    messagingSenderId: "435778146376",
-    appId: "1:435778146376:web:1571ed01d7c1e1d23a487d",
-    measurementId: "G-MN93GZLYQL"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
+
+// Validate config
+if (!firebaseConfig.apiKey) {
+    console.warn("Firebase API Key is missing. Please check your .env.local file.");
+}
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -20,4 +25,4 @@ const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export { auth, db, googleProvider };
+export { app, auth, db, googleProvider };
