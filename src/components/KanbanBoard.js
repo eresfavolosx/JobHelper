@@ -1,7 +1,7 @@
 "use client";
 import { useAppStore } from '@/lib/store';
-import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useState, useEffect, useMemo } from 'react';
 import JobCard from './JobCard';
 
@@ -51,6 +51,9 @@ export default function KanbanBoard() {
                 delay: 250, // Increased to 250ms to distinguish from scroll
                 tolerance: 5, // Reduced tolerance to avoid accidental drags
             },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
