@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
     const addJob = useAppStore((state) => state.addJob);
@@ -18,6 +18,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
     useEffect(() => {
         if (isOpen && initialData) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData(prev => ({
                 ...prev,
                 // If it's a new scrape (no ID), creating new. If it's from board (has ID), editing.
@@ -48,12 +49,17 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
     };
 
     return (
-        <div style={{
-            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            animation: 'fadeIn 0.2s ease-out'
-        }}>
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            style={{
+                position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                animation: 'fadeIn 0.2s ease-out'
+            }}
+        >
             <div
                 className="card animate-scale-in"
                 style={{
@@ -66,7 +72,10 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                 }}
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: '800', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <h2
+                        id="modal-title"
+                        style={{ fontSize: '1.4rem', fontWeight: '800', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                    >
                         {(initialData && initialData.id) ? 'Edit Application' : 'Add Application'}
                     </h2>
                     <button
@@ -91,8 +100,11 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Company</label>
+                        <label htmlFor="job-company" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            Company <span style={{ color: 'var(--error)' }}>*</span>
+                        </label>
                         <input
+                            id="job-company"
                             required
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.company}
@@ -102,8 +114,11 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Role</label>
+                        <label htmlFor="job-role" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            Role <span style={{ color: 'var(--error)' }}>*</span>
+                        </label>
                         <input
+                            id="job-role"
                             required
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.role}
@@ -113,8 +128,9 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Salary</label>
+                        <label htmlFor="job-salary" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Salary</label>
                         <input
+                            id="job-salary"
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.salary}
                             onChange={e => setFormData({ ...formData, salary: e.target.value })}
@@ -123,8 +139,9 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Job URL</label>
+                        <label htmlFor="job-url" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Job URL</label>
                         <input
+                            id="job-url"
                             type="url"
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.url}
@@ -134,8 +151,9 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Status</label>
+                        <label htmlFor="job-status" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Status</label>
                         <select
+                            id="job-status"
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.status}
                             onChange={e => setFormData({ ...formData, status: e.target.value })}
@@ -149,8 +167,9 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Notes</label>
+                        <label htmlFor="job-notes" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Notes</label>
                         <textarea
+                            id="job-notes"
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)', height: '100px' }}
                             value={formData.notes || ''}
                             onChange={e => setFormData({ ...formData, notes: e.target.value })}
