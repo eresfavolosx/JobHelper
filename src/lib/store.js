@@ -1,29 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getFirestore, doc, onSnapshot, collection } from 'firebase/firestore';
-import { getApps, getApp, initializeApp } from 'firebase/app';
-
-// Firebase config - must match firebase.js
-const firebaseConfig = {
-    apiKey: "AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY",
-    authDomain: "jobhelper-c3cd7.firebaseapp.com",
-    projectId: "jobhelper-c3cd7",
-    storageBucket: "jobhelper-c3cd7.firebasestorage.app",
-    messagingSenderId: "435778146376",
-    appId: "1:435778146376:web:1571ed01d7c1e1d23a487d",
-    measurementId: "G-MN93GZLYQL"
-};
-
-// Get or initialize Firebase app
-function getFirebaseApp() {
-    return getApps().length ? getApp() : initializeApp(firebaseConfig);
-}
-
-// Get Firestore instance
-function getDb() {
-    const app = getFirebaseApp();
-    return getFirestore(app);
-}
+import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export const useAppStore = create(
     persist(
@@ -149,7 +127,6 @@ export const useAppStore = create(
                     return () => { };
                 }
 
-                const db = getDb();
                 console.log("[Store] Subscribing to Firestore for user:", userId);
 
                 // 1. Profile Listener
