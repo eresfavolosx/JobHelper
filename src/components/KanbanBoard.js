@@ -15,7 +15,9 @@ const COLUMNS = [
 ];
 
 export default function KanbanBoard() {
-    const { jobs, moveJob } = useAppStore();
+    // Select specific state slices to prevent unnecessary re-renders when other state (like profile) updates
+    const jobs = useAppStore((state) => state.jobs);
+    const moveJob = useAppStore((state) => state.moveJob);
     const [mounted, setMounted] = useState(false);
     const [activeId, setActiveId] = useState(null);
 

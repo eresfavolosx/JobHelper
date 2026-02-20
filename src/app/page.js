@@ -8,7 +8,8 @@ import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
 export default function Home() {
-    const { jobs } = useAppStore();
+    // Select specific state slices to prevent unnecessary re-renders when other state (like profile) updates
+    const jobs = useAppStore((state) => state.jobs);
     const { user, loading } = useAuth();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
