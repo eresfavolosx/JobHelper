@@ -14,12 +14,14 @@ const JobCard = memo(function JobCard({ job }) {
     const deleteJob = useAppStore(s => s.deleteJob);
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
 
+    const [isFocused, setIsFocused] = useState(false);
     const {
         attributes,
         listeners,
         setNodeRef,
         transform,
         transition,
+        isDragging,
     } = useSortable({ id: job.id });
 
     const style = {
@@ -44,7 +46,7 @@ const JobCard = memo(function JobCard({ job }) {
     return (
         <div
             ref={setNodeRef}
-            style={{ ...style, cursor: 'grab', touchAction: 'none' }}
+            style={{ ...style, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
             {...attributes}
             {...listeners}
             className="card interactive-card group"
@@ -75,7 +77,12 @@ const JobCard = memo(function JobCard({ job }) {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '16px' }}>
-                <span style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}>{formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}</span>
+                <span
+                    title={safeDate(job.createdAt || job.dateAdded).toLocaleString()}
+                    style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}
+                >
+                    {formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}
+                </span>
                 {sanitizedUrl && (
                     <a
                         aria-label={`Source for ${job.role} at ${job.company}`}
