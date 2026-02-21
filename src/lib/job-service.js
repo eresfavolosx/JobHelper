@@ -1,4 +1,4 @@
-import { getGeminiModel } from './gemini';
+import { getGeminiModel } from './gemini-client';
 
 // RSS Feed URLs
 const FEEDS = [

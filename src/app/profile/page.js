@@ -4,6 +4,7 @@ import { User, Upload, CheckCircle, AlertCircle, FileText, Loader } from 'lucide
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
+import { getGeminiModel, fileToGenerativePart } from '@/lib/gemini-client';
 
 function ProfileContent() {
     const { profile, updateProfile } = useAppStore();
@@ -396,22 +397,35 @@ function ResumeUpload({ onAnalysisComplete }) {
         formData.append('file', file);
 
         try {
-            const response = await fetch('/api/analyze-resume', {
-                method: 'POST',
-                body: formData
-            });
+            const model = getGeminiModel();
+            const prompt = `
+            You are an expert career coagch and resume analyst.
+            Analyze the following resume and extract the key information needed to find relevant job matches and improve the user's profile.
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Failed to analyze resume');
+            Return a JSON object with the following structure:
+            {
+                "skills": ["skill1", "skill2", ...],
+                "experienceLevel": "Entry/Mid/Senior/Executive",
+                "targetRoles": ["Role Title 1", "Role Title 2"],
+                "summary": "A 2-sentence professional summary of the candidate.",
+                "keywords": ["keyword1", "keyword2", ...]
             }
 
-            const analysis = await response.json();
+            Resume Content:
+            `;
+
+            const documentPart = await fileToGenerativePart(file);
+            const result = await model.generateContent([prompt, documentPart]);
+            const responseText = result.response.text();
+
+            const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const analysis = JSON.parse(cleanJson);
+
             console.log("Resume analysis:", analysis);
             onAnalysisComplete(analysis);
         } catch (err) {
-            console.error(err);
-            setError(err.message);
+            console.error('Resume analysis error:', err);
+            setError(err.message || 'Failed to analyze resume');
         } finally {
             setAnalyzing(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
