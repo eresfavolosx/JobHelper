@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
