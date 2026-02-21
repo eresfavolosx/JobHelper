@@ -15,7 +15,10 @@ const COLUMNS = [
 ];
 
 export default function KanbanBoard() {
-    const { jobs, moveJob } = useAppStore();
+    // Optimization: Use specific selectors to prevent re-renders on unrelated store updates
+    const jobs = useAppStore(state => state.jobs);
+    const moveJob = useAppStore(state => state.moveJob);
+
     const [mounted, setMounted] = useState(false);
     const [activeId, setActiveId] = useState(null);
 
