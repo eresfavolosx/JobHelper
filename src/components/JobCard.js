@@ -1,4 +1,5 @@
 "use client";
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
@@ -53,18 +54,18 @@ const JobCard = memo(function JobCard({ job }) {
                     <h4 style={{ fontWeight: '600', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{job.role}</h4>
                     <div style={{ display: 'flex', gap: '4px', opacity: 0, transition: 'opacity 0.2s' }} className="group-hover:opacity-100 focus-within:opacity-100" onPointerDown={e => e.stopPropagation()}>
                         <button
+                            aria-label={`Edit ${job.role} at ${job.company}`}
+                            title="Edit Application"
                             onClick={handleEdit}
                             style={{ padding: '6px', color: 'var(--text-secondary)', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
-                            aria-label="Edit job"
-                            title="Edit job"
                         >
                             <Pencil size={14} />
                         </button>
                         <button
+                            aria-label={`Delete ${job.role} at ${job.company}`}
+                            title="Delete Application"
                             onClick={handleDelete}
                             style={{ padding: '6px', color: '#f87171', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
-                            aria-label="Delete job"
-                            title="Delete job"
                         >
                             <Trash2 size={14} />
                         </button>
@@ -77,6 +78,8 @@ const JobCard = memo(function JobCard({ job }) {
                 <span style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}>{formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}</span>
                 {sanitizedUrl && (
                     <a
+                        aria-label={`Source for ${job.role} at ${job.company}`}
+                        title="View Job Source"
                         href={sanitizedUrl}
                         target="_blank"
                         rel="noopener noreferrer"
