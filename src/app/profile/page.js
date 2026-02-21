@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, Suspense } from 'react';
-import { User } from 'lucide-react';
+import { useState, useEffect, Suspense, useRef } from 'react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
@@ -84,7 +84,28 @@ function ProfileContent() {
                     </div>
                 </div>
 
-                {/* 1. Profile Form */}
+                {/* 1. Resume Upload */}
+                <div className="card animate-slide-up delay-150">
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Resume & Skills</h3>
+                    <ResumeUpload onAnalysisComplete={(analysis) => {
+                        updateProfile({
+                            resumeAnalysis: analysis,
+                            // Auto-fill form if empty
+                            keywords: formData.keywords || analysis.keywords.join(', '),
+                            targetRole: formData.targetRole || (analysis.targetRoles && analysis.targetRoles[0]) || '',
+                            experienceLevel: formData.experienceLevel || analysis.experienceLevel || 'Mid-Senior'
+                        });
+                        // Update local form state too so it shows immediately
+                        setFormData(prev => ({
+                            ...prev,
+                            keywords: prev.keywords || analysis.keywords.join(', '),
+                            targetRole: prev.targetRole || (analysis.targetRoles && analysis.targetRoles[0]) || '',
+                            experienceLevel: prev.experienceLevel || analysis.experienceLevel || 'Mid-Senior'
+                        }));
+                    }} />
+                </div>
+
+                {/* 2. Profile Form */}
                 <div className="card animate-slide-up delay-200">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -350,5 +371,130 @@ export default function ProfilePage() {
         <Suspense fallback={<div className="container">Loading...</div>}>
             <ProfileContent />
         </Suspense>
+    );
+}
+
+function ResumeUpload({ onAnalysisComplete }) {
+    const fileInputRef = useRef(null);
+    const [analyzing, setAnalyzing] = useState(false);
+    const [error, setError] = useState(null);
+    const { profile } = useAppStore();
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            setError("File is too large (max 5MB)");
+            return;
+        }
+
+        setAnalyzing(true);
+        setError(null);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/analyze-resume', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to analyze resume');
+            }
+
+            const analysis = await response.json();
+            console.log("Resume analysis:", analysis);
+            onAnalysisComplete(analysis);
+        } catch (err) {
+            console.error(err);
+            setError(err.message);
+        } finally {
+            setAnalyzing(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const hasResume = profile?.resumeAnalysis;
+
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                <div style={{
+                    width: '50px',
+                    height: '50px',
+                    borderRadius: '50%',
+                    background: hasResume ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    {hasResume ? <CheckCircle size={24} color="var(--success)" /> : <FileText size={24} color="var(--text-secondary)" />}
+                </div>
+                <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: '600', marginBottom: '4px' }}>
+                        {hasResume ? 'Resume Analyzed' : 'Upload Resume'}
+                    </p>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        {hasResume
+                            ? 'Your resume has been processed. We use this to find better job matches.'
+                            : 'Upload your resume (PDF) to auto-fill your profile and get better job matches.'}
+                    </p>
+                </div>
+                <div>
+                    <input
+                        type="file"
+                        accept=".pdf,.txt"
+                        style={{ display: 'none' }}
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                    />
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={analyzing}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        {analyzing ? (
+                            <>
+                                <Loader size={16} className="spin" /> Analyzing...
+                            </>
+                        ) : (
+                            <>
+                                <Upload size={16} /> {hasResume ? 'Update Resume' : 'Upload PDF'}
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--error)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                    <AlertCircle size={16} /> {error}
+                </div>
+            )}
+
+            {hasResume && (
+                <div style={{ background: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', fontSize: '0.9rem' }}>
+                    <p style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--accent-primary)' }}>AI Summary:</p>
+                    <p style={{ fontStyle: 'italic', marginBottom: '12px', color: 'var(--text-secondary)' }}>"{profile.resumeAnalysis.summary}"</p>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {profile.resumeAnalysis.skills?.slice(0, 5).map((skill, i) => (
+                            <span key={i} style={{ padding: '4px 10px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', fontSize: '0.8rem' }}>
+                                {skill}
+                            </span>
+                        ))}
+                        {profile.resumeAnalysis.skills?.length > 5 && (
+                            <span style={{ padding: '4px 10px', fontSize: '0.8rem', opacity: 0.7 }}>+{profile.resumeAnalysis.skills.length - 5} more</span>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }

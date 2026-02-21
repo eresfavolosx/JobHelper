@@ -101,6 +101,7 @@ export default function KanbanBoard() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
+
             <div className="kanban-board">
                 {COLUMNS.map((column, index) => (
                     <KanbanColumn
@@ -111,6 +112,7 @@ export default function KanbanBoard() {
                     />
                 ))}
             </div>
+
             <DragOverlay>
                 {activeId ? (
                     <div style={{ transform: 'rotate(3deg)' }}> {/* Tilt effect */}
@@ -118,6 +120,6 @@ export default function KanbanBoard() {
                     </div>
                 ) : null}
             </DragOverlay>
-        </DndContext>
+        </DndContext >
     );
 }

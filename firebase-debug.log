@@ -1,0 +1,414 @@
+[debug] [2026-02-08T00:57:41.750Z] ----------------------------------------------------------------------
+[debug] [2026-02-08T00:57:41.751Z] Command:       /opt/homebrew/Cellar/node/23.5.0/bin/node /opt/homebrew/bin/firebase hosting:channel:deploy test-env
+[debug] [2026-02-08T00:57:41.751Z] CLI Version:   13.29.1
+[debug] [2026-02-08T00:57:41.752Z] Platform:      darwin
+[debug] [2026-02-08T00:57:41.752Z] Node Version:  v23.5.0
+[debug] [2026-02-08T00:57:41.752Z] Time:          Sat Feb 07 2026 20:57:41 GMT-0400 (Atlantic Standard Time)
+[debug] [2026-02-08T00:57:41.752Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-08T00:57:41.781Z] Object ".firestore" in "firebase.json" has unknown property: {"additionalProperty":"location"}
+[debug] [2026-02-08T00:57:41.781Z] Field ".firestore" in "firebase.json" is possibly invalid: should be array
+[debug] [2026-02-08T00:57:41.781Z] Field ".firestore" in "firebase.json" is possibly invalid: should match some schema in anyOf
+[debug] [2026-02-08T00:57:41.783Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-08T00:57:41.783Z] > authorizing via signed-in user (fabian.velez1996@gmail.com)
+[debug] [2026-02-08T00:57:41.783Z] [iam] checking project jobhelper-c3cd7 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-02-08T00:57:41.784Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:41.784Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:41.784Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions [none]
+[debug] [2026-02-08T00:57:41.784Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions x-goog-quota-user=projects/jobhelper-c3cd7
+[debug] [2026-02-08T00:57:41.784Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:57:42.261Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions 200
+[debug] [2026-02-08T00:57:42.261Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:57:42.262Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:42.262Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:42.262Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 [none]
+[debug] [2026-02-08T00:57:42.874Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 200
+[debug] [2026-02-08T00:57:42.874Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 {"projectId":"jobhelper-c3cd7","projectNumber":"435778146376","displayName":"JobHelper","name":"projects/jobhelper-c3cd7","resources":{"hostingSite":"jobhelper-c3cd7"},"state":"ACTIVE","etag":"1_b9a25304-c2ce-4228-968a-a1a01bc0e5bd"}
+[debug] [2026-02-08T00:57:42.877Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:42.877Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:42.877Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:57:43.714Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:57:43.715Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:56:42.217154900Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:56:42.217154900Z"}
+[debug] [2026-02-08T00:57:43.715Z] [hosting] found existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:56:42.217154900Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:56:42.217154900Z"}
+[debug] [2026-02-08T00:57:43.717Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:43.717Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:43.718Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env updateMask=ttl
+[debug] [2026-02-08T00:57:43.718Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"ttl":"604800s"}
+[debug] [2026-02-08T00:57:44.084Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:57:44.084Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[debug] [2026-02-08T00:57:44.084Z] [hosting] updated TTL for existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[debug] [2026-02-08T00:57:44.737Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:44.737Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:44.738Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites pageToken=&pageSize=10
+[debug] [2026-02-08T00:57:45.247Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites 200
+[debug] [2026-02-08T00:57:45.247Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites {"sites":[{"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7","defaultUrl":"https://jobhelper-c3cd7.web.app","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","type":"DEFAULT_SITE"}]}
+[debug] [2026-02-08T00:57:45.247Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:45.247Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:45.248Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config [none]
+[debug] [2026-02-08T00:57:45.791Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config 200
+[debug] [2026-02-08T00:57:45.791Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config {"projectId":"jobhelper-c3cd7","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","storageBucket":"jobhelper-c3cd7.firebasestorage.app","apiKey":"AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY","authDomain":"jobhelper-c3cd7.firebaseapp.com","messagingSenderId":"435778146376","measurementId":"G-MN93GZLYQL","projectNumber":"435778146376","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 15.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-02-08T00:57:47.320Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:47.320Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:47.320Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:57:47.671Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:57:47.671Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[info] ⨯ Failed to load env from .env.local Error: EPERM: operation not permitted, stat '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+    at ignore-listed frames {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'stat',
+  path: '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+}
+
+[info] ▲ Next.js 16.1.6 (Turbopack)
+
+[info] 
+
+[info]   Creating an optimized production build ...
+
+[info] ✓ Compiled successfully in 1597.4ms
+
+[info]   Running TypeScript ...
+
+[info]   Collecting page data using 13 workers ...
+
+[info]   Generating static pages using 13 workers (0/13) ...
+
+[info]   Generating static pages using 13 workers (3/13) 
+
+[info]   Generating static pages using 13 workers (6/13) 
+
+[info]   Generating static pages using 13 workers (9/13) 
+
+[info] ✓ Generating static pages using 13 workers (13/13) in 217.9ms
+
+[info]   Finalizing page optimization ...
+
+[info] 
+
+[info] Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/analyze-resume
+├ ƒ /api/extract-job
+├ ƒ /api/find-jobs
+├ ƒ /api/interview
+├ ○ /install
+├ ○ /kanban
+├ ○ /login
+├ ○ /profile
+└ ○ /recommendations
+
+
+[info] 
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+[info] Building a Cloud Function to run this application. This is needed due to:
+[info]  • non-static component /api/analyze-resume/route
+[info]  • non-static component /api/extract-job/route
+[info]  • non-static component /api/find-jobs/route
+[info]  • non-static component /api/interview/route
+[info] 
+[debug] [2026-02-08T00:57:51.765Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:51.765Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:57:51.765Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:57:52.102Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:57:52.102Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[warn] ⚠  This integration expects Node version 16, 18, or 20. You're running version 23, problems may be encountered. 
+[debug] [2026-02-08T00:57:53.176Z] Error: EPERM: operation not permitted, copyfile '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local' -> '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.firebase/jobhelper-c3cd7/functions/.env.local'
+    at async copyFile (node:internal/fs/promises:621:10)
+    at async Promise.all (index 1)
+    at async prepareFrameworks (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/frameworks/index.js:370:13)
+    at async deploy (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/deploy/index.js:58:13)
+    at async Command.hostingChannelDeployAction [as actionFn] (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/commands/hosting-channel-deploy.js:90:25)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-02-08T00:58:15.329Z] ----------------------------------------------------------------------
+[debug] [2026-02-08T00:58:15.330Z] Command:       /opt/homebrew/Cellar/node/23.5.0/bin/node /opt/homebrew/bin/firebase hosting:channel:deploy test-env --debug
+[debug] [2026-02-08T00:58:15.331Z] CLI Version:   13.29.1
+[debug] [2026-02-08T00:58:15.331Z] Platform:      darwin
+[debug] [2026-02-08T00:58:15.331Z] Node Version:  v23.5.0
+[debug] [2026-02-08T00:58:15.331Z] Time:          Sat Feb 07 2026 20:58:15 GMT-0400 (Atlantic Standard Time)
+[debug] [2026-02-08T00:58:15.331Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-08T00:58:15.360Z] Object ".firestore" in "firebase.json" has unknown property: {"additionalProperty":"location"}
+[debug] [2026-02-08T00:58:15.361Z] Field ".firestore" in "firebase.json" is possibly invalid: should be array
+[debug] [2026-02-08T00:58:15.361Z] Field ".firestore" in "firebase.json" is possibly invalid: should match some schema in anyOf
+[debug] [2026-02-08T00:58:15.363Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-08T00:58:15.363Z] > authorizing via signed-in user (fabian.velez1996@gmail.com)
+[debug] [2026-02-08T00:58:15.363Z] [iam] checking project jobhelper-c3cd7 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-02-08T00:58:15.363Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:15.363Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:15.364Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions [none]
+[debug] [2026-02-08T00:58:15.364Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions x-goog-quota-user=projects/jobhelper-c3cd7
+[debug] [2026-02-08T00:58:15.364Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:58:15.932Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions 200
+[debug] [2026-02-08T00:58:15.932Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:58:15.932Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:15.932Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:15.932Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 [none]
+[debug] [2026-02-08T00:58:16.482Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 200
+[debug] [2026-02-08T00:58:16.483Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 {"projectId":"jobhelper-c3cd7","projectNumber":"435778146376","displayName":"JobHelper","name":"projects/jobhelper-c3cd7","resources":{"hostingSite":"jobhelper-c3cd7"},"state":"ACTIVE","etag":"1_b9a25304-c2ce-4228-968a-a1a01bc0e5bd"}
+[debug] [2026-02-08T00:58:16.485Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:16.485Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:16.485Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:58:17.330Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:58:17.330Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[debug] [2026-02-08T00:58:17.330Z] [hosting] found existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:57:43.962924310Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:57:43.962924310Z"}
+[debug] [2026-02-08T00:58:17.331Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:17.331Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:17.332Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env updateMask=ttl
+[debug] [2026-02-08T00:58:17.332Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"ttl":"604800s"}
+[debug] [2026-02-08T00:58:17.747Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:58:17.748Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[debug] [2026-02-08T00:58:17.748Z] [hosting] updated TTL for existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[debug] [2026-02-08T00:58:18.412Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:18.412Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:18.413Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites pageToken=&pageSize=10
+[debug] [2026-02-08T00:58:18.913Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites 200
+[debug] [2026-02-08T00:58:18.913Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites {"sites":[{"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7","defaultUrl":"https://jobhelper-c3cd7.web.app","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","type":"DEFAULT_SITE"}]}
+[debug] [2026-02-08T00:58:18.915Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:18.916Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:18.916Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config [none]
+[debug] [2026-02-08T00:58:19.352Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config 200
+[debug] [2026-02-08T00:58:19.353Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config {"projectId":"jobhelper-c3cd7","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","storageBucket":"jobhelper-c3cd7.firebasestorage.app","apiKey":"AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY","authDomain":"jobhelper-c3cd7.firebaseapp.com","messagingSenderId":"435778146376","measurementId":"G-MN93GZLYQL","projectNumber":"435778146376","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 15.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-02-08T00:58:20.873Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:20.873Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:20.873Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:58:21.236Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:58:21.236Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[info] ⨯ Failed to load env from .env.local Error: EPERM: operation not permitted, stat '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+    at ignore-listed frames {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'stat',
+  path: '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+}
+
+[info] ▲ Next.js 16.1.6 (Turbopack)
+
+[info] 
+
+[info]   Creating an optimized production build ...
+
+[info] ✓ Compiled successfully in 1601.1ms
+
+[info]   Running TypeScript ...
+
+[info]   Collecting page data using 13 workers ...
+
+[info]   Generating static pages using 13 workers (0/13) ...
+
+[info]   Generating static pages using 13 workers (3/13) 
+
+[info]   Generating static pages using 13 workers (6/13) 
+
+[info]   Generating static pages using 13 workers (9/13) 
+
+[info] ✓ Generating static pages using 13 workers (13/13) in 214.2ms
+
+[info]   Finalizing page optimization ...
+
+[info] 
+
+[info] Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/analyze-resume
+├ ƒ /api/extract-job
+├ ƒ /api/find-jobs
+├ ƒ /api/interview
+├ ○ /install
+├ ○ /kanban
+├ ○ /login
+├ ○ /profile
+└ ○ /recommendations
+
+
+[info] 
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+[info] Building a Cloud Function to run this application. This is needed due to:
+[info]  • non-static component /api/analyze-resume/route
+[info]  • non-static component /api/extract-job/route
+[info]  • non-static component /api/find-jobs/route
+[info]  • non-static component /api/interview/route
+[info] 
+[debug] [2026-02-08T00:58:25.288Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:25.288Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:58:25.288Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:58:25.606Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:58:25.606Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[warn] ⚠  This integration expects Node version 16, 18, or 20. You're running version 23, problems may be encountered. 
+[debug] [2026-02-08T00:58:26.663Z] Error: EPERM: operation not permitted, copyfile '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local' -> '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.firebase/jobhelper-c3cd7/functions/.env.local'
+    at async copyFile (node:internal/fs/promises:621:10)
+    at async Promise.all (index 1)
+    at async prepareFrameworks (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/frameworks/index.js:370:13)
+    at async deploy (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/deploy/index.js:58:13)
+    at async Command.hostingChannelDeployAction [as actionFn] (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/commands/hosting-channel-deploy.js:90:25)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-02-08T00:59:13.827Z] ----------------------------------------------------------------------
+[debug] [2026-02-08T00:59:13.829Z] Command:       /opt/homebrew/Cellar/node/23.5.0/bin/node /opt/homebrew/bin/firebase hosting:channel:deploy test-env
+[debug] [2026-02-08T00:59:13.829Z] CLI Version:   13.29.1
+[debug] [2026-02-08T00:59:13.829Z] Platform:      darwin
+[debug] [2026-02-08T00:59:13.829Z] Node Version:  v23.5.0
+[debug] [2026-02-08T00:59:13.829Z] Time:          Sat Feb 07 2026 20:59:13 GMT-0400 (Atlantic Standard Time)
+[debug] [2026-02-08T00:59:13.829Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-08T00:59:13.859Z] Object ".firestore" in "firebase.json" has unknown property: {"additionalProperty":"location"}
+[debug] [2026-02-08T00:59:13.859Z] Field ".firestore" in "firebase.json" is possibly invalid: should be array
+[debug] [2026-02-08T00:59:13.859Z] Field ".firestore" in "firebase.json" is possibly invalid: should match some schema in anyOf
+[debug] [2026-02-08T00:59:13.861Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-08T00:59:13.861Z] > authorizing via signed-in user (fabian.velez1996@gmail.com)
+[debug] [2026-02-08T00:59:13.861Z] [iam] checking project jobhelper-c3cd7 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-02-08T00:59:13.861Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:13.861Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:13.862Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions [none]
+[debug] [2026-02-08T00:59:13.862Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions x-goog-quota-user=projects/jobhelper-c3cd7
+[debug] [2026-02-08T00:59:13.862Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:59:14.559Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions 200
+[debug] [2026-02-08T00:59:14.559Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/jobhelper-c3cd7:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-08T00:59:14.560Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:14.560Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:14.560Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 [none]
+[debug] [2026-02-08T00:59:15.339Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 200
+[debug] [2026-02-08T00:59:15.339Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/jobhelper-c3cd7 {"projectId":"jobhelper-c3cd7","projectNumber":"435778146376","displayName":"JobHelper","name":"projects/jobhelper-c3cd7","resources":{"hostingSite":"jobhelper-c3cd7"},"state":"ACTIVE","etag":"1_b9a25304-c2ce-4228-968a-a1a01bc0e5bd"}
+[debug] [2026-02-08T00:59:15.342Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:15.342Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:15.342Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:59:16.138Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:59:16.138Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[debug] [2026-02-08T00:59:16.138Z] [hosting] found existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:58:17.552028502Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:58:17.552028502Z"}
+[debug] [2026-02-08T00:59:16.139Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:16.139Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:16.139Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env updateMask=ttl
+[debug] [2026-02-08T00:59:16.139Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"ttl":"604800s"}
+[debug] [2026-02-08T00:59:16.537Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:59:16.537Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:59:16.345226602Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:59:16.345226602Z"}
+[debug] [2026-02-08T00:59:16.537Z] [hosting] updated TTL for existing channel for site jobhelper-c3cd7 {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:59:16.345226602Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:59:16.345226602Z"}
+[debug] [2026-02-08T00:59:17.223Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:17.223Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:17.223Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites pageToken=&pageSize=10
+[debug] [2026-02-08T00:59:17.691Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites 200
+[debug] [2026-02-08T00:59:17.691Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites {"sites":[{"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7","defaultUrl":"https://jobhelper-c3cd7.web.app","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","type":"DEFAULT_SITE"}]}
+[debug] [2026-02-08T00:59:17.691Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:17.691Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:17.691Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config [none]
+[debug] [2026-02-08T00:59:18.108Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config 200
+[debug] [2026-02-08T00:59:18.108Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:435778146376:web:1571ed01d7c1e1d23a487d/config {"projectId":"jobhelper-c3cd7","appId":"1:435778146376:web:1571ed01d7c1e1d23a487d","storageBucket":"jobhelper-c3cd7.firebasestorage.app","apiKey":"AIzaSyDnV-3ybAPTApZC2zCFysE6eo38Y05C3LY","authDomain":"jobhelper-c3cd7.firebaseapp.com","messagingSenderId":"435778146376","measurementId":"G-MN93GZLYQL","projectNumber":"435778146376","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 15.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-02-08T00:59:19.665Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:19.665Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:19.665Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:59:20.000Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:59:20.000Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:59:16.345226602Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:59:16.345226602Z"}
+[info] ⨯ Failed to load env from .env.local Error: EPERM: operation not permitted, stat '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+    at ignore-listed frames {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'stat',
+  path: '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local'
+}
+
+[info] ▲ Next.js 16.1.6 (Turbopack)
+
+[info] 
+
+[info]   Creating an optimized production build ...
+
+[info] ✓ Compiled successfully in 1575.8ms
+
+[info]   Running TypeScript ...
+
+[info]   Collecting page data using 13 workers ...
+
+[info]   Generating static pages using 13 workers (0/13) ...
+
+[info]   Generating static pages using 13 workers (3/13) 
+
+[info]   Generating static pages using 13 workers (6/13) 
+
+[info]   Generating static pages using 13 workers (9/13) 
+
+[info] ✓ Generating static pages using 13 workers (13/13) in 196.8ms
+
+[info]   Finalizing page optimization ...
+
+[info] 
+
+[info] Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/analyze-resume
+├ ƒ /api/extract-job
+├ ƒ /api/find-jobs
+├ ƒ /api/interview
+├ ○ /install
+├ ○ /kanban
+├ ○ /login
+├ ○ /profile
+└ ○ /recommendations
+
+
+
+[info] ○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+[info] Building a Cloud Function to run this application. This is needed due to:
+[info]  • non-static component /api/analyze-resume/route
+[info]  • non-static component /api/extract-job/route
+[info]  • non-static component /api/find-jobs/route
+[info]  • non-static component /api/interview/route
+[info] 
+[debug] [2026-02-08T00:59:23.965Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:23.965Z] Checked if tokens are valid: true, expires at: 1770514195172
+[debug] [2026-02-08T00:59:23.965Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env [none]
+[debug] [2026-02-08T00:59:24.289Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env 200
+[debug] [2026-02-08T00:59:24.289Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env {"name":"projects/jobhelper-c3cd7/sites/jobhelper-c3cd7/channels/test-env","url":"https://jobhelper-c3cd7--test-env-ausoloxy.web.app","createTime":"2026-02-08T00:56:17.593575138Z","updateTime":"2026-02-08T00:59:16.345226602Z","retainedReleaseCount":10,"expireTime":"2026-02-15T00:59:16.345226602Z"}
+[warn] ⚠  This integration expects Node version 16, 18, or 20. You're running version 23, problems may be encountered. 
+[debug] [2026-02-08T00:59:25.372Z] Error: EPERM: operation not permitted, copyfile '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.env.local' -> '/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/.firebase/jobhelper-c3cd7/functions/.env.local'
+    at async copyFile (node:internal/fs/promises:621:10)
+    at async Promise.all (index 1)
+    at async prepareFrameworks (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/frameworks/index.js:370:13)
+    at async deploy (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/deploy/index.js:58:13)
+    at async Command.hostingChannelDeployAction [as actionFn] (/opt/homebrew/Cellar/firebase-cli/13.29.1/libexec/lib/node_modules/firebase-tools/lib/commands/hosting-channel-deploy.js:90:25)
+[error] 
+[error] Error: An unexpected error has occurred.
