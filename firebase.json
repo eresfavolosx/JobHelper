@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "source": ".",
+    "public": "out",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -35,10 +35,7 @@
         ]
       }
     ],
-    "cleanUrls": true,
-    "frameworksBackend": {
-      "region": "us-central1"
-    }
+    "cleanUrls": true
   },
   "firestore": {
     "database": "(default)",

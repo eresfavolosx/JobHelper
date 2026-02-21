@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
-
+import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 export default function RecommendationsPage() {
     const { profile } = useAppStore();
     const addJob = useAppStore((state) => state.addJob);
@@ -30,13 +30,9 @@ export default function RecommendationsPage() {
                 };
             }
 
-            const res = await fetch('/api/find-jobs', {
-                method: 'POST',
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            setJobs(data);
+            const rawJobs = await fetchJobsFromRSS(body.keywords);
+            const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
+            setJobs(scoredJobs);
         } catch (err) {
             setError(err.message);
         } finally {
