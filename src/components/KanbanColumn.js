@@ -2,6 +2,7 @@
 import React, { memo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
+import { Ghost } from 'lucide-react';
 import JobCard from './JobCard';
 
 function ColumnDroppable({ id, children }) {
@@ -29,6 +30,26 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
                         {jobs.map(job => (
                             <JobCard key={job.id} job={job} />
                         ))}
+                        {jobs.length === 0 && (
+                            <div style={{
+                                height: '100%',
+                                flex: 1,
+                                border: '2px dashed var(--glass-border)',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '12px',
+                                color: 'var(--text-secondary)',
+                                minHeight: '120px',
+                                opacity: 0.5,
+                                pointerEvents: 'none'
+                            }}>
+                                <Ghost size={24} />
+                                <span style={{ fontSize: '0.9rem' }}>No jobs yet</span>
+                            </div>
+                        )}
                     </ColumnDroppable>
                 </div>
             </SortableContext>
