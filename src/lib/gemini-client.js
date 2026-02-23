@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useAppStore } from './store';
 
 // Convert a browser File object to a base64 string
 export const fileToBase64 = (file) => {
@@ -22,10 +23,26 @@ export const getMimeType = (file, defaultType) => {
 
 // Initialize Gemini directly in the browser
 export const getGeminiModel = () => {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    let apiKey = '';
+
+    // 1. Try to get key from user settings (secure, per-user)
+    try {
+        const state = useAppStore.getState();
+        if (state.profile && state.profile.geminiApiKey) {
+            apiKey = state.profile.geminiApiKey;
+        }
+    } catch (e) {
+        console.warn("[Gemini] Failed to read key from store:", e);
+    }
+
+    // 2. Fallback to environment variable (legacy/dev)
     if (!apiKey) {
-        console.error("Missing NEXT_PUBLIC_GEMINI_API_KEY environment variable. Gemini features will fail.");
-        throw new Error('API Key not configured');
+        apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    }
+
+    if (!apiKey) {
+        console.error("Missing Gemini API Key. Please set it in Settings or provide NEXT_PUBLIC_GEMINI_API_KEY.");
+        throw new Error('API Key not configured. Please add your Gemini API Key in Profile settings.');
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
