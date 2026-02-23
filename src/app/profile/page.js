@@ -106,6 +106,15 @@ function ProfileContent() {
                     }} />
                 </div>
 
+                {/* 1.5. AI Configuration */}
+                <div className="card animate-slide-up delay-175">
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>AI Configuration</h3>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                        Add your own Gemini API Key to enable AI features. This key is stored securely in your private profile.
+                    </p>
+                    <ApiKeyInput />
+                </div>
+
                 {/* 2. Profile Form */}
                 <div className="card animate-slide-up delay-200">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
@@ -372,6 +381,69 @@ export default function ProfilePage() {
         <Suspense fallback={<div className="container">Loading...</div>}>
             <ProfileContent />
         </Suspense>
+    );
+}
+
+function ApiKeyInput() {
+    const { profile, updateProfile } = useAppStore();
+    const [key, setKey] = useState('');
+    const [show, setShow] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    // Sync local state with profile
+    useEffect(() => {
+        if (profile?.geminiApiKey) {
+            setKey(profile.geminiApiKey);
+        }
+    }, [profile?.geminiApiKey]);
+
+    const handleSave = () => {
+        updateProfile({ geminiApiKey: key });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ position: 'relative' }}>
+                <input
+                    type={show ? 'text' : 'password'}
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    placeholder="Enter your Gemini API Key (starts with AIza...)"
+                    style={{ width: '100%', paddingRight: '80px' }}
+                />
+                <button
+                    onClick={() => setShow(!show)}
+                    style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                    }}
+                >
+                    {show ? 'Hide' : 'Show'}
+                </button>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button onClick={handleSave} className="btn-primary" style={{ padding: '8px 16px' }}>
+                    {saved ? 'Saved!' : 'Save Key'}
+                </button>
+                <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                >
+                    Get a Key
+                </a>
+            </div>
+        </div>
     );
 }
 
