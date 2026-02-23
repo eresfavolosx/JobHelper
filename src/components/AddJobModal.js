@@ -80,6 +80,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </h2>
                     <button
                         onClick={onClose}
+                        aria-label="Close modal"
                         style={{
                             width: '36px',
                             height: '36px',
