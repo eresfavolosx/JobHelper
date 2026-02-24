@@ -1,4 +1,5 @@
-import { getGeminiModel } from './gemini-client';
+import { getGeminiModel } from './gemini-client.js';
+import { escapeXml } from './utils.js';
 
 // RSS Feed URLs
 const FEEDS = [
@@ -58,24 +59,39 @@ export async function fetchJobsFromRSS(keywords = []) {
     return allJobs.slice(0, 20); // Limit to top 20 to save tokens
 }
 
-export async function scoreJobsWithGemini(jobs, resumeData) {
+export async function scoreJobsWithGemini(jobs, resumeData, modelOverride = null) {
     if (!jobs.length || !resumeData) return jobs;
 
-    const model = getGeminiModel();
-    const jobsForPrompt = jobs.map((j, i) => `Job ${i}: ${j.title}\nDescription: ${j.description.substring(0, 300)}...`).join('\n\n');
+    const model = modelOverride || getGeminiModel();
+
+    // Construct XML-based prompt to prevent injection
+    const candidateProfile = `
+    <candidate_profile>
+        <target_role>${escapeXml(resumeData.targetRoles?.join(', ') || resumeData.targetRole)}</target_role>
+        <skills>${escapeXml(resumeData.skills?.join(', '))}</skills>
+        <experience>${escapeXml(resumeData.experienceLevel)}</experience>
+    </candidate_profile>
+    `;
+
+    const jobsXml = jobs.map((j, i) => `
+    <job index="${i}">
+        <title>${escapeXml(j.title)}</title>
+        <description>${escapeXml(j.description.substring(0, 500))}</description>
+    </job>`).join('\n');
 
     const prompt = `
     You are a recruiter matching a candidate to jobs.
     
     Candidate Profile:
-    - Target Role: ${resumeData.targetRoles?.join(', ') || resumeData.targetRole}
-    - Skills: ${resumeData.skills?.join(', ')}
-    - Experience: ${resumeData.experienceLevel}
+    ${candidateProfile}
 
     Jobs:
-    ${jobsForPrompt}
+    <jobs>
+    ${jobsXml}
+    </jobs>
 
     Task:
+    Analyze the <jobs> data against the <candidate_profile>.
     Rate each job's relevance to the candidate on a scale of 0-100.
     Return a JSON array of objects: [{ "index": 0, "score": 85, "reason": "Matches skill X and Y" }, ...]
     Only return the JSON.
