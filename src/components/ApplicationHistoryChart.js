@@ -18,15 +18,19 @@ export default function ApplicationHistoryChart({ jobs }) {
     const data = useMemo(() => {
         if (!jobs || jobs.length === 0) return [];
 
-        // 1. Sort jobs by dateAdded
-        const sortedJobs = [...jobs].sort((a, b) => {
-            const dateA = safeDate(a.dateAdded || a.createdAt);
-            const dateB = safeDate(b.dateAdded || b.createdAt);
-            return dateA - dateB;
-        });
+        // 1. Sort jobs by dateAdded and pre-calculate timestamps
+        // Map to object with timestamp to avoid repeated parsing and O(N*M) complexity
+        const sortedJobs = jobs.map(job => {
+            const date = safeDate(job.dateAdded || job.createdAt);
+            return {
+                ...job,
+                _ts: date.getTime(),
+                _date: date
+            };
+        }).sort((a, b) => a._ts - b._ts);
 
         // 2. Get date range (from first job to today)
-        const firstJobDate = safeDate(sortedJobs[0].dateAdded || sortedJobs[0].createdAt);
+        const firstJobDate = sortedJobs[0]._date;
         const today = new Date();
         // Ensure we show at least the last 7 days if only 1 job
         const startDate = subDays(today, 7) < firstJobDate ? subDays(today, 7) : firstJobDate;
@@ -37,27 +41,23 @@ export default function ApplicationHistoryChart({ jobs }) {
         });
 
         // 3. Build cumulative data
-        let cumulativeCount = 0;
         let jobIndex = 0;
 
         return days.map(day => {
-            // Add jobs that happened on or before this day
+            // Calculate end of day timestamp once per day
+            const endOfDayTs = new Date(day).setHours(23, 59, 59, 999);
+
+            // Efficient O(N+M) single pass: advance pointer while job date is <= end of current day
             while (
                 jobIndex < sortedJobs.length &&
-                safeDate(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt) < day
+                sortedJobs[jobIndex]._ts <= endOfDayTs
             ) {
-                cumulativeCount++;
                 jobIndex++;
             }
 
-            // Handle jobs added exactly on this day (simplified)
-            // Re-check current index for exact match if needed, but < day logic holds for cumulative
-            // Actually, let's just count how many jobs satisfy date <= end of this day
-            const count = sortedJobs.filter(j => safeDate(j.dateAdded || j.createdAt) <= new Date(day.setHours(23, 59, 59))).length;
-
             return {
                 date: format(day, 'MMM d'),
-                count: count
+                count: jobIndex
             };
         });
     }, [jobs]);
