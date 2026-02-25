@@ -1,4 +1,5 @@
 import { getGeminiModel } from './gemini-client';
+import { escapeXml } from './utils';
 
 // RSS Feed URLs
 const FEEDS = [
@@ -62,18 +63,28 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
     if (!jobs.length || !resumeData) return jobs;
 
     const model = getGeminiModel();
-    const jobsForPrompt = jobs.map((j, i) => `Job ${i}: ${j.title}\nDescription: ${j.description.substring(0, 300)}...`).join('\n\n');
+
+    // Construct XML-structured prompt to mitigate prompt injection
+    const jobsForPrompt = jobs.map((j, i) => `
+    <job index="${i}">
+        <title>${escapeXml(j.title)}</title>
+        <description>${escapeXml(j.description.substring(0, 300))}</description>
+    </job>`).join('\n');
 
     const prompt = `
     You are a recruiter matching a candidate to jobs.
     
-    Candidate Profile:
-    - Target Role: ${resumeData.targetRoles?.join(', ') || resumeData.targetRole}
-    - Skills: ${resumeData.skills?.join(', ')}
-    - Experience: ${resumeData.experienceLevel}
+    The candidate profile and jobs are provided in XML format below.
 
-    Jobs:
+    <candidate_profile>
+        <target_role>${escapeXml(resumeData.targetRoles?.join(', ') || resumeData.targetRole || '')}</target_role>
+        <skills>${escapeXml(resumeData.skills?.join(', ') || '')}</skills>
+        <experience>${escapeXml(resumeData.experienceLevel || '')}</experience>
+    </candidate_profile>
+
+    <jobs>
     ${jobsForPrompt}
+    </jobs>
 
     Task:
     Rate each job's relevance to the candidate on a scale of 0-100.
