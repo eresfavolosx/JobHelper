@@ -1,5 +1,4 @@
 "use client";
-import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
@@ -14,7 +13,6 @@ const JobCard = memo(function JobCard({ job }) {
     const deleteJob = useAppStore(s => s.deleteJob);
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
 
-    const [isFocused, setIsFocused] = useState(false);
     const {
         attributes,
         listeners,
@@ -54,12 +52,12 @@ const JobCard = memo(function JobCard({ job }) {
             <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h4 style={{ fontWeight: '600', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{job.role}</h4>
-                    <div style={{ display: 'flex', gap: '4px', opacity: 0, transition: 'opacity 0.2s' }} className="group-hover:opacity-100 focus-within:opacity-100" onPointerDown={e => e.stopPropagation()}>
+                    <div className="job-actions-group" style={{ display: 'flex', gap: '4px' }} onPointerDown={e => e.stopPropagation()}>
                         <button
                             aria-label={`Edit ${job.role} at ${job.company}`}
                             title="Edit Application"
                             onClick={handleEdit}
-                            style={{ padding: '6px', color: 'var(--text-secondary)', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
+                            className="job-action-btn edit"
                         >
                             <Pencil size={14} />
                         </button>
@@ -67,7 +65,7 @@ const JobCard = memo(function JobCard({ job }) {
                             aria-label={`Delete ${job.role} at ${job.company}`}
                             title="Delete Application"
                             onClick={handleDelete}
-                            style={{ padding: '6px', color: '#f87171', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '6px', backdropFilter: 'blur(4px)' }}
+                            className="job-action-btn delete"
                         >
                             <Trash2 size={14} />
                         </button>
@@ -91,7 +89,7 @@ const JobCard = memo(function JobCard({ job }) {
                         target="_blank"
                         rel="noopener noreferrer"
                         onPointerDown={e => e.stopPropagation()}
-                        className="hover:text-blue-400"
+                        className="job-source-link"
                         style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', transition: 'background 0.2s' }}
                     >
                         Source <ExternalLink size={12} />
