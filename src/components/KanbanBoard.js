@@ -2,7 +2,7 @@
 import { useAppStore } from '@/lib/store';
 import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 
@@ -58,15 +58,35 @@ export default function KanbanBoard() {
         })
     );
 
+    // Optimization: Track previous column data to prevent unnecessary re-renders
+    const prevColumnsDataRef = useRef({});
+
     const columnsData = useMemo(() => {
-        const data = {};
-        COLUMNS.forEach(c => data[c.id] = []);
+        const newData = {};
+        COLUMNS.forEach(c => newData[c.id] = []);
         jobs.forEach(j => {
-            if (data[j.status]) {
-                data[j.status].push(j);
+            if (newData[j.status]) {
+                newData[j.status].push(j);
             }
         });
-        return data;
+
+        const finalData = {};
+        COLUMNS.forEach(c => {
+            const colId = c.id;
+            const newJobs = newData[colId];
+            const oldJobs = prevColumnsDataRef.current[colId];
+
+            // Reuse array reference if content is identical (shallow comparison of job objects)
+            if (oldJobs && newJobs.length === oldJobs.length &&
+                newJobs.every((job, i) => job === oldJobs[i])) {
+                finalData[colId] = oldJobs;
+            } else {
+                finalData[colId] = newJobs;
+            }
+        });
+
+        prevColumnsDataRef.current = finalData;
+        return finalData;
     }, [jobs]);
 
     if (!mounted) return null;
