@@ -2,6 +2,7 @@
 import React, { memo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
+import { Ghost } from 'lucide-react';
 import JobCard from './JobCard';
 
 function ColumnDroppable({ id, children }) {
@@ -10,6 +11,7 @@ function ColumnDroppable({ id, children }) {
 }
 
 const KanbanColumn = memo(({ column, jobs, index }) => {
+    KanbanColumn.displayName = 'KanbanColumn';
     return (
         <div
             className="glass-panel kanban-column animate-scale-in"
@@ -26,6 +28,24 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
             <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
                     <ColumnDroppable id={column.id}>
+                        {jobs.length === 0 && (
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '120px',
+                                border: '2px dashed var(--glass-border)',
+                                borderRadius: 'var(--radius-sm)',
+                                color: 'var(--text-secondary)',
+                                opacity: 0.5,
+                                pointerEvents: 'none',
+                                userSelect: 'none'
+                            }}>
+                                <Ghost size={24} strokeWidth={1.5} style={{ marginBottom: '8px' }} />
+                                <span style={{ fontSize: '0.85rem' }}>Empty</span>
+                            </div>
+                        )}
                         {jobs.map(job => (
                             <JobCard key={job.id} job={job} />
                         ))}
