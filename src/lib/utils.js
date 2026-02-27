@@ -69,3 +69,19 @@ export const sanitizeUrl = (url) => {
     }
     return null;
 };
+
+/**
+ * Escapes special characters for XML/HTML contexts to prevent injection.
+ *
+ * @param {string} unsafe - The string to escape
+ * @returns {string} - The escaped string
+ */
+export const escapeXml = (unsafe) => {
+    if (unsafe == null) return '';
+    return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+};
