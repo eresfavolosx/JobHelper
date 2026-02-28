@@ -41,23 +41,20 @@ export default function ApplicationHistoryChart({ jobs }) {
         let jobIndex = 0;
 
         return days.map(day => {
-            // Add jobs that happened on or before this day
+            const endOfDay = new Date(day).setHours(23, 59, 59, 999);
+
+            // Add jobs that happened on or before the end of this day
             while (
                 jobIndex < sortedJobs.length &&
-                safeDate(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt) < day
+                safeDate(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt).getTime() <= endOfDay
             ) {
                 cumulativeCount++;
                 jobIndex++;
             }
 
-            // Handle jobs added exactly on this day (simplified)
-            // Re-check current index for exact match if needed, but < day logic holds for cumulative
-            // Actually, let's just count how many jobs satisfy date <= end of this day
-            const count = sortedJobs.filter(j => safeDate(j.dateAdded || j.createdAt) <= new Date(day.setHours(23, 59, 59))).length;
-
             return {
                 date: format(day, 'MMM d'),
-                count: count
+                count: cumulativeCount
             };
         });
     }, [jobs]);
