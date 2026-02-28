@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
+import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
     const { profile } = useAppStore();
     const addJob = useAppStore((state) => state.addJob);
@@ -86,7 +87,9 @@ export default function RecommendationsPage() {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
-                    {jobs.map((job, i) => (
+                    {jobs.map((job, i) => {
+                        const sanitizedLink = sanitizeUrl(job.link);
+                        return (
                         <div key={i} className="card animate-scale-in" style={{
                             padding: '24px',
                             display: 'flex',
@@ -138,15 +141,25 @@ export default function RecommendationsPage() {
                             </div>
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                <a
-                                    href={job.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btn-secondary"
-                                    style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                >
-                                    View <ExternalLink size={14} />
-                                </a>
+                                {sanitizedLink ? (
+                                    <a
+                                        href={sanitizedLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn-secondary"
+                                        style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                    >
+                                        View <ExternalLink size={14} />
+                                    </a>
+                                ) : (
+                                    <button
+                                        disabled
+                                        className="btn-secondary"
+                                        style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed' }}
+                                    >
+                                        Invalid Link <ExternalLink size={14} />
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => {
                                         addJob({
@@ -166,7 +179,7 @@ export default function RecommendationsPage() {
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
         </div>
