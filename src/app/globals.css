@@ -294,7 +294,7 @@ button {
 /* Mobile Responsiveness */
 .sidebar {
   width: 280px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--glass-panel);
   -webkit-backdrop-filter: var(--blur-lg);
   backdrop-filter: var(--blur-lg);
   border-right: 1px solid var(--glass-border);
@@ -352,7 +352,7 @@ button {
     left: 0;
     height: 100dvh;
     transform: translateX(-100%);
-    background: rgba(15, 23, 42, 0.95);
+    background: var(--bg-app);
     overflow-y: auto;
     padding-bottom: 40px;
     /* Ensure sign-out button is visible */
@@ -508,9 +508,9 @@ textarea:focus {
 
 .interactive-card:hover {
   transform: translateY(-4px) scale(1.02);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-panel);
   box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.4);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--glass-border);
 }
 
 .interactive-card:focus-visible {
@@ -533,16 +533,16 @@ textarea:focus {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-highlight);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--glass-panel);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--btn-secondary);
 }
 
 /* Kanban Board Responsive Layout */

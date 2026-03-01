@@ -72,7 +72,7 @@ class ErrorBoundary extends Component {
                         <pre style={{
                             marginTop: '24px',
                             padding: '16px',
-                            background: 'rgba(0,0,0,0.3)',
+                            background: 'var(--glass-panel)',
                             borderRadius: '8px',
                             fontSize: '0.8rem',
                             color: 'var(--error)',

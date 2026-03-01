@@ -19,10 +19,10 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
                 animationDelay: `${index * 100}ms`
             }}
         >
-            <h3 style={{ marginBottom: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)' }}>
-                {column.title}
-                <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>{jobs.length}</span>
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{column.title}</h2>
+                <span style={{ fontSize: '0.8rem', background: 'var(--glass-highlight)', padding: '4px 10px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>{jobs.length}</span>
+            </div>
 
             <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
