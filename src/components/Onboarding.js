@@ -56,7 +56,7 @@ export default function Onboarding() {
                     onMouseOver={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-5px)')}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--glass-highlight)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
                         {isMobile ? <Monitor size={32} color="var(--text-secondary)" /> : <Download size={32} color="var(--text-primary)" />}
                     </div>
                     <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
@@ -72,7 +72,7 @@ export default function Onboarding() {
                         <div style={{
                             width: '100%',
                             padding: '12px 16px',
-                            background: 'rgba(255, 255, 255, 0.05)',
+                            background: 'var(--glass-panel)',
                             borderRadius: '12px',
                             color: 'var(--text-secondary)',
                             fontSize: '0.9rem',
