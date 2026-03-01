@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
+import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
     const { profile } = useAppStore();
     const addJob = useAppStore((state) => state.addJob);
@@ -45,6 +46,7 @@ export default function RecommendationsPage() {
         if (jobs.length === 0) {
             findJobs();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (
@@ -121,7 +123,7 @@ export default function RecommendationsPage() {
                                     marginBottom: '16px',
                                     fontStyle: 'italic'
                                 }}>
-                                    "{job.matchReason}"
+                                    &quot;{job.matchReason}&quot;
                                 </div>
 
                                 <p style={{
@@ -139,7 +141,7 @@ export default function RecommendationsPage() {
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                                 <a
-                                    href={job.link}
+                                    href={sanitizeUrl(job.link) || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="btn-secondary"
