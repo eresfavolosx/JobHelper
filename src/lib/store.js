@@ -30,7 +30,8 @@ export const useAppStore = create(
                             keywords: '',
                             isRemote: false,
                             experienceLevel: 'Mid-Senior',
-                            contextDocuments: []
+                            contextDocuments: [],
+                            geminiApiKey: ''
                         },
                         currentUserId: userId
                     });
@@ -54,7 +55,8 @@ export const useAppStore = create(
                         keywords: '',
                         isRemote: false,
                         experienceLevel: 'Mid-Senior',
-                        contextDocuments: []
+                        contextDocuments: [],
+                        geminiApiKey: ''
                     }
                 });
             },
@@ -165,7 +167,8 @@ export const useAppStore = create(
                 isRemote: false,
                 experienceLevel: 'Mid-Senior',
                 contextDocuments: [], // { name, content, type }
-                resumeAnalysis: null // { skills, summary, targetRoles, etc }
+                resumeAnalysis: null, // { skills, summary, targetRoles, etc }
+                geminiApiKey: '' // User provided API key (overrides env var)
             },
             updateProfile: (newProfile) => {
                 set((state) => ({
