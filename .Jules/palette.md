@@ -1,0 +1,2 @@
+
+## 2026-03-01 - Add Empty State for Kanban Columns\n**Learning:** Users lack visual cues for where to drop elements when Kanban columns are empty. Providing an explicit empty state with `pointerEvents: 'none'` solves this without interfering with dnd-kit drop sensors.\n**Action:** Use ghost icons and dashed borders for empty state indicators in droppable zones, and always apply `pointerEvents: 'none'` so it doesn't block drag events.

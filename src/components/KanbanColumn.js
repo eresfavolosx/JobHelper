@@ -2,11 +2,26 @@
 import React, { memo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
+import { Ghost } from 'lucide-react';
 import JobCard from './JobCard';
 
-function ColumnDroppable({ id, children }) {
+function ColumnDroppable({ id, children, isEmpty }) {
     const { setNodeRef } = useDroppable({ id });
-    return <div ref={setNodeRef} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>{children}</div>;
+    return (
+        <div ref={setNodeRef} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
+            {children}
+            {isEmpty && (
+                <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    border: '2px dashed var(--glass-border)', borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-secondary)', gap: '8px', opacity: 0.5, pointerEvents: 'none'
+                }}>
+                    <Ghost size={32} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Drop here</span>
+                </div>
+            )}
+        </div>
+    );
 }
 
 const KanbanColumn = memo(({ column, jobs, index }) => {
@@ -25,7 +40,7 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
 
             <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
-                    <ColumnDroppable id={column.id}>
+                    <ColumnDroppable id={column.id} isEmpty={jobs.length === 0}>
                         {jobs.map(job => (
                             <JobCard key={job.id} job={job} />
                         ))}
