@@ -103,6 +103,8 @@ export default function UndoToast() {
 
             <button
                 onClick={handleDismiss}
+                aria-label="Dismiss undo notification"
+                title="Dismiss undo notification"
                 style={{
                     background: 'transparent',
                     border: 'none',
