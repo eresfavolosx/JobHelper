@@ -78,11 +78,11 @@ export default function LoginPage() {
                 className="card animate-scale-in"
                 style={{
                     width: '100%',
-                    maxWidth: '420px',
+                    maxWidth: '400px',
                     textAlign: 'center',
-                    padding: '40px 36px',
-                    backdropFilter: 'blur(40px)',
-                    background: 'rgba(25, 25, 35, 0.6)'
+                    padding: '40px',
+                    background: 'var(--bg-app)',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
                 }}
             >
                 <div
@@ -90,12 +90,13 @@ export default function LoginPage() {
                     style={{
                         display: 'flex',
                         justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.05)',
+                        background: 'var(--glass-panel)',
                         width: '70px',
                         height: '70px',
-                        borderRadius: '50%',
+                        borderRadius: '16px',
                         alignItems: 'center',
-                        margin: '0 auto 20px auto'
+                        margin: '0 auto 20px auto',
+                        padding: '16px'
                     }}
                 >
                     <Lock size={35} color="var(--accent-primary)" />

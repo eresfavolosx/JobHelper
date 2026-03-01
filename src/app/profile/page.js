@@ -538,7 +538,7 @@ function ResumeUpload({ onAnalysisComplete }) {
                     width: '50px',
                     height: '50px',
                     borderRadius: '50%',
-                    background: hasResume ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                    background: hasResume ? 'rgba(34, 197, 94, 0.1)' : 'var(--glass-highlight)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -596,7 +596,7 @@ function ResumeUpload({ onAnalysisComplete }) {
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {profile.resumeAnalysis.skills?.slice(0, 5).map((skill, i) => (
-                            <span key={i} style={{ padding: '4px 10px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', fontSize: '0.8rem' }}>
+                            <span key={i} style={{ padding: '4px 10px', background: 'var(--glass-highlight)', borderRadius: '12px', fontSize: '0.8rem' }}>
                                 {skill}
                             </span>
                         ))}

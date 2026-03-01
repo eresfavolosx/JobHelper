@@ -105,7 +105,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                     <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', lineHeight: '1.3' }}>{job.title}</h3>
                                     <span style={{
-                                        background: job.relevanceScore > 80 ? 'rgba(34, 197, 94, 0.2)' : job.relevanceScore > 50 ? 'rgba(234, 179, 8, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                                        background: job.relevanceScore > 80 ? 'rgba(34, 197, 94, 0.2)' : job.relevanceScore > 50 ? 'rgba(234, 179, 8, 0.2)' : 'var(--glass-panel)',
                                         color: job.relevanceScore > 80 ? 'var(--success)' : job.relevanceScore > 50 ? 'var(--warning)' : 'var(--text-secondary)',
                                         padding: '4px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold',
                                         whiteSpace: 'nowrap', marginLeft: '12px'
@@ -144,7 +144,7 @@ export default function RecommendationsPage() {
                                 </p>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-highlight)' }}>
                                 <a
                                     href={sanitizeUrl(job.link) || '#'}
                                     target="_blank"

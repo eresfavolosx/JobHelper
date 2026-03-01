@@ -39,7 +39,7 @@ export default function InstallPage() {
                 </p>
             </header>
 
-            <div className="card animate-scale-in delay-100" style={{ padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)' }}>
+            <div className="card animate-scale-in delay-100" style={{ padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', background: 'var(--glass-panel)' }}>
                 <a
                     href="/extension.zip"
                     download="job-tracker-extension.zip"
