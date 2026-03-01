@@ -30,6 +30,9 @@ export const useAppStore = create(
                             keywords: '',
                             isRemote: false,
                             experienceLevel: 'Mid-Senior',
+                            country: '',
+                            modality: 'Remote',
+                            minimumSalary: '',
                             contextDocuments: [],
                             geminiApiKey: ''
                         },
@@ -55,6 +58,9 @@ export const useAppStore = create(
                         keywords: '',
                         isRemote: false,
                         experienceLevel: 'Mid-Senior',
+                        country: '',
+                        modality: 'Remote',
+                        minimumSalary: '',
                         contextDocuments: [],
                         geminiApiKey: ''
                     }
@@ -166,6 +172,9 @@ export const useAppStore = create(
                 keywords: '',
                 isRemote: false,
                 experienceLevel: 'Mid-Senior',
+                country: '',
+                modality: 'Remote',
+                minimumSalary: '',
                 contextDocuments: [], // { name, content, type }
                 resumeAnalysis: null, // { skills, summary, targetRoles, etc }
                 geminiApiKey: '' // User provided API key (overrides env var)
