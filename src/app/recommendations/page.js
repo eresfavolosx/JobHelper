@@ -23,11 +23,16 @@ export default function RecommendationsPage() {
                 body.resumeData = profile.resumeAnalysis;
             } else {
                 // Fallback to profile manual fields
-                body.keywords = profile.keywords ? profile.keywords.split(',').map(k => k.trim()) : ['remote'];
+                body.keywords = profile.keywords ? profile.keywords.split(',').map(k => k.trim()) : [];
+                if (profile.modality === 'Remote' || profile.isRemote) body.keywords.push('remote');
+
                 body.resumeData = {
                     targetRole: profile.targetRole,
                     experienceLevel: profile.experienceLevel,
-                    skills: profile.keywords ? profile.keywords.split(',') : []
+                    skills: profile.keywords ? profile.keywords.split(',') : [],
+                    country: profile.country,
+                    modality: profile.modality,
+                    minimumSalary: profile.minimumSalary
                 };
             }
 

@@ -164,6 +164,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                             <option value="applied">Applied</option>
                             <option value="interviewing">Interviewing</option>
                             <option value="offer">Offer</option>
+                            <option value="accepted">Accepted Offer</option>
                             <option value="rejected">Rejected</option>
                         </select>
                     </div>

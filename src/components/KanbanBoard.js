@@ -11,6 +11,7 @@ const COLUMNS = [
     { id: 'applied', title: 'Applied' },
     { id: 'interviewing', title: 'Interviewing' },
     { id: 'offer', title: 'Offer' },
+    { id: 'accepted', title: 'Accepted' },
     { id: 'rejected', title: 'Rejected' },
     { id: 'deleted', title: 'Deleted', isTrash: true },
 ];

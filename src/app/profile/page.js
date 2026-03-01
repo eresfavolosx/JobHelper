@@ -28,7 +28,10 @@ function ProfileContent() {
         location: 'Puerto Rico',
         keywords: '',
         isRemote: false,
-        experienceLevel: 'Mid-Senior'
+        experienceLevel: 'Mid-Senior',
+        country: '',
+        modality: 'Remote',
+        minimumSalary: ''
     });
 
     const [saved, setSaved] = useState(false);
@@ -148,14 +151,49 @@ function ProfileContent() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
                                 <input
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
                                 />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
+                                <input
+                                    name="country"
+                                    value={formData.country || ''}
+                                    onChange={handleChange}
+                                    placeholder="e.g. USA, UK, Global"
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
+                                <input
+                                    type="number"
+                                    name="minimumSalary"
+                                    value={formData.minimumSalary || ''}
+                                    onChange={handleChange}
+                                    placeholder="e.g. 80000"
+                                    step="1000"
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
+                                <select
+                                    name="modality"
+                                    value={formData.modality || 'Remote'}
+                                    onChange={handleChange}
+                                >
+                                    <option style={{ background: 'var(--bg-panel)' }} value="Remote">Remote</option>
+                                    <option style={{ background: 'var(--bg-panel)' }} value="Hybrid">Hybrid</option>
+                                    <option style={{ background: 'var(--bg-panel)' }} value="On-site">On-site</option>
+                                </select>
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
@@ -173,20 +211,7 @@ function ProfileContent() {
                             </div>
                         </div>
 
-                        <div style={{ marginTop: '16px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    name="isRemote"
-                                    checked={formData.isRemote}
-                                    onChange={handleChange}
-                                    style={{ width: '20px', height: '20px' }}
-                                />
-                                <span>I am interested in Remote / Hybrid roles</span>
-                            </label>
-                        </div>
-
-                        <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
+                        <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>
                             {saved ? 'Changes Saved!' : 'Save Preferences'}
                         </button>
                     </form>

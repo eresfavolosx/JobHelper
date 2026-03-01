@@ -73,17 +73,22 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
 
     // Sanitize candidate profile
     const safeRole = escapeXml(resumeData.targetRoles?.join(', ') || resumeData.targetRole);
-    const safeSkills = escapeXml(resumeData.skills?.join(', '));
     const safeExperience = escapeXml(resumeData.experienceLevel);
+    const safeCountry = escapeXml(resumeData.country || 'Global');
+    const safeModality = escapeXml(resumeData.modality || 'Remote');
+    const safeSalary = escapeXml(resumeData.minimumSalary ? `$${resumeData.minimumSalary}` : 'Not Specified');
 
     const prompt = `
     You are a recruiter matching a candidate to jobs.
     
-    Candidate Profile:
+    Candidate Profile (Target Requirements):
     <candidate_profile>
         <target_role>${safeRole}</target_role>
         <skills>${safeSkills}</skills>
         <experience>${safeExperience}</experience>
+        <country>${safeCountry}</country>
+        <modality>${safeModality}</modality>
+        <minimum_salary>${safeSalary}</minimum_salary>
     </candidate_profile>
 
     Jobs (XML format):
