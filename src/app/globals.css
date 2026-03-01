@@ -18,6 +18,7 @@
   --glass-panel: rgba(255, 255, 255, 0.05);
   /* Very subtle fill */
   --glass-border: rgba(255, 255, 255, 0.1);
+  --border-subtle: var(--glass-border);
   --glass-highlight: rgba(255, 255, 255, 0.05);
   --blur-md: blur(12px);
   --blur-lg: blur(24px);
@@ -98,7 +99,59 @@ button {
   width: 100%;
 }
 
+/* Job Card Actions */
+.job-actions-group {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Show actions on group hover or when focused within */
+.group:hover .job-actions-group,
+.job-actions-group:focus-within {
+  opacity: 1;
+}
+
+.job-action-btn {
+  /* Base styles to replace inline styles */
+  padding: 6px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.job-action-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.job-action-btn.edit {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.job-action-btn.edit:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.job-action-btn.delete {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.job-action-btn.delete:hover {
+  background-color: rgba(239, 68, 68, 0.25);
+}
+
+.job-source-link:hover {
+  color: #60a5fa;
+}
+
 @media (max-width: 768px) {
+  /* Always show actions on mobile */
+  .job-actions-group {
+    opacity: 1;
+  }
   .container {
     padding: 0;
     /* main already provides padding on mobile */
@@ -157,15 +210,6 @@ button {
     transform: translateY(-2px);
   }
 
-  /* Group hover pattern for showing edit/delete buttons */
-  .group:hover .group-hover\:opacity-100 {
-    opacity: 1 !important;
-  }
-
-  /* Focus within pattern for accessibility */
-  .focus-within\:opacity-100:focus-within {
-    opacity: 1 !important;
-  }
 
   /* Interactive card (Kanban cards) */
   .interactive-card {
@@ -270,11 +314,6 @@ button {
 
     .desktop-only {
       display: none !important;
-    }
-
-    /* Make hover buttons always visible on mobile */
-    .group-hover\:opacity-100 {
-      opacity: 1 !important;
     }
   }
 
