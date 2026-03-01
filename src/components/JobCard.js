@@ -77,7 +77,7 @@ const JobCard = memo(function JobCard({ job }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '16px' }}>
                 <span
                     title={safeDate(job.createdAt || job.dateAdded).toLocaleString()}
-                    style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px' }}
+                    style={{ background: 'var(--glass-highlight)', padding: '4px 8px', borderRadius: '6px' }}
                 >
                     {formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}
                 </span>
@@ -96,7 +96,7 @@ const JobCard = memo(function JobCard({ job }) {
                     </a>
                 )}
             </div>
-            {job.notes && <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '8px', lineHeight: '1.4' }}>{job.notes}</div>}
+            {job.notes && <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--glass-panel)', padding: '8px 12px', borderRadius: '8px', lineHeight: '1.4' }}>{job.notes}</div>}
         </div>
     );
 });

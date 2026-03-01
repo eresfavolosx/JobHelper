@@ -65,9 +65,9 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                 style={{
                     width: '500px',
                     maxWidth: '90%',
-                    background: 'rgba(20, 20, 30, 0.95)', // Much more opaque
+                    background: 'var(--bg-app)',
                     backdropFilter: 'blur(24px)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    border: '1px solid var(--glass-border)',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
                 }}
             >
@@ -88,7 +88,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                             minWidth: '36px',
                             minHeight: '36px',
                             borderRadius: '50%',
-                            background: 'rgba(255,255,255,0.05)',
+                            background: 'var(--glass-highlight)',
                             transition: 'background 0.2s',
                             display: 'flex',
                             alignItems: 'center',
