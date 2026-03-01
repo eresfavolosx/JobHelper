@@ -16,7 +16,11 @@ const COLUMNS = [
 ];
 
 export default function KanbanBoard() {
-    const { jobs, moveJob } = useAppStore();
+    // ⚡ Bolt: Use specific selectors instead of destructuring the whole store to prevent
+    // unnecessary re-renders when other state (like profile) changes
+    const jobs = useAppStore(state => state.jobs);
+    const moveJob = useAppStore(state => state.moveJob);
+
     const [mounted, setMounted] = useState(false);
     const [activeId, setActiveId] = useState(null);
 
@@ -58,15 +62,21 @@ export default function KanbanBoard() {
         })
     );
 
-    const columnsData = useMemo(() => {
+    // ⚡ Bolt: Generate a jobsMap for O(1) lookups during drag operations instead of O(N) Array.find
+    const { columnsData, jobsMap } = useMemo(() => {
         const data = {};
+        const map = new Map();
+
         COLUMNS.forEach(c => data[c.id] = []);
+
         jobs.forEach(j => {
+            map.set(j.id, j);
             if (data[j.status]) {
                 data[j.status].push(j);
             }
         });
-        return data;
+
+        return { columnsData: data, jobsMap: map };
     }, [jobs]);
 
     if (!mounted) return null;
@@ -81,14 +91,18 @@ export default function KanbanBoard() {
 
         if (!over) return;
 
-        const activeJob = jobs.find(j => j.id === active.id);
+        // ⚡ Bolt: O(1) map lookup instead of jobs.find()
+        const activeJob = jobsMap.get(active.id);
+        if (!activeJob) return;
+
         const overId = over.id;
 
         // Check if dropped over a column container or a card
         let newStatus = overId;
 
         // If overId is a job ID (not a column ID), find that job's status
-        const overJob = jobs.find(j => j.id === overId);
+        // ⚡ Bolt: O(1) map lookup instead of jobs.find()
+        const overJob = jobsMap.get(overId);
         if (overJob) {
             newStatus = overJob.status;
         }
@@ -120,7 +134,8 @@ export default function KanbanBoard() {
             <DragOverlay>
                 {activeId ? (
                     <div style={{ transform: 'rotate(3deg)' }}> {/* Tilt effect */}
-                        <JobCard job={jobs.find(j => j.id === activeId)} />
+                        {/* ⚡ Bolt: O(1) map lookup instead of jobs.find() */}
+                        <JobCard job={jobsMap.get(activeId)} />
                     </div>
                 ) : null}
             </DragOverlay>
