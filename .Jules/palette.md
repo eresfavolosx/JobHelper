@@ -1,3 +1,6 @@
 ## 2024-05-24 - Missing ARIA Labels on Icon-Only Buttons
 **Learning:** Found an app-wide pattern where custom icon-only buttons (like the password visibility toggle in `login/page.js`, modal close button in `AddJobModal.js`, and toast dismiss button in `UndoToast.js`) were missing `aria-label` and `title` attributes. This reduces accessibility for screen reader users and those relying on tooltips.
 **Action:** Ensure all icon-only buttons receive descriptive `aria-label` (for screen readers) and `title` (for tooltips) attributes to maintain a high accessibility standard.
+## 2024-05-25 - Missing input-label association for form inputs
+**Learning:** Found an app-wide pattern where `<input>` and `<select>` elements in forms (like the profile preferences form in `src/app/profile/page.js`) were missing `id` attributes and corresponding `<label htmlFor="...">` bindings. This breaks screen reader functionality, as users cannot determine what the input is for. Additionally, hidden inputs (like the resume upload) or inputs without explicit text labels (like the API key) lacked `aria-label`s.
+**Action:** Ensure all form controls have explicitly associated labels using `id` and `htmlFor`. For inputs without a visual text label, provide an `aria-label` attribute to describe the field.
