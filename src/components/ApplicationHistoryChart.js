@@ -18,15 +18,18 @@ export default function ApplicationHistoryChart({ jobs }) {
     const data = useMemo(() => {
         if (!jobs || jobs.length === 0) return [];
 
-        // 1. Sort jobs by dateAdded
-        const sortedJobs = [...jobs].sort((a, b) => {
-            const dateA = safeDate(a.dateAdded || a.createdAt);
-            const dateB = safeDate(b.dateAdded || b.createdAt);
-            return dateA - dateB;
-        });
+        // ⚡ Bolt: Convert dates to primitive timestamps upfront in a single O(N) pass
+        // to avoid expensive Date object creation inside the O(N log N) sort and O(N) loop
+        const jobsWithTime = jobs.map(job => ({
+            ...job,
+            _time: safeDate(job.dateAdded || job.createdAt).getTime()
+        }));
+
+        // 1. Sort jobs by pre-calculated timestamp
+        const sortedJobs = jobsWithTime.sort((a, b) => a._time - b._time);
 
         // 2. Get date range (from first job to today)
-        const firstJobDate = safeDate(sortedJobs[0].dateAdded || sortedJobs[0].createdAt);
+        const firstJobDate = new Date(sortedJobs[0]._time);
         const today = new Date();
         // Ensure we show at least the last 7 days if only 1 job
         const startDate = subDays(today, 7) < firstJobDate ? subDays(today, 7) : firstJobDate;
@@ -44,9 +47,10 @@ export default function ApplicationHistoryChart({ jobs }) {
             const endOfDay = new Date(day).setHours(23, 59, 59, 999);
 
             // Add jobs that happened on or before the end of this day
+            // ⚡ Bolt: Use pre-calculated timestamp for O(1) comparison instead of re-parsing
             while (
                 jobIndex < sortedJobs.length &&
-                safeDate(sortedJobs[jobIndex].dateAdded || sortedJobs[jobIndex].createdAt).getTime() <= endOfDay
+                sortedJobs[jobIndex]._time <= endOfDay
             ) {
                 cumulativeCount++;
                 jobIndex++;
