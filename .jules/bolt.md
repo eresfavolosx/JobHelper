@@ -5,3 +5,7 @@
 ## 2024-02-18 - Avoid O(N) Filters in O(M) Data Visualization Loops
 **Learning:** In data-visualization tools (like `ApplicationHistoryChart`), calculating a cumulative total by iterating over an array of days and filtering a large dataset of jobs (`O(N*M)`) creates significant frontend lag as the number of jobs grows. Since the job data is already pre-sorted by date, this pattern is completely unnecessary.
 **Action:** Always refactor sequential grouping or filtering over pre-sorted data into a single-pass pointer (`O(N+M)`) approach, maintaining an index or cumulative counter across the iterations.
+
+## 2025-03-04 - Optimize Date Parsing in Loops
+**Learning:** Calling functions like `safeDate` (which involves object creation and parsing) repeatedly inside O(N log N) `Array.sort` comparisons or nested O(N) loops creates a performance bottleneck as the dataset grows.
+**Action:** When performing repeated date comparisons, always convert dates to primitive timestamps (`.getTime()`) upfront in a single O(N) pass, then use the primitive values for subsequent sorting and filtering.
