@@ -5,3 +5,7 @@
 ## 2024-02-18 - Avoid O(N) Filters in O(M) Data Visualization Loops
 **Learning:** In data-visualization tools (like `ApplicationHistoryChart`), calculating a cumulative total by iterating over an array of days and filtering a large dataset of jobs (`O(N*M)`) creates significant frontend lag as the number of jobs grows. Since the job data is already pre-sorted by date, this pattern is completely unnecessary.
 **Action:** Always refactor sequential grouping or filtering over pre-sorted data into a single-pass pointer (`O(N+M)`) approach, maintaining an index or cumulative counter across the iterations.
+
+## 2026-03-07 - Pre-calculate Primitive Types for Repeated Sorting/Filtering
+**Learning:** In JavaScript, calling functions like `safeDate` or `new Date()` that perform parsing and object allocation within tightly-looped callbacks (e.g. `Array.prototype.sort()` which is O(N log N) or inside `while` loops iterating over large datasets) severely impacts CPU and memory.
+**Action:** Before sorting or sequentially iterating arrays of objects based on a derived value (like a timestamp from a date string), execute a single O(N) pass (`.map()`) to extract and pre-calculate the required primitive values (e.g. `.getTime()`) onto the objects, then use those primitives in subsequent high-complexity operations.
