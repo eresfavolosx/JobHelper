@@ -5,3 +5,7 @@
 ## 2024-02-18 - Avoid O(N) Filters in O(M) Data Visualization Loops
 **Learning:** In data-visualization tools (like `ApplicationHistoryChart`), calculating a cumulative total by iterating over an array of days and filtering a large dataset of jobs (`O(N*M)`) creates significant frontend lag as the number of jobs grows. Since the job data is already pre-sorted by date, this pattern is completely unnecessary.
 **Action:** Always refactor sequential grouping or filtering over pre-sorted data into a single-pass pointer (`O(N+M)`) approach, maintaining an index or cumulative counter across the iterations.
+
+## 2026-03-08 - Avoid Multiple Array.filters for Derived Stats
+**Learning:** In components calculating multiple derived statistics from a single data source (like dashboard counts), chaining or repeating `Array.filter` calls over the same array is an anti-pattern. If there are `k` filters, the time complexity becomes `O(k*N)`.
+**Action:** When calculating multiple derived statistics from an array (e.g., status counts), use a single-pass loop inside a `useMemo` hook rather than chaining or repeating `.filter()` calls to reduce time complexity from `O(k*N)` to `O(N)`.

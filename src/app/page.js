@@ -3,7 +3,7 @@ import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
@@ -32,11 +32,20 @@ export default function Home() {
     if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
-    const stats = {
-        total: jobs.length,
-        interviewing: jobs.filter(j => j.status === 'interviewing').length,
-        offers: jobs.filter(j => j.status === 'offer').length
-    };
+    // ⚡ Bolt: O(N) single-pass loop with useMemo instead of O(k*N) multiple filter calls
+    const stats = useMemo(() => {
+        let interviewing = 0;
+        let offers = 0;
+        for (let i = 0; i < jobs.length; i++) {
+            if (jobs[i].status === 'interviewing') interviewing++;
+            else if (jobs[i].status === 'offer') offers++;
+        }
+        return {
+            total: jobs.length,
+            interviewing,
+            offers
+        };
+    }, [jobs]);
 
     if (jobs.length === 0) {
         return <Onboarding />;
