@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
@@ -10,6 +10,7 @@ export default function RecommendationsPage() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [addedJobs, setAddedJobs] = useState(new Set());
 
     const findJobs = async () => {
         setLoading(true);
@@ -156,6 +157,8 @@ export default function RecommendationsPage() {
                                 </a>
                                 <button
                                     onClick={() => {
+                                        if (addedJobs.has(job.link)) return;
+
                                         addJob({
                                             company: 'Unknown',
                                             role: job.title,
@@ -163,13 +166,46 @@ export default function RecommendationsPage() {
                                             status: 'wishlist',
                                             notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                         });
-                                        // Simple alert for feedback - could be improved with toast
-                                        alert('Job added to Wishlist!');
+
+                                        setAddedJobs(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.add(job.link);
+                                            return newSet;
+                                        });
+
+                                        setTimeout(() => {
+                                            setAddedJobs(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.delete(job.link);
+                                                return newSet;
+                                            });
+                                        }, 2000);
                                     }}
-                                    className="btn-primary"
-                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                    className={addedJobs.has(job.link) ? "" : "btn-primary"}
+                                    disabled={addedJobs.has(job.link)}
+                                    style={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        background: addedJobs.has(job.link) ? 'var(--success)' : undefined,
+                                        color: addedJobs.has(job.link) ? 'white' : undefined,
+                                        border: addedJobs.has(job.link) ? 'none' : undefined,
+                                        borderRadius: 'var(--radius-md)',
+                                        padding: '10px 20px',
+                                        fontWeight: '600'
+                                    }}
                                 >
-                                    <Plus size={16} /> Add to Board
+                                    {addedJobs.has(job.link) ? (
+                                        <>
+                                            <Check size={16} /> Added!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus size={16} /> Add to Board
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
