@@ -8,10 +8,19 @@ const toggleKeyBtn = document.getElementById('toggleKeyBtn');
 const APP_URL = 'https://jobhelper-c3cd7.web.app';
 
 // Load stored API key
-chrome.storage.sync.get(['geminiApiKey'], (result) => {
-    if (result.geminiApiKey) {
-        apiKeyInput.value = result.geminiApiKey;
-        // Optionally hide if already set, but kept visible for now for editing
+chrome.storage.local.get(['geminiApiKey'], (localResult) => {
+    if (localResult.geminiApiKey) {
+        apiKeyInput.value = localResult.geminiApiKey;
+    } else {
+        // Migration path: check sync storage for legacy keys
+        chrome.storage.sync.get(['geminiApiKey'], (syncResult) => {
+            if (syncResult.geminiApiKey) {
+                apiKeyInput.value = syncResult.geminiApiKey;
+                // Migrate to local storage and remove from sync storage
+                chrome.storage.local.set({ geminiApiKey: syncResult.geminiApiKey });
+                chrome.storage.sync.remove('geminiApiKey');
+            }
+        });
     }
 });
 
@@ -34,7 +43,7 @@ saveBtn.addEventListener('click', async () => {
     }
 
     // Save key for next time
-    chrome.storage.sync.set({ geminiApiKey: apiKey });
+    chrome.storage.local.set({ geminiApiKey: apiKey });
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 

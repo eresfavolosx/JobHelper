@@ -1,3 +1,8 @@
+## 2026-03-09 - Insecure Storage of API Keys in Browser Extension
+**Vulnerability:** The Gemini API Key was being stored in `chrome.storage.sync`. By default, Chrome sync storage synchronizes data in plaintext across the user's signed-in devices, posing a significant risk of credential exposure.
+**Learning:** Browser extension sync storage is not a secure vault. Sensitive information like API keys or tokens should never be synced across devices without explicit encryption and user consent.
+**Prevention:** Always use `chrome.storage.local` for storing sensitive credentials within an extension to ensure they remain isolated to the local machine. Implement migration paths to securely move existing synced keys to local storage and remove them from sync.
+
 ## 2026-02-14 - Stored XSS via Job URL
 **Vulnerability:** Job URLs stored in Firestore were rendered without sanitization in the `href` attribute, allowing "javascript:" schemes to execute malicious code (Stored XSS). Additionally, external links lacked `rel="noopener noreferrer"`, exposing users to Reverse Tabnabbing attacks.
 **Learning:** Even internal tools or personal apps need strict input validation. The `input type="url"` client-side validation is insufficient as data can be manipulated or bypassed.
