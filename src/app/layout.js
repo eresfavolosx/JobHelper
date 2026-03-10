@@ -11,7 +11,7 @@ import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-
+import { sanitizeUrl } from '@/lib/utils';
 
 // Separate component to use useSearchParams safely inside Suspense
 function UrlListener() {
@@ -23,8 +23,11 @@ function UrlListener() {
         if (action === 'auto-open') {
             const role = searchParams.get('role');
             const company = searchParams.get('company');
-            const url = searchParams.get('url');
+            const rawUrl = searchParams.get('url');
             const status = searchParams.get('status');
+
+            // Sanitize the URL to prevent XSS (e.g., block javascript: schemes)
+            const url = rawUrl ? sanitizeUrl(rawUrl) : '';
 
             // Clean URL
             window.history.replaceState({}, '', '/');
