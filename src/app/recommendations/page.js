@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
@@ -10,6 +10,7 @@ export default function RecommendationsPage() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [addedJobs, setAddedJobs] = useState(new Set());
 
     const findJobs = async () => {
         setLoading(true);
@@ -156,6 +157,7 @@ export default function RecommendationsPage() {
                                 </a>
                                 <button
                                     onClick={() => {
+                                        if (addedJobs.has(job.link)) return;
                                         addJob({
                                             company: 'Unknown',
                                             role: job.title,
@@ -163,13 +165,31 @@ export default function RecommendationsPage() {
                                             status: 'wishlist',
                                             notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                         });
-                                        // Simple alert for feedback - could be improved with toast
-                                        alert('Job added to Wishlist!');
+                                        setAddedJobs(prev => new Set(prev).add(job.link));
                                     }}
-                                    className="btn-primary"
-                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                    className={addedJobs.has(job.link) ? "btn-secondary" : "btn-primary"}
+                                    disabled={addedJobs.has(job.link)}
+                                    style={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        background: addedJobs.has(job.link) ? 'var(--glass-panel)' : '',
+                                        color: addedJobs.has(job.link) ? 'var(--success)' : '',
+                                        borderColor: addedJobs.has(job.link) ? 'var(--success)' : ''
+                                    }}
+                                    aria-label={addedJobs.has(job.link) ? `Added ${job.title} to Board` : `Add ${job.title} to Board`}
                                 >
-                                    <Plus size={16} /> Add to Board
+                                    {addedJobs.has(job.link) ? (
+                                        <>
+                                            <CheckCircle size={16} /> Added!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus size={16} /> Add to Board
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
