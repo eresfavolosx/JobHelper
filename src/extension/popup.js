@@ -72,7 +72,8 @@ saveBtn.addEventListener('click', async () => {
 
         // 3. Open the app with extracted data
         const status = statusSelect.value;
-        const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(extraction.role || pageData.title)}&company=${encodeURIComponent(extraction.company || '')}&salary=${encodeURIComponent(extraction.salary || '')}&location=${encodeURIComponent(extraction.location || '')}&description=${encodeURIComponent(extraction.description || '')}&url=${encodeURIComponent(pageData.url)}&status=${status}`;
+        const sanitizedPageUrl = sanitizeUrl(pageData.url) || '';
+        const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(extraction.role || pageData.title)}&company=${encodeURIComponent(extraction.company || '')}&salary=${encodeURIComponent(extraction.salary || '')}&location=${encodeURIComponent(extraction.location || '')}&description=${encodeURIComponent(extraction.description || '')}&url=${encodeURIComponent(sanitizedPageUrl)}&status=${status}`;
 
         chrome.tabs.create({ url: targetUrl });
 
@@ -91,7 +92,8 @@ saveBtn.addEventListener('click', async () => {
             if (results?.[0]?.result) {
                 const data = results[0].result;
                 const status = statusSelect.value;
-                const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(data.url)}&status=${status}`;
+                const sanitizedDataUrl = sanitizeUrl(data.url) || '';
+                const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
                 chrome.tabs.create({ url: targetUrl });
             }
         });
@@ -100,6 +102,35 @@ saveBtn.addEventListener('click', async () => {
         saveBtn.disabled = false;
     }
 });
+
+/**
+ * Local copy of sanitizeUrl since we can't easily import from the Next.js app
+ * in this simple extension architecture.
+ */
+function sanitizeUrl(url) {
+    if (!url) return null;
+    let stringUrl = String(url).trim();
+
+    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
+    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
+    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(stringUrl);
+    } catch {
+        try {
+            parsed = new URL('https://' + stringUrl);
+        } catch {
+            return null;
+        }
+    }
+
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+        return parsed.toString();
+    }
+    return null;
+}
 
 async function callGeminiAPI(apiKey, text) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
