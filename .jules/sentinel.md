@@ -12,3 +12,7 @@
 **Vulnerability:** Job URLs fetched from external RSS feeds and scored by AI were rendered directly into `href` attributes in `src/app/recommendations/page.js` without sanitization, posing an XSS risk.
 **Learning:** External data sources (like RSS feeds and AI outputs) cannot be implicitly trusted, even if they seem benign. Data fetched dynamically must be sanitized before rendering.
 **Prevention:** Always use the project's `sanitizeUrl` utility function on any external or dynamically generated URLs before passing them to the `href` attribute.
+## 2024-05-30 - Prevent XSS from Extension Query Parameters
+**Vulnerability:** The `UrlListener` component extracted the `url` from `searchParams` and directly passed it to the UI (e.g., `openEditJobModal`) without sanitization, exposing the app to DOM-based Cross-Site Scripting (XSS) if malicious protocols like `javascript:` were used.
+**Learning:** URL parameters provided by external sources (like a browser extension) should be considered untrusted input and must be sanitized before being used in href or state variables that render links.
+**Prevention:** Always apply the `sanitizeUrl` utility function to external URLs received via `searchParams` to filter out execution schemes like `javascript:`.
