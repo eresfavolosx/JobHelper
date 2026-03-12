@@ -12,3 +12,8 @@
 **Vulnerability:** Job URLs fetched from external RSS feeds and scored by AI were rendered directly into `href` attributes in `src/app/recommendations/page.js` without sanitization, posing an XSS risk.
 **Learning:** External data sources (like RSS feeds and AI outputs) cannot be implicitly trusted, even if they seem benign. Data fetched dynamically must be sanitized before rendering.
 **Prevention:** Always use the project's `sanitizeUrl` utility function on any external or dynamically generated URLs before passing them to the `href` attribute.
+
+## 2025-02-14 - Chrome Extension Sync Storage Credentials Leak
+**Vulnerability:** The Chrome extension was storing the Gemini API key using `chrome.storage.sync`.
+**Learning:** `chrome.storage.sync` synchronizes data across all devices signed into the same Google account, meaning sensitive credentials (like API keys) are transmitted over the network and stored on Google servers. This is inappropriate for sensitive data.
+**Prevention:** Use `chrome.storage.local` for sensitive data like API keys, credentials, or personal information. Only use `chrome.storage.sync` for non-sensitive user preferences. Always provide a migration path when changing storage mechanisms.
