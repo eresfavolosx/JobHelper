@@ -11,6 +11,7 @@ import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { sanitizeUrl } from '@/lib/utils';
 
 
 // Separate component to use useSearchParams safely inside Suspense
@@ -25,12 +26,26 @@ function UrlListener() {
             const company = searchParams.get('company');
             const url = searchParams.get('url');
             const status = searchParams.get('status');
+            const salary = searchParams.get('salary');
+            const location = searchParams.get('location');
+            const description = searchParams.get('description');
+
+            // Sanitize the URL to prevent DOM-based XSS
+            const sanitizedUrl = sanitizeUrl(url);
 
             // Clean URL
             window.history.replaceState({}, '', '/');
 
             // Open modal with this "phantom" job data
-            openEditJobModal({ role, company, url, status });
+            openEditJobModal({
+                role,
+                company,
+                url: sanitizedUrl,
+                status,
+                salary,
+                location,
+                notes: description
+            });
         }
     }, [searchParams, openEditJobModal]);
 
