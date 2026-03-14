@@ -1,3 +1,6 @@
 ## 2024-05-24 - Missing ARIA Labels on Icon-Only Buttons
 **Learning:** Found an app-wide pattern where custom icon-only buttons (like the password visibility toggle in `login/page.js`, modal close button in `AddJobModal.js`, and toast dismiss button in `UndoToast.js`) were missing `aria-label` and `title` attributes. This reduces accessibility for screen reader users and those relying on tooltips.
 **Action:** Ensure all icon-only buttons receive descriptive `aria-label` (for screen readers) and `title` (for tooltips) attributes to maintain a high accessibility standard.
+## 2024-05-15 - Dashboard Navigation Cards Accessibility
+**Learning:** The dashboard used `div` elements with `onClick` handlers and `router.push()` for navigation, which failed to provide native keyboard navigability (`tabIndex`), screen reader semantics (role), and native link behaviors (open in new tab). Wrapping cards in Next.js `<Link>` components seamlessly adds these accessibility features while maintaining the grid layout.
+**Action:** When creating large clickable areas for navigation (like cards), always prefer wrapping the content in semantic `<Link>` or `<a>` tags instead of using `div` with `onClick` handlers. Ensure interactive focus styles (like `.interactive-card`) are applied to the `Link` element itself.
