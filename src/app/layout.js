@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles } from 'lucide-react';
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
+import { sanitizeUrl } from '@/lib/utils';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useUIStore } from '@/lib/uiStore';
 import DailyReminder from '@/components/DailyReminder';
@@ -51,6 +52,8 @@ function UrlListener() {
                 salary,
                 location,
                 notes
+                url: sanitizeUrl(url),
+                status
             });
         }
     }, [searchParams, openEditJobModal]);
