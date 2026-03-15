@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense, useRef } from 'react';
+import { useState, useEffect, Suspense, useRef, useMemo } from 'react';
 import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
@@ -387,9 +387,17 @@ function SubscriptionManager() {
     const { profile, updateProfile, isPremium } = useAppStore();
     const [loading, setLoading] = useState(false);
 
-    const isCurrentlyPremium = isPremium();
+    const isCurrentlyPremium = typeof isPremium === 'function' ? isPremium() : isPremium;
     const isTrial = profile?.subscriptionStatus === 'trial';
-    const trialDaysLeft = profile?.trialEndDate ? Math.ceil((new Date(profile.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+    
+    // Safely calculate days left
+    const trialDaysLeft = useMemo(() => {
+        if (!profile?.trialEndDate) return 0;
+        const end = new Date(profile.trialEndDate);
+        if (isNaN(end.getTime())) return 0;
+        const diff = end - new Date();
+        return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }, [profile?.trialEndDate]);
 
     const handleSubscribe = () => {
         setLoading(true);
