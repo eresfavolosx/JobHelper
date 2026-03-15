@@ -52,6 +52,23 @@ export const AuthProvider = ({ children }) => {
 
                         // Subscribe to this user's Firestore data
                         unsubscribeStoreRef.current = store.subscribeToFirestore(firebaseUser.uid);
+
+                        // ⚡ Trial Initialization: If new user or no trial date, start a 14-day trial
+                        setTimeout(() => {
+                            const currentProfile = module.useAppStore.getState().profile;
+                            if (currentProfile && !currentProfile.trialStartDate) {
+                                console.log("[AuthContext] Initializing 14-day trial for user");
+                                const now = new Date();
+                                const endDate = new Date();
+                                endDate.setDate(now.getDate() + 14);
+                                
+                                module.useAppStore.getState().updateProfile({
+                                    trialStartDate: now.toISOString(),
+                                    trialEndDate: endDate.toISOString(),
+                                    subscriptionStatus: 'trial'
+                                });
+                            }
+                        }, 2000); // Small delay to allow firestore sync to finish first
                     }).catch(err => console.error("[AuthContext] Failed to load store:", err));
                 }
                 setUser(firebaseUser);

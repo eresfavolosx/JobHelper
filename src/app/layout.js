@@ -12,7 +12,7 @@ import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { sanitizeUrl } from '@/lib/utils';
+
 
 
 // Separate component to use useSearchParams safely inside Suspense
@@ -26,16 +26,12 @@ function UrlListener() {
             const role = searchParams.get('role');
             const company = searchParams.get('company');
             const rawUrl = searchParams.get('url');
-            const status = searchParams.get('status');
+            const status = searchParams.get('status') || 'wishlist';
             const salary = searchParams.get('salary');
             const location = searchParams.get('location');
             const description = searchParams.get('description');
 
-            // Sanitize the URL to prevent DOM-based XSS
-            const sanitizedUrl = sanitizeUrl(url);
-            const notes = searchParams.get('description');
-
-            // Sanitize the URL to prevent XSS (e.g., block javascript: schemes)
+            // Sanitize the URL to prevent XSS
             const url = rawUrl ? sanitizeUrl(rawUrl) : '';
 
             // Clean URL
@@ -45,18 +41,11 @@ function UrlListener() {
             openEditJobModal({
                 role,
                 company,
-                url: sanitizedUrl,
+                url,
                 status,
                 salary,
                 location,
                 notes: description
-                url: sanitizeUrl(url) || '',
-                status,
-                salary,
-                location,
-                notes
-                url: sanitizeUrl(url),
-                status
             });
         }
     }, [searchParams, openEditJobModal]);

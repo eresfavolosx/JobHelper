@@ -18,47 +18,19 @@ export default function ApplicationHistoryChart({ jobs }) {
     const data = useMemo(() => {
         if (!jobs || jobs.length === 0) return [];
 
-        // ⚡ Bolt: Convert dates to primitive timestamps upfront in a single O(N) pass
-        // to avoid expensive Date object creation inside the O(N log N) sort and O(N) loop
+        // ⚡ Bolt: Single O(N) pass to pre-calculate primitive timestamps
+        // This avoids expensive Date parsing inside the O(N log N) sort.
         const jobsWithTime = jobs.map(job => ({
-            ...job,
-            _time: safeDate(job.dateAdded || job.createdAt).getTime()
-        }));
-
-        // 1. Sort jobs by pre-calculated timestamp
-        const sortedJobs = jobsWithTime.sort((a, b) => a._time - b._time);
-
-        // 2. Get date range (from first job to today)
-        const firstJobDate = new Date(sortedJobs[0]._time);
-        // ⚡ Bolt: Pre-calculate primitive timestamps in O(N) to avoid expensive O(N log N)
-        // Date parsing and object creation inside the sort callback and the while loop.
-        const jobsWithTime = jobs.map(job => ({
-            ...job,
-            _parsedTime: safeDate(job.dateAdded || job.createdAt).getTime()
-        }));
-
-        // 1. Sort jobs by pre-calculated timestamp
-        const sortedJobs = jobsWithTime.sort((a, b) => a._parsedTime - b._parsedTime);
-
-        // 2. Get date range (from first job to today)
-        const firstJobDate = new Date(sortedJobs[0]._parsedTime);
-        // ⚡ Bolt: Pre-calculate numeric timestamps in a single pass O(N) instead of repeatedly
-        // parsing dates during sorting O(N log N) and iteration O(N+M).
-        // Impact: Reduces object creation overhead significantly (~10x faster for large datasets).
-        const jobsWithTime = jobs.map(job => ({
-            ...job,
             _timestamp: safeDate(job.dateAdded || job.createdAt).getTime()
-        }));
-
-        // 1. Sort jobs by _timestamp
-        const sortedJobs = jobsWithTime.sort((a, b) => a._timestamp - b._timestamp);
+        })).sort((a, b) => a._timestamp - b._timestamp);
 
         // 2. Get date range (from first job to today)
-        const firstJobTime = sortedJobs[0]._timestamp;
+        const firstJobTime = jobsWithTime[0]._timestamp;
         const today = new Date();
         const weekAgo = subDays(today, 7);
-        // Ensure we show at least the last 7 days if only 1 job
-        const startDate = weekAgo.getTime() < firstJobTime ? weekAgo : new Date(firstJobTime);
+        // Ensure we show at least the last 7 days
+        const startMillis = Math.min(weekAgo.getTime(), firstJobTime);
+        const startDate = new Date(startMillis);
 
         const days = eachDayOfInterval({
             start: startOfDay(startDate),
@@ -73,12 +45,9 @@ export default function ApplicationHistoryChart({ jobs }) {
             const endOfDay = new Date(day).setHours(23, 59, 59, 999);
 
             // Add jobs that happened on or before the end of this day
-            // ⚡ Bolt: Use pre-calculated timestamp for O(1) comparison instead of re-parsing
             while (
-                jobIndex < sortedJobs.length &&
-                sortedJobs[jobIndex]._time <= endOfDay
-                sortedJobs[jobIndex]._parsedTime <= endOfDay
-                sortedJobs[jobIndex]._timestamp <= endOfDay
+                jobIndex < jobsWithTime.length &&
+                jobsWithTime[jobIndex]._timestamp <= endOfDay
             ) {
                 cumulativeCount++;
                 jobIndex++;

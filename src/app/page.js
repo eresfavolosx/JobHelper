@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
@@ -36,54 +34,6 @@ export default function Home() {
     if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
-    // ⚡ Bolt: Calculate derived statistics in a single-pass O(N) loop
-    // instead of chaining multiple O(N) .filter() calls.
-    // ⚡ Bolt: Calculate stats in a single O(N) pass instead of multiple O(N) filters
-    // ⚡ Bolt: Single-pass O(N) calculation to replace multiple O(N) filters
-    const stats = useMemo(() => {
-        let interviewing = 0;
-        let offers = 0;
-
-    // ⚡ Bolt: Calculate derived statistics in a single-pass loop O(N) memoized
-    // instead of multiple O(N) filter passes that re-run every render.
-    // ⚡ Bolt: Use a single-pass loop inside useMemo instead of multiple .filter() calls
-    // to reduce time complexity from O(kN) to O(N) and avoid recalculation on every render
-    // ⚡ Bolt: Replace O(2N) multiple filter calls with a single O(N) pass using useMemo
-    // This avoids creating intermediate arrays and halves the iteration over the jobs array
-    // ⚡ Bolt: Single-pass O(N) loop with useMemo instead of multiple O(N) .filter() calls
-    // ⚡ Bolt: O(N) single-pass loop with useMemo instead of O(k*N) multiple filter calls
-    const stats = useMemo(() => {
-        let interviewing = 0;
-        let offers = 0;
-        for (let i = 0; i < jobs.length; i++) {
-            if (jobs[i].status === 'interviewing') interviewing++;
-            else if (jobs[i].status === 'offer') offers++;
-    // ⚡ Bolt: Use useMemo and a single pass to calculate stats (O(N) instead of O(2N))
-    const stats = useMemo(() => {
-        let interviewingCount = 0;
-        let offersCount = 0;
-
-        for (const job of jobs) {
-            if (job.status === 'interviewing') {
-                interviewingCount++;
-            } else if (job.status === 'offer') {
-                offersCount++;
-            }
-        for (let i = 0; i < jobs.length; i++) {
-            const status = jobs[i].status;
-            if (status === 'interviewing') interviewing++;
-            else if (status === 'offer') offers++;
-        }
-
-        }
-        return {
-            total: jobs.length,
-            interviewing,
-            offers
-            interviewing: interviewingCount,
-            offers: offersCount
-        };
-    // Calculate multiple derived statistics in a single pass O(N) instead of multiple O(N) filters
     const stats = useMemo(() => {
         return jobs.reduce(
             (acc, job) => {
@@ -93,7 +43,6 @@ export default function Home() {
             },
             { total: jobs.length, interviewing: 0, offers: 0 }
         );
-        };
     }, [jobs]);
 
     if (jobs.length === 0) {
@@ -111,7 +60,6 @@ export default function Home() {
                 <Link
                     href="/kanban"
                     className="card interactive-card"
-                    style={{ display: 'block' }}
                     style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -124,7 +72,6 @@ export default function Home() {
                 <Link
                     href="/kanban#interviewing"
                     className="card interactive-card"
-                    style={{ display: 'block' }}
                     style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -137,7 +84,6 @@ export default function Home() {
                 <Link
                     href="/kanban#offer"
                     className="card interactive-card"
-                    style={{ display: 'block' }}
                     style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
