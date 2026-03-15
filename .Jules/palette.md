@@ -23,3 +23,6 @@
 ## 2024-05-25 - Inaccessible Div Navigation Cards
 **Learning:** Found dashboard cards in `src/app/page.js` using `<div onClick={...}>` with inline `onMouseOver` for hover effects. This breaks keyboard accessibility (tabbing, Enter key) and standard link behavior (open in new tab).
 **Action:** Replace navigational `div` elements with standard Next.js `<Link>` components to ensure native accessibility and interaction. Utilize the existing `.interactive-card` class to provide consistent, CSS-based `:focus-visible` and `:hover` states instead of inline JavaScript events.
+## 2026-03-10 - Replacing Native Alerts with Inline Feedback
+**Learning:** Found instances where native `alert()` calls were used to provide success feedback (e.g., adding a job to the board from AI recommendations). This blocks the UI, interrupts the user's flow, and creates a jarring experience.
+**Action:** Replace blocking native alerts with inline visual feedback. For example, temporarily change the clicked button's state to visually confirm the action (e.g., changing text to 'Added!', color to success theme, and disabling it).
