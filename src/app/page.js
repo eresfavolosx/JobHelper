@@ -38,6 +38,11 @@ export default function Home() {
         let interviewing = 0;
         let offers = 0;
 
+    // ⚡ Bolt: Calculate derived statistics in a single-pass loop O(N) memoized
+    // instead of multiple O(N) filter passes that re-run every render.
+    const stats = useMemo(() => {
+        let interviewing = 0;
+        let offers = 0;
         for (let i = 0; i < jobs.length; i++) {
             if (jobs[i].status === 'interviewing') interviewing++;
             else if (jobs[i].status === 'offer') offers++;
