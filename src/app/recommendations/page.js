@@ -1,17 +1,18 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check } from 'lucide-react';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check, CheckCircle } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
-    const { profile } = useAppStore();
+    const { profile, isPremium } = useAppStore();
     const addJob = useAppStore((state) => state.addJob);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [addedJobs, setAddedJobs] = useState(new Set());
+
+    const isCurrentlyPremium = isPremium();
 
     const findJobs = async () => {
         setLoading(true);
@@ -82,6 +83,43 @@ export default function RecommendationsPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', gap: '24px' }}>
                     <Loader size={48} className="spin" color="var(--accent-primary)" />
                     <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Scouring the web for your perfect role...</p>
+                </div>
+            ) : !isCurrentlyPremium ? (
+                <div className="card" style={{ 
+                    textAlign: 'center', 
+                    padding: '80px 40px', 
+                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '24px',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{ 
+                            width: '80px', 
+                            height: '80px', 
+                            borderRadius: '24px', 
+                            background: 'var(--accent-primary)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            margin: '0 auto 24px',
+                            boxShadow: '0 8px 32px rgba(56, 189, 248, 0.3)'
+                        }}>
+                            <Sparkles size={40} color="white" />
+                        </div>
+                        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '16px' }}>Premium AI Insights</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 32px', lineHeight: '1.6' }}>
+                            Unlock specialized job matches curated by AI based on your specific resume skills and experience level.
+                        </p>
+                        <button 
+                            onClick={() => window.location.href = '/profile'}
+                            className="btn-primary" 
+                            style={{ padding: '16px 32px', fontSize: '1.1rem' }}
+                        >
+                            Upgrade to Premium
+                        </button>
+                    </div>
                 </div>
             ) : error ? (
                 <div style={{ textAlign: 'center', padding: '48px', color: 'var(--error)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px' }}>
@@ -156,13 +194,21 @@ export default function RecommendationsPage() {
                                 >
                                     View <ExternalLink size={14} />
                                 </a>
-                                {addedJobs.has(i) ? (
+                                {addedJobs.has(job.link) ? (
                                     <button
                                         disabled
-                                        className="btn-primary"
-                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'var(--success)', cursor: 'default' }}
+                                        className="btn-secondary"
+                                        style={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            cursor: 'default',
+                                            color: 'var(--success)'
+                                        }}
                                     >
-                                        <Check size={16} /> Added!
+                                        <CheckCircle size={16} /> Added!
                                     </button>
                                 ) : (
                                     <button
@@ -174,96 +220,33 @@ export default function RecommendationsPage() {
                                                 status: 'wishlist',
                                                 notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                             });
+
                                             setAddedJobs(prev => {
                                                 const newSet = new Set(prev);
-                                                newSet.add(i);
+                                                newSet.add(job.link);
                                                 return newSet;
                                             });
+
                                             setTimeout(() => {
                                                 setAddedJobs(prev => {
                                                     const newSet = new Set(prev);
-                                                    newSet.delete(i);
+                                                    newSet.delete(job.link);
                                                     return newSet;
                                                 });
                                             }, 2000);
                                         }}
                                         className="btn-primary"
-                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                        style={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px'
+                                        }}
                                     >
                                         <Plus size={16} /> Add to Board
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => {
-                                        if (addedJobs.has(job.link)) return;
-
-                                        addJob({
-                                            company: 'Unknown',
-                                            role: job.title,
-                                            url: job.link,
-                                            status: 'wishlist',
-                                            notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
-                                        });
-
-                                        setAddedJobs(prev => {
-                                            const newSet = new Set(prev);
-                                            newSet.add(job.link);
-                                            return newSet;
-                                        });
-
-                                        setTimeout(() => {
-                                            setAddedJobs(prev => {
-                                                const newSet = new Set(prev);
-                                                newSet.delete(job.link);
-                                                return newSet;
-                                            });
-                                        }, 2000);
-                                    }}
-                                    className={addedJobs.has(job.link) ? "" : "btn-primary"}
-                                    disabled={addedJobs.has(job.link)}
-                                    style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        background: addedJobs.has(job.link) ? 'var(--success)' : undefined,
-                                        color: addedJobs.has(job.link) ? 'white' : undefined,
-                                        border: addedJobs.has(job.link) ? 'none' : undefined,
-                                        borderRadius: 'var(--radius-md)',
-                                        padding: '10px 20px',
-                                        fontWeight: '600'
-                                    }}
-                                >
-                                    {addedJobs.has(job.link) ? (
-                                        <>
-                                            <Check size={16} /> Added!
-                                        setAddedJobs(prev => new Set(prev).add(job.link));
-                                    }}
-                                    className={addedJobs.has(job.link) ? "btn-secondary" : "btn-primary"}
-                                    disabled={addedJobs.has(job.link)}
-                                    style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        background: addedJobs.has(job.link) ? 'var(--glass-panel)' : '',
-                                        color: addedJobs.has(job.link) ? 'var(--success)' : '',
-                                        borderColor: addedJobs.has(job.link) ? 'var(--success)' : ''
-                                    }}
-                                    aria-label={addedJobs.has(job.link) ? `Added ${job.title} to Board` : `Add ${job.title} to Board`}
-                                >
-                                    {addedJobs.has(job.link) ? (
-                                        <>
-                                            <CheckCircle size={16} /> Added!
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Plus size={16} /> Add to Board
-                                        </>
-                                    )}
-                                </button>
                             </div>
                         </div>
                     ))}

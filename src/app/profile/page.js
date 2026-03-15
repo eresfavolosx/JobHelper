@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from 'react';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader } from 'lucide-react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
@@ -123,9 +123,6 @@ function ProfileContent() {
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label htmlFor="profile-fullName" style={{ fontWeight: '600' }}>Full Name</label>
-                            <input
-                                id="profile-fullName"
                             <label htmlFor="fullName" style={{ fontWeight: '600' }}>Full Name</label>
                             <input
                                 id="fullName"
@@ -138,9 +135,6 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label htmlFor="profile-targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
-                                <input
-                                    id="profile-targetRole"
                                 <label htmlFor="targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
                                 <input
                                     id="targetRole"
@@ -150,9 +144,6 @@ function ProfileContent() {
                                 />
                             </div>
                             <div>
-                                <label htmlFor="profile-keywords" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
-                                <input
-                                    id="profile-keywords"
                                 <label htmlFor="keywords" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
                                 <input
                                     id="keywords"
@@ -165,9 +156,6 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label htmlFor="profile-location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
-                                <input
-                                    id="profile-location"
                                 <label htmlFor="location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
                                 <input
                                     id="location"
@@ -177,9 +165,6 @@ function ProfileContent() {
                                 />
                             </div>
                             <div>
-                                <label htmlFor="profile-country" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
-                                <input
-                                    id="profile-country"
                                 <label htmlFor="country" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
                                 <input
                                     id="country"
@@ -193,9 +178,6 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                             <div>
-                                <label htmlFor="profile-minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
-                                <input
-                                    id="profile-minimumSalary"
                                 <label htmlFor="minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
                                 <input
                                     id="minimumSalary"
@@ -208,9 +190,6 @@ function ProfileContent() {
                                 />
                             </div>
                             <div>
-                                <label htmlFor="profile-modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
-                                <select
-                                    id="profile-modality"
                                 <label htmlFor="modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
                                 <select
                                     id="modality"
@@ -224,9 +203,6 @@ function ProfileContent() {
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="profile-experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
-                                <select
-                                    id="profile-experienceLevel"
                                 <label htmlFor="experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
                                 <select
                                     id="experienceLevel"
@@ -248,6 +224,14 @@ function ProfileContent() {
                         </button>
                     </form>
                 </div>
+
+                {/* 2. Subscription Management */}
+                <div id="subscription-section" className="card animate-slide-up delay-250">
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CreditCard size={20} color="var(--accent-primary)" /> Subscription & Billing
+                    </h3>
+                    <SubscriptionManager />
+                </div>
                 {/* 2. Data Management */}
                 <div className="card animate-slide-up delay-300">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Data Management</h3>
@@ -265,10 +249,17 @@ function ProfileContent() {
 }
 
 function ExportDataButton() {
-    const { jobs, profile } = useAppStore();
+    const { jobs, profile, isPremium } = useAppStore();
     const { user } = useAuth();
 
     const handleExport = () => {
+        if (!isPremium()) {
+            alert("📦 Data Export is a Premium feature. Please upgrade your plan to download your history.");
+            const subSection = document.getElementById('subscription-section');
+            if (subSection) subSection.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
         const exportData = {
             exportDate: new Date().toISOString(),
             user: user ? { email: user.email, displayName: user.displayName } : null,
@@ -392,6 +383,119 @@ function DeleteAccountButton() {
     );
 }
 
+function SubscriptionManager() {
+    const { profile, updateProfile, isPremium } = useAppStore();
+    const [loading, setLoading] = useState(false);
+
+    const isCurrentlyPremium = isPremium();
+    const isTrial = profile?.subscriptionStatus === 'trial';
+    const trialDaysLeft = profile?.trialEndDate ? Math.ceil((new Date(profile.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+
+    const handleSubscribe = () => {
+        setLoading(true);
+        // Simulate Stripe Checkout
+        setTimeout(() => {
+            alert("This would normally redirect to Stripe Checkout. For now, we've enabled trial mode or manual premium status.");
+            setLoading(false);
+        }, 1500);
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: '20px' }}>
+            <div style={{ 
+                padding: '20px', 
+                borderRadius: '16px', 
+                background: isCurrentlyPremium ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%)' : 'var(--bg-panel)',
+                border: '1px solid var(--border-subtle)',
+                position: 'relative',
+                overflow: 'hidden'
+            }}>
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <div>
+                            <span style={{ 
+                                fontSize: '0.75rem', 
+                                textTransform: 'uppercase', 
+                                letterSpacing: '0.05em', 
+                                fontWeight: 'bold',
+                                color: isCurrentlyPremium ? 'var(--accent-primary)' : 'var(--text-secondary)'
+                            }}>
+                                Current Plan
+                            </span>
+                            <h4 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginTop: '4px' }}>
+                                {isTrial ? 'Premium Trial' : profile?.subscriptionStatus === 'premium' ? 'Premium Pro' : 'Free Tier'}
+                            </h4>
+                        </div>
+                        {isCurrentlyPremium && (
+                            <span style={{ 
+                                padding: '4px 12px', 
+                                borderRadius: '20px', 
+                                background: 'var(--accent-primary)', 
+                                color: 'white', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 'bold' 
+                            }}>
+                                ACTIVE
+                            </span>
+                        )}
+                    </div>
+
+                    {isTrial && trialDaysLeft > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            <Clock size={16} />
+                            <span>{trialDaysLeft} days remaining in your trial</span>
+                        </div>
+                    )}
+
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', fontSize: '0.9rem', display: 'grid', gap: '8px' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sparkles size={14} color="var(--accent-primary)" /> AI-Powered Job Recommendations
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sparkles size={14} color="var(--accent-primary)" /> Advanced Application Analytics
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sparkles size={14} color="var(--accent-primary)" /> Unlimited Resume Analyses
+                        </li>
+                    </ul>
+
+                    {!isCurrentlyPremium || isTrial ? (
+                        <button 
+                            onClick={handleSubscribe}
+                            disabled={loading}
+                            className="btn-primary" 
+                            style={{ width: '100%', justifyContent: 'center', py: '12px' }}
+                        >
+                            {loading ? <Loader size={18} className="spin" /> : 'Upgrade to Monthly Premium ($9.99)'}
+                        </button>
+                    ) : (
+                        <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                            Manage Billing
+                        </button>
+                    )}
+                </div>
+                
+                {isCurrentlyPremium && (
+                    <Sparkles 
+                        size={120} 
+                        style={{ 
+                            position: 'absolute', 
+                            right: '-20px', 
+                            bottom: '-20px', 
+                            opacity: 0.05, 
+                            transform: 'rotate(-15deg)' 
+                        }} 
+                    />
+                )}
+            </div>
+            
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                Secure payments powered by <strong>Stripe</strong>. Cancel anytime.
+            </p>
+        </div>
+    );
+}
+
 function SyncButton() {
     const { user } = useAuth();
     const { jobs, profile } = useAppStore();
@@ -470,7 +574,6 @@ function ApiKeyInput() {
                     onChange={(e) => setKey(e.target.value)}
                     placeholder="Enter your Gemini API Key (starts with AIza...)"
                     style={{ width: '100%', paddingRight: '80px' }}
-                    aria-label="Gemini API Key"
                 />
                 <button
                     onClick={() => setShow(!show)}

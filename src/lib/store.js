@@ -34,7 +34,10 @@ export const useAppStore = create(
                             modality: 'Remote',
                             minimumSalary: '',
                             contextDocuments: [],
-                            geminiApiKey: ''
+                            geminiApiKey: '',
+                            subscriptionStatus: 'free', // 'free', 'premium', 'trial'
+                            trialStartDate: null,
+                            trialEndDate: null
                         },
                         currentUserId: userId
                     });
@@ -62,7 +65,10 @@ export const useAppStore = create(
                         modality: 'Remote',
                         minimumSalary: '',
                         contextDocuments: [],
-                        geminiApiKey: ''
+                        geminiApiKey: '',
+                        subscriptionStatus: 'free',
+                        trialStartDate: null,
+                        trialEndDate: null
                     }
                 });
             },
@@ -177,7 +183,24 @@ export const useAppStore = create(
                 minimumSalary: '',
                 contextDocuments: [], // { name, content, type }
                 resumeAnalysis: null, // { skills, summary, targetRoles, etc }
-                geminiApiKey: '' // User provided API key (overrides env var)
+                geminiApiKey: '', // User provided API key (overrides env var)
+                subscriptionStatus: 'free',
+                trialStartDate: null,
+                trialEndDate: null
+            },
+            isPremium: () => {
+                // ⚡ User Request: Temporarily make all users premium
+                return true;
+                
+                /* Original logic for later:
+                const profile = get().profile;
+                if (!profile) return false;
+                if (profile.subscriptionStatus === 'premium') return true;
+                if (profile.subscriptionStatus === 'trial' && profile.trialEndDate) {
+                    return new Date().getTime() < new Date(profile.trialEndDate).getTime();
+                }
+                return false;
+                */
             },
             updateProfile: (newProfile) => {
                 set((state) => ({
