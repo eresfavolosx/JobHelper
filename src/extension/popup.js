@@ -21,6 +21,12 @@ chrome.storage.local.get(['geminiApiKey'], (localResult) => {
         apiKeyInput.value = localResult.geminiApiKey;
     } else {
         // Migration path: check sync storage for legacy keys
+// Load stored API key and migrate from sync if necessary
+chrome.storage.local.get(['geminiApiKey'], (localResult) => {
+    if (localResult.geminiApiKey) {
+        apiKeyInput.value = localResult.geminiApiKey;
+        // Optionally hide if already set, but kept visible for now for editing
+    } else {
         // Fallback to sync storage for migration
         chrome.storage.sync.get(['geminiApiKey'], (syncResult) => {
             if (syncResult.geminiApiKey) {
@@ -28,6 +34,7 @@ chrome.storage.local.get(['geminiApiKey'], (localResult) => {
                 // Migrate to local storage and remove from sync storage
                 chrome.storage.local.set({ geminiApiKey: syncResult.geminiApiKey });
                 chrome.storage.sync.remove('geminiApiKey');
+                // Migrate to local storage and remove from sync
                 chrome.storage.local.set({ geminiApiKey: syncResult.geminiApiKey }, () => {
                     chrome.storage.sync.remove('geminiApiKey');
                 });
