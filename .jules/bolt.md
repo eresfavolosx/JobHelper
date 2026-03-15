@@ -9,3 +9,6 @@
 ## 2025-03-04 - Optimize Date Parsing in Loops
 **Learning:** Calling functions like `safeDate` (which involves object creation and parsing) repeatedly inside O(N log N) `Array.sort` comparisons or nested O(N) loops creates a performance bottleneck as the dataset grows.
 **Action:** When performing repeated date comparisons, always convert dates to primitive timestamps (`.getTime()`) upfront in a single O(N) pass, then use the primitive values for subsequent sorting and filtering.
+## 2026-03-07 - Pre-calculate Primitive Types for Repeated Sorting/Filtering
+**Learning:** In JavaScript, calling functions like `safeDate` or `new Date()` that perform parsing and object allocation within tightly-looped callbacks (e.g. `Array.prototype.sort()` which is O(N log N) or inside `while` loops iterating over large datasets) severely impacts CPU and memory.
+**Action:** Before sorting or sequentially iterating arrays of objects based on a derived value (like a timestamp from a date string), execute a single O(N) pass (`.map()`) to extract and pre-calculate the required primitive values (e.g. `.getTime()`) onto the objects, then use those primitives in subsequent high-complexity operations.
