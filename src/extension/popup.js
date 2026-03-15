@@ -1,3 +1,5 @@
+import { getApiKey, saveApiKey } from './storage.js';
+
 const statusSelect = document.getElementById('statusSelect');
 const saveBtn = document.getElementById('saveBtn');
 const apiKeyInput = document.getElementById('apiKeyInput');
@@ -7,10 +9,10 @@ const toggleKeyBtn = document.getElementById('toggleKeyBtn');
 // Configuration - Use the live Firebase Hosting URL
 const APP_URL = 'https://jobhelper-c3cd7.web.app';
 
-// Load stored API key
-chrome.storage.sync.get(['geminiApiKey'], (result) => {
-    if (result.geminiApiKey) {
-        apiKeyInput.value = result.geminiApiKey;
+// Load stored API key securely
+getApiKey((key) => {
+    if (key) {
+        apiKeyInput.value = key;
         // Optionally hide if already set, but kept visible for now for editing
     }
 });
@@ -33,8 +35,8 @@ saveBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Save key for next time
-    chrome.storage.sync.set({ geminiApiKey: apiKey });
+    // Save key securely for next time
+    saveApiKey(apiKey);
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
