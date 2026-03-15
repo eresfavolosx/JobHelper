@@ -15,3 +15,6 @@
 ## 2025-03-10 - Avoid Repeated O(N) Array Traversals in Render
 **Learning:** Calculating multiple derived statistics (e.g., status counts) by chaining or repeating `.filter()` calls over a large array (like `jobs`) results in O(k*N) time complexity and unnecessary recalculations on every render.
 **Action:** When deriving multiple aggregates from a single dataset, use a single-pass loop (like `reduce`) and wrap the calculation in a `useMemo` hook to reduce time complexity to O(N) and prevent recalculation unless the dependencies change.
+## 2026-03-08 - Avoid Multiple Array.filters for Derived Stats
+**Learning:** In components calculating multiple derived statistics from a single data source (like dashboard counts), chaining or repeating `Array.filter` calls over the same array is an anti-pattern. If there are `k` filters, the time complexity becomes `O(k*N)`.
+**Action:** When calculating multiple derived statistics from an array (e.g., status counts), use a single-pass loop inside a `useMemo` hook rather than chaining or repeating `.filter()` calls to reduce time complexity from `O(k*N)` to `O(N)`.

@@ -49,6 +49,7 @@ export default function Home() {
     // ⚡ Bolt: Replace O(2N) multiple filter calls with a single O(N) pass using useMemo
     // This avoids creating intermediate arrays and halves the iteration over the jobs array
     // ⚡ Bolt: Single-pass O(N) loop with useMemo instead of multiple O(N) .filter() calls
+    // ⚡ Bolt: O(N) single-pass loop with useMemo instead of O(k*N) multiple filter calls
     const stats = useMemo(() => {
         let interviewing = 0;
         let offers = 0;
