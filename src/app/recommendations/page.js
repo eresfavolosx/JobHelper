@@ -192,6 +192,58 @@ export default function RecommendationsPage() {
                                         <Plus size={16} /> Add to Board
                                     </button>
                                 )}
+                                <button
+                                    onClick={() => {
+                                        if (addedJobs.has(job.link)) return;
+
+                                        addJob({
+                                            company: 'Unknown',
+                                            role: job.title,
+                                            url: job.link,
+                                            status: 'wishlist',
+                                            notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
+                                        });
+
+                                        setAddedJobs(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.add(job.link);
+                                            return newSet;
+                                        });
+
+                                        setTimeout(() => {
+                                            setAddedJobs(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.delete(job.link);
+                                                return newSet;
+                                            });
+                                        }, 2000);
+                                    }}
+                                    className={addedJobs.has(job.link) ? "" : "btn-primary"}
+                                    disabled={addedJobs.has(job.link)}
+                                    style={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        background: addedJobs.has(job.link) ? 'var(--success)' : undefined,
+                                        color: addedJobs.has(job.link) ? 'white' : undefined,
+                                        border: addedJobs.has(job.link) ? 'none' : undefined,
+                                        borderRadius: 'var(--radius-md)',
+                                        padding: '10px 20px',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    {addedJobs.has(job.link) ? (
+                                        <>
+                                            <Check size={16} /> Added!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus size={16} /> Add to Board
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     ))}
