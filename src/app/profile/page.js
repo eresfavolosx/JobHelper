@@ -126,6 +126,9 @@ function ProfileContent() {
                             <label htmlFor="profile-fullName" style={{ fontWeight: '600' }}>Full Name</label>
                             <input
                                 id="profile-fullName"
+                            <label htmlFor="fullName" style={{ fontWeight: '600' }}>Full Name</label>
+                            <input
+                                id="fullName"
                                 name="fullName"
                                 value={formData.fullName}
                                 onChange={handleChange}
@@ -138,6 +141,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
                                 <input
                                     id="profile-targetRole"
+                                <label htmlFor="targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
+                                <input
+                                    id="targetRole"
                                     name="targetRole"
                                     value={formData.targetRole}
                                     onChange={handleChange}
@@ -147,6 +153,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-keywords" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
                                 <input
                                     id="profile-keywords"
+                                <label htmlFor="keywords" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
+                                <input
+                                    id="keywords"
                                     name="keywords"
                                     value={formData.keywords}
                                     onChange={handleChange}
@@ -159,6 +168,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
                                 <input
                                     id="profile-location"
+                                <label htmlFor="location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
+                                <input
+                                    id="location"
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
@@ -168,6 +180,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-country" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
                                 <input
                                     id="profile-country"
+                                <label htmlFor="country" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
+                                <input
+                                    id="country"
                                     name="country"
                                     value={formData.country || ''}
                                     onChange={handleChange}
@@ -181,6 +196,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
                                 <input
                                     id="profile-minimumSalary"
+                                <label htmlFor="minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
+                                <input
+                                    id="minimumSalary"
                                     type="number"
                                     name="minimumSalary"
                                     value={formData.minimumSalary || ''}
@@ -193,6 +211,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
                                 <select
                                     id="profile-modality"
+                                <label htmlFor="modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
+                                <select
+                                    id="modality"
                                     name="modality"
                                     value={formData.modality || 'Remote'}
                                     onChange={handleChange}
@@ -206,6 +227,9 @@ function ProfileContent() {
                                 <label htmlFor="profile-experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
                                 <select
                                     id="profile-experienceLevel"
+                                <label htmlFor="experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
+                                <select
+                                    id="experienceLevel"
                                     name="experienceLevel"
                                     value={formData.experienceLevel}
                                     onChange={handleChange}
@@ -446,9 +470,12 @@ function ApiKeyInput() {
                     onChange={(e) => setKey(e.target.value)}
                     placeholder="Enter your Gemini API Key (starts with AIza...)"
                     style={{ width: '100%', paddingRight: '80px' }}
+                    aria-label="Gemini API Key"
                 />
                 <button
                     onClick={() => setShow(!show)}
+                    aria-label={show ? "Hide API key" : "Show API key"}
+                    title={show ? "Hide API key" : "Show API key"}
                     style={{
                         position: 'absolute',
                         right: '12px',
@@ -571,6 +598,7 @@ function ResumeUpload({ onAnalysisComplete }) {
                         style={{ display: 'none' }}
                         ref={fileInputRef}
                         onChange={handleFileUpload}
+                        aria-label="Upload Resume"
                     />
                     <button
                         type="button"
