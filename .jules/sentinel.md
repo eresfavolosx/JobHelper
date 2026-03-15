@@ -26,3 +26,7 @@
 **Vulnerability:** URL query parameters (like `url`) read via `useSearchParams` were directly passed into the application state (`openEditJobModal`) without sanitization. This allowed attackers to craft malicious links (e.g., `?url=javascript:alert(1)`) leading to DOM-based XSS when the app rendered the data.
 **Learning:** URL query parameters must be treated as untrusted input. Even if a value is expected to be a URL, it needs to be sanitized before being used in the application to prevent executing injected malicious protocols like `javascript:`.
 **Prevention:** Always wrap variables pulled directly from `searchParams` (especially URLs) with a sanitization utility like `sanitizeUrl` before passing them to application state or UI components.
+## 2025-02-14 - Chrome Extension Sync Storage Data Exposure
+**Vulnerability:** The browser extension was storing the sensitive Gemini API key in `chrome.storage.sync` instead of `chrome.storage.local`. This exposed the key to potential exfiltration or exposure on untrusted devices, as sync storage is automatically synchronized across any device where the user logs into Chrome.
+**Learning:** API keys and sensitive tokens in browser extensions should never be stored in `chrome.storage.sync` due to its broad distribution scope.
+**Prevention:** Always use `chrome.storage.local` or `chrome.storage.session` for sensitive data in browser extensions. If migrating, always read from the old storage, save to the new secure storage, and explicitly delete the old exposed record.
