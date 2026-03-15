@@ -5,3 +5,6 @@
 ## 2024-10-26 - Placeholder-Only Form Accessibility
 **Learning:** Found that the login form (`src/app/login/page.js`) used placeholders instead of explicit `<label>` elements for inputs, which reduces screen reader compatibility and causes accessibility issues since placeholders are not meant to substitute labels.
 **Action:** Always use `<label>` elements for inputs. If the design does not accommodate visual labels, use visually hidden `<label>` elements (with `htmlFor` matching the input's `id`) to ensure accessibility is maintained without altering the visual appearance.
+## 2024-06-15 - Inaccessible Navigational Cards
+**Learning:** Navigational cards implemented as `div` elements with `onClick` handlers and inline `onMouseOver` animations are not keyboard accessible by default and break semantic HTML.
+**Action:** Replace clickable navigation `div` elements with Next.js `<Link>` components, and handle hover/focus states using existing CSS classes (like `.interactive-card`) to ensure proper keyboard navigation and standard focus styles.
