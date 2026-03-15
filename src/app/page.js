@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 

@@ -20,3 +20,6 @@
 ## 2026-03-09 - Replace blocking alerts with inline feedback
 **Learning:** Native alert() dialogs interrupt user flow and are not accessible or pleasant for frequent actions like adding recommended jobs to a board.
 **Action:** Use inline state-based feedback on buttons (e.g., swapping to a Check icon, updating text, and changing colors temporarily) to provide smooth, non-blocking confirmation.
+## 2024-05-25 - Inaccessible Div Navigation Cards
+**Learning:** Found dashboard cards in `src/app/page.js` using `<div onClick={...}>` with inline `onMouseOver` for hover effects. This breaks keyboard accessibility (tabbing, Enter key) and standard link behavior (open in new tab).
+**Action:** Replace navigational `div` elements with standard Next.js `<Link>` components to ensure native accessibility and interaction. Utilize the existing `.interactive-card` class to provide consistent, CSS-based `:focus-visible` and `:hover` states instead of inline JavaScript events.
