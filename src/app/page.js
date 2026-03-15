@@ -37,6 +37,7 @@ export default function Home() {
     // ⚡ Bolt: Calculate derived statistics in a single-pass O(N) loop
     // instead of chaining multiple O(N) .filter() calls.
     // ⚡ Bolt: Calculate stats in a single O(N) pass instead of multiple O(N) filters
+    // ⚡ Bolt: Single-pass O(N) calculation to replace multiple O(N) filters
     const stats = useMemo(() => {
         let interviewing = 0;
         let offers = 0;
@@ -83,6 +84,7 @@ export default function Home() {
             },
             { total: jobs.length, interviewing: 0, offers: 0 }
         );
+        };
     }, [jobs]);
 
     if (jobs.length === 0) {
