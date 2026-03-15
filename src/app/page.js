@@ -73,6 +73,16 @@ export default function Home() {
             interviewing: interviewingCount,
             offers: offersCount
         };
+    // Calculate multiple derived statistics in a single pass O(N) instead of multiple O(N) filters
+    const stats = useMemo(() => {
+        return jobs.reduce(
+            (acc, job) => {
+                if (job.status === 'interviewing') acc.interviewing++;
+                if (job.status === 'offer') acc.offers++;
+                return acc;
+            },
+            { total: jobs.length, interviewing: 0, offers: 0 }
+        );
     }, [jobs]);
 
     if (jobs.length === 0) {

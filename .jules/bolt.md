@@ -12,3 +12,6 @@
 ## 2026-03-07 - Pre-calculate Primitive Types for Repeated Sorting/Filtering
 **Learning:** In JavaScript, calling functions like `safeDate` or `new Date()` that perform parsing and object allocation within tightly-looped callbacks (e.g. `Array.prototype.sort()` which is O(N log N) or inside `while` loops iterating over large datasets) severely impacts CPU and memory.
 **Action:** Before sorting or sequentially iterating arrays of objects based on a derived value (like a timestamp from a date string), execute a single O(N) pass (`.map()`) to extract and pre-calculate the required primitive values (e.g. `.getTime()`) onto the objects, then use those primitives in subsequent high-complexity operations.
+## 2025-03-10 - Avoid Repeated O(N) Array Traversals in Render
+**Learning:** Calculating multiple derived statistics (e.g., status counts) by chaining or repeating `.filter()` calls over a large array (like `jobs`) results in O(k*N) time complexity and unnecessary recalculations on every render.
+**Action:** When deriving multiple aggregates from a single dataset, use a single-pass loop (like `reduce`) and wrap the calculation in a `useMemo` hook to reduce time complexity to O(N) and prevent recalculation unless the dependencies change.
