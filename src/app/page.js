@@ -46,6 +46,8 @@ export default function Home() {
     // instead of multiple O(N) filter passes that re-run every render.
     // ⚡ Bolt: Use a single-pass loop inside useMemo instead of multiple .filter() calls
     // to reduce time complexity from O(kN) to O(N) and avoid recalculation on every render
+    // ⚡ Bolt: Replace O(2N) multiple filter calls with a single O(N) pass using useMemo
+    // This avoids creating intermediate arrays and halves the iteration over the jobs array
     const stats = useMemo(() => {
         let interviewing = 0;
         let offers = 0;
