@@ -30,3 +30,7 @@
 **Vulnerability:** The browser extension was storing the sensitive Gemini API key in `chrome.storage.sync` instead of `chrome.storage.local`. This exposed the key to potential exfiltration or exposure on untrusted devices, as sync storage is automatically synchronized across any device where the user logs into Chrome.
 **Learning:** API keys and sensitive tokens in browser extensions should never be stored in `chrome.storage.sync` due to its broad distribution scope.
 **Prevention:** Always use `chrome.storage.local` or `chrome.storage.session` for sensitive data in browser extensions. If migrating, always read from the old storage, save to the new secure storage, and explicitly delete the old exposed record.
+## 2024-05-30 - Prevent XSS from Extension Query Parameters
+**Vulnerability:** The `UrlListener` component extracted the `url` from `searchParams` and directly passed it to the UI (e.g., `openEditJobModal`) without sanitization, exposing the app to DOM-based Cross-Site Scripting (XSS) if malicious protocols like `javascript:` were used.
+**Learning:** URL parameters provided by external sources (like a browser extension) should be considered untrusted input and must be sanitized before being used in href or state variables that render links.
+**Prevention:** Always apply the `sanitizeUrl` utility function to external URLs received via `searchParams` to filter out execution schemes like `javascript:`.
