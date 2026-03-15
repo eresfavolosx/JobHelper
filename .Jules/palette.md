@@ -17,3 +17,6 @@
 ## 2024-05-15 - Dashboard Navigation Cards Accessibility
 **Learning:** The dashboard used `div` elements with `onClick` handlers and `router.push()` for navigation, which failed to provide native keyboard navigability (`tabIndex`), screen reader semantics (role), and native link behaviors (open in new tab). Wrapping cards in Next.js `<Link>` components seamlessly adds these accessibility features while maintaining the grid layout.
 **Action:** When creating large clickable areas for navigation (like cards), always prefer wrapping the content in semantic `<Link>` or `<a>` tags instead of using `div` with `onClick` handlers. Ensure interactive focus styles (like `.interactive-card`) are applied to the `Link` element itself.
+## 2026-03-09 - Replace blocking alerts with inline feedback
+**Learning:** Native alert() dialogs interrupt user flow and are not accessible or pleasant for frequent actions like adding recommended jobs to a board.
+**Action:** Use inline state-based feedback on buttons (e.g., swapping to a Check icon, updating text, and changing colors temporarily) to provide smooth, non-blocking confirmation.
