@@ -156,7 +156,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{new Date(job.pubDate).toLocaleDateString()}</span>
+                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
                                 </div>
 
                                 <div style={{
