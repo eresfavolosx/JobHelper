@@ -122,6 +122,7 @@ export default function LoginPage() {
                         <div style={{ position: 'relative' }}>
                             <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                             <input
+                                aria-label="Email address"
                                 type="email"
                                 placeholder="Email address"
                                 value={email}
@@ -142,6 +143,7 @@ export default function LoginPage() {
                         <div style={{ position: 'relative' }}>
                             <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                             <input
+                                aria-label="Password"
                                 type={showPassword ? 'text' : 'password'}
                                 placeholder="Password"
                                 value={password}

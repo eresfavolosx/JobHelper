@@ -123,8 +123,9 @@ function ProfileContent() {
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Core Preferences</h3>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontWeight: '600' }}>Full Name</label>
+                            <label htmlFor="profile-fullName" style={{ fontWeight: '600' }}>Full Name</label>
                             <input
+                                id="profile-fullName"
                                 name="fullName"
                                 value={formData.fullName}
                                 onChange={handleChange}
@@ -134,16 +135,18 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
+                                <label htmlFor="profile-targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
                                 <input
+                                    id="profile-targetRole"
                                     name="targetRole"
                                     value={formData.targetRole}
                                     onChange={handleChange}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
+                                <label htmlFor="profile-keywords" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Keywords</label>
                                 <input
+                                    id="profile-keywords"
                                     name="keywords"
                                     value={formData.keywords}
                                     onChange={handleChange}
@@ -153,16 +156,18 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
+                                <label htmlFor="profile-location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
                                 <input
+                                    id="profile-location"
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
+                                <label htmlFor="profile-country" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Country</label>
                                 <input
+                                    id="profile-country"
                                     name="country"
                                     value={formData.country || ''}
                                     onChange={handleChange}
@@ -173,8 +178,9 @@ function ProfileContent() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
+                                <label htmlFor="profile-minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
                                 <input
+                                    id="profile-minimumSalary"
                                     type="number"
                                     name="minimumSalary"
                                     value={formData.minimumSalary || ''}
@@ -184,8 +190,9 @@ function ProfileContent() {
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
+                                <label htmlFor="profile-modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
                                 <select
+                                    id="profile-modality"
                                     name="modality"
                                     value={formData.modality || 'Remote'}
                                     onChange={handleChange}
@@ -196,8 +203,9 @@ function ProfileContent() {
                                 </select>
                             </div>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
+                                <label htmlFor="profile-experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
                                 <select
+                                    id="profile-experienceLevel"
                                     name="experienceLevel"
                                     value={formData.experienceLevel}
                                     onChange={handleChange}
@@ -432,6 +440,7 @@ function ApiKeyInput() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
                 <input
+                    aria-label="Gemini API Key"
                     type={show ? 'text' : 'password'}
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
