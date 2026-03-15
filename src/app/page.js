@@ -44,6 +44,8 @@ export default function Home() {
 
     // ⚡ Bolt: Calculate derived statistics in a single-pass loop O(N) memoized
     // instead of multiple O(N) filter passes that re-run every render.
+    // ⚡ Bolt: Use a single-pass loop inside useMemo instead of multiple .filter() calls
+    // to reduce time complexity from O(kN) to O(N) and avoid recalculation on every render
     const stats = useMemo(() => {
         let interviewing = 0;
         let offers = 0;
@@ -67,6 +69,7 @@ export default function Home() {
             else if (status === 'offer') offers++;
         }
 
+        }
         return {
             total: jobs.length,
             interviewing,
