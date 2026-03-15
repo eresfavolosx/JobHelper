@@ -25,7 +25,7 @@ function UrlListener() {
         if (action === 'auto-open') {
             const role = searchParams.get('role');
             const company = searchParams.get('company');
-            const url = searchParams.get('url');
+            const rawUrl = searchParams.get('url');
             const status = searchParams.get('status');
             const salary = searchParams.get('salary');
             const location = searchParams.get('location');
@@ -34,6 +34,9 @@ function UrlListener() {
             // Sanitize the URL to prevent DOM-based XSS
             const sanitizedUrl = sanitizeUrl(url);
             const notes = searchParams.get('description');
+
+            // Sanitize the URL to prevent XSS (e.g., block javascript: schemes)
+            const url = rawUrl ? sanitizeUrl(rawUrl) : '';
 
             // Clean URL
             window.history.replaceState({}, '', '/');
