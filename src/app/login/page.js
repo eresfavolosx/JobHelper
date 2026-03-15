@@ -111,7 +111,7 @@ export default function LoginPage() {
                 </p>
 
                 {error && (
-                    <div className="animate-fade-in" style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', borderRadius: '12px', marginBottom: '20px', fontSize: '0.85rem', border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'left' }}>
+                    <div role="alert" aria-live="assertive" className="animate-fade-in" style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--error)', borderRadius: '12px', marginBottom: '20px', fontSize: '0.85rem', border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'left' }}>
                         {error}
                     </div>
                 )}
@@ -119,10 +119,12 @@ export default function LoginPage() {
                 {/* Email/Password Form */}
                 <form onSubmit={handleEmailAuth} className="animate-slide-up delay-300" style={{ marginBottom: '20px' }}>
                     <div style={{ marginBottom: '12px' }}>
+                        <label htmlFor="email" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>Email</label>
                         <div style={{ position: 'relative' }}>
                             <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                             <input
                                 aria-label="Email address"
+                                id="email"
                                 type="email"
                                 placeholder="Email address"
                                 value={email}
@@ -140,10 +142,12 @@ export default function LoginPage() {
                         </div>
                     </div>
                     <div style={{ marginBottom: '16px' }}>
+                        <label htmlFor="password" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>Password</label>
                         <div style={{ position: 'relative' }}>
                             <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                             <input
                                 aria-label="Password"
+                                id="password"
                                 type={showPassword ? 'text' : 'password'}
                                 placeholder="Password"
                                 value={password}
