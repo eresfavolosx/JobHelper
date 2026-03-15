@@ -32,6 +32,7 @@ function UrlListener() {
 
             // Sanitize the URL to prevent DOM-based XSS
             const sanitizedUrl = sanitizeUrl(url);
+            const notes = searchParams.get('description');
 
             // Clean URL
             window.history.replaceState({}, '', '/');
@@ -45,6 +46,11 @@ function UrlListener() {
                 salary,
                 location,
                 notes: description
+                url: sanitizeUrl(url) || '',
+                status,
+                salary,
+                location,
+                notes
             });
         }
     }, [searchParams, openEditJobModal]);
