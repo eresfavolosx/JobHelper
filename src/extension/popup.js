@@ -14,6 +14,20 @@ getApiKey((key) => {
     if (key) {
         apiKeyInput.value = key;
         // Optionally hide if already set, but kept visible for now for editing
+// Load stored API key
+chrome.storage.local.get(['geminiApiKey'], (localResult) => {
+    if (localResult.geminiApiKey) {
+        apiKeyInput.value = localResult.geminiApiKey;
+    } else {
+        // Migration path: check sync storage for legacy keys
+        chrome.storage.sync.get(['geminiApiKey'], (syncResult) => {
+            if (syncResult.geminiApiKey) {
+                apiKeyInput.value = syncResult.geminiApiKey;
+                // Migrate to local storage and remove from sync storage
+                chrome.storage.local.set({ geminiApiKey: syncResult.geminiApiKey });
+                chrome.storage.sync.remove('geminiApiKey');
+            }
+        });
     }
 });
 
@@ -37,6 +51,8 @@ saveBtn.addEventListener('click', async () => {
 
     // Save key securely for next time
     saveApiKey(apiKey);
+    // Save key for next time
+    chrome.storage.local.set({ geminiApiKey: apiKey });
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
