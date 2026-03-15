@@ -8,7 +8,9 @@ import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 
 export default function Home() {
-    const { jobs } = useAppStore();
+    // ⚡ Bolt: Use specific selector instead of destructuring the whole store to prevent
+    // unnecessary re-renders when other state (like profile) changes
+    const jobs = useAppStore(state => state.jobs);
     const { user, loading } = useAuth();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
@@ -46,12 +48,25 @@ export default function Home() {
         for (let i = 0; i < jobs.length; i++) {
             if (jobs[i].status === 'interviewing') interviewing++;
             else if (jobs[i].status === 'offer') offers++;
+    // ⚡ Bolt: Use useMemo and a single pass to calculate stats (O(N) instead of O(2N))
+    const stats = useMemo(() => {
+        let interviewingCount = 0;
+        let offersCount = 0;
+
+        for (const job of jobs) {
+            if (job.status === 'interviewing') {
+                interviewingCount++;
+            } else if (job.status === 'offer') {
+                offersCount++;
+            }
         }
 
         return {
             total: jobs.length,
             interviewing,
             offers
+            interviewing: interviewingCount,
+            offers: offersCount
         };
     }, [jobs]);
 
