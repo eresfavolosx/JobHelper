@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
@@ -237,6 +238,25 @@ export default function RecommendationsPage() {
                                     {addedJobs.has(job.link) ? (
                                         <>
                                             <Check size={16} /> Added!
+                                        setAddedJobs(prev => new Set(prev).add(job.link));
+                                    }}
+                                    className={addedJobs.has(job.link) ? "btn-secondary" : "btn-primary"}
+                                    disabled={addedJobs.has(job.link)}
+                                    style={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        background: addedJobs.has(job.link) ? 'var(--glass-panel)' : '',
+                                        color: addedJobs.has(job.link) ? 'var(--success)' : '',
+                                        borderColor: addedJobs.has(job.link) ? 'var(--success)' : ''
+                                    }}
+                                    aria-label={addedJobs.has(job.link) ? `Added ${job.title} to Board` : `Add ${job.title} to Board`}
+                                >
+                                    {addedJobs.has(job.link) ? (
+                                        <>
+                                            <CheckCircle size={16} /> Added!
                                         </>
                                     ) : (
                                         <>
