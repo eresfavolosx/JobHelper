@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
@@ -10,6 +10,7 @@ export default function RecommendationsPage() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [addedJobs, setAddedJobs] = useState(new Set());
 
     const findJobs = async () => {
         setLoading(true);
@@ -154,23 +155,43 @@ export default function RecommendationsPage() {
                                 >
                                     View <ExternalLink size={14} />
                                 </a>
-                                <button
-                                    onClick={() => {
-                                        addJob({
-                                            company: 'Unknown',
-                                            role: job.title,
-                                            url: job.link,
-                                            status: 'wishlist',
-                                            notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
-                                        });
-                                        // Simple alert for feedback - could be improved with toast
-                                        alert('Job added to Wishlist!');
-                                    }}
-                                    className="btn-primary"
-                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                                >
-                                    <Plus size={16} /> Add to Board
-                                </button>
+                                {addedJobs.has(i) ? (
+                                    <button
+                                        disabled
+                                        className="btn-primary"
+                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'var(--success)', cursor: 'default' }}
+                                    >
+                                        <Check size={16} /> Added!
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            addJob({
+                                                company: 'Unknown',
+                                                role: job.title,
+                                                url: job.link,
+                                                status: 'wishlist',
+                                                notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
+                                            });
+                                            setAddedJobs(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.add(i);
+                                                return newSet;
+                                            });
+                                            setTimeout(() => {
+                                                setAddedJobs(prev => {
+                                                    const newSet = new Set(prev);
+                                                    newSet.delete(i);
+                                                    return newSet;
+                                                });
+                                            }, 2000);
+                                        }}
+                                        className="btn-primary"
+                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                    >
+                                        <Plus size={16} /> Add to Board
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
