@@ -13,7 +13,6 @@ export default function Home() {
     // unnecessary re-renders when other state (like profile) changes
     const jobs = useAppStore(state => state.jobs);
     const { user, loading } = useAuth();
-    const router = useRouter();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -111,6 +110,7 @@ export default function Home() {
                     href="/kanban"
                     className="card interactive-card"
                     style={{ display: 'block' }}
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Briefcase size={24} color="var(--accent-primary)" />
@@ -123,6 +123,7 @@ export default function Home() {
                     href="/kanban#interviewing"
                     className="card interactive-card"
                     style={{ display: 'block' }}
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <Calendar size={24} color="var(--warning)" style={{ minWidth: '24px' }} />
@@ -135,6 +136,7 @@ export default function Home() {
                     href="/kanban#offer"
                     className="card interactive-card"
                     style={{ display: 'block' }}
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <CheckCircle size={24} color="var(--success)" style={{ minWidth: '24px' }} />
