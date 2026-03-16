@@ -87,8 +87,8 @@ export const useAppStore = create(
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", newJob.id);
                         const cleanJob = {};
-                        for (const key of Object.keys(newJob)) {
-                            if (newJob[key] !== undefined) cleanJob[key] = newJob[key];
+                        for (const [key, value] of Object.entries(newJob)) {
+                            if (value !== undefined) cleanJob[key] = value;
                         }
                         setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("[Store] Failed to save new job:", e));
                     });
@@ -103,8 +103,8 @@ export const useAppStore = create(
                     import('firebase/firestore').then(({ updateDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", id);
                         const cleanUpdates = {};
-                        for (const key of Object.keys(updates)) {
-                            if (updates[key] !== undefined) cleanUpdates[key] = updates[key];
+                        for (const [key, value] of Object.entries(updates)) {
+                            if (value !== undefined) cleanUpdates[key] = value;
                         }
                         updateDoc(jobRef, cleanUpdates).catch(e => console.error("[Store] Failed to update job:", e));
                     });
@@ -211,9 +211,9 @@ export const useAppStore = create(
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const profileRef = doc(db, "users", userId, "data", "profile");
                         const cleanProfile = {};
-                        for (const key of Object.keys(newProfile)) {
-                            if (newProfile[key] !== undefined && key !== 'contextDocuments') {
-                                cleanProfile[key] = newProfile[key];
+                        for (const [key, value] of Object.entries(newProfile)) {
+                            if (value !== undefined && key !== 'contextDocuments') {
+                                cleanProfile[key] = value;
                             }
                         }
                         if (Object.keys(cleanProfile).length > 0) {
