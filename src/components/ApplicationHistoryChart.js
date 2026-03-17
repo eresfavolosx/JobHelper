@@ -1,8 +1,6 @@
 "use client";
 import { useMemo } from 'react';
 import {
-    LineChart,
-    Line,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -11,7 +9,7 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { format, parseISO, startOfDay, eachDayOfInterval, subDays } from 'date-fns';
+import { format, startOfDay, eachDayOfInterval, subDays } from 'date-fns';
 import { safeDate } from '@/lib/utils';
 
 export default function ApplicationHistoryChart({ jobs }) {
