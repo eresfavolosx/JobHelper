@@ -133,7 +133,9 @@ export default function RecommendationsPage() {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
-                    {jobs.map((job, i) => (
+                    {jobs.map((job, i) => {
+                        const sanitizedLink = sanitizeUrl(job.link);
+                        return (
                         <div key={i} className="card animate-scale-in" style={{
                             padding: '24px',
                             display: 'flex',
@@ -249,7 +251,7 @@ export default function RecommendationsPage() {
                                 )}
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
         </div>
