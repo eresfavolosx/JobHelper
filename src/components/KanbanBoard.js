@@ -2,7 +2,7 @@
 import { useAppStore } from '@/lib/store';
 import { DndContext, DragOverlay, closestCorners, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 
