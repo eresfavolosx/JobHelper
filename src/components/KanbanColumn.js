@@ -38,6 +38,7 @@ const arePropsEqual = (prevProps, nextProps) => {
 };
 
 const KanbanColumn = memo(({ column, jobs, index }) => {
+    KanbanColumn.displayName = 'KanbanColumn';
     return (
         <div
             className="glass-panel kanban-column animate-scale-in"
