@@ -59,6 +59,16 @@ export async function fetchJobsFromRSS(keywords = []) {
     return allJobs.slice(0, 20); // Limit to top 20 to save tokens
 }
 
+function sanitizeForPrompt(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
 export async function scoreJobsWithGemini(jobs, resumeData) {
     if (!jobs.length || !resumeData) return jobs;
 
