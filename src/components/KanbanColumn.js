@@ -86,4 +86,6 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
 
 KanbanColumn.displayName = 'KanbanColumn';
 
+KanbanColumn.displayName = 'KanbanColumn';
+
 export default KanbanColumn;
