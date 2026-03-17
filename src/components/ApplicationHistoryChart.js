@@ -37,9 +37,8 @@ export default function ApplicationHistoryChart({ jobs }) {
             end: startOfDay(today)
         });
 
-        // 3. Build cumulative data
-        let cumulativeCount = 0;
-        let jobIndex = 0;
+        // 3. Single pass accumulation (O(N) instead of O(N^2))
+        let currentJobIndex = 0;
 
         return days.map(day => {
             const endOfDay = new Date(day).setHours(23, 59, 59, 999);
