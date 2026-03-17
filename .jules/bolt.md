@@ -18,3 +18,6 @@
 ## 2026-03-08 - Avoid Multiple Array.filters for Derived Stats
 **Learning:** In components calculating multiple derived statistics from a single data source (like dashboard counts), chaining or repeating `Array.filter` calls over the same array is an anti-pattern. If there are `k` filters, the time complexity becomes `O(k*N)`.
 **Action:** When calculating multiple derived statistics from an array (e.g., status counts), use a single-pass loop inside a `useMemo` hook rather than chaining or repeating `.filter()` calls to reduce time complexity from `O(k*N)` to `O(N)`.
+## 2026-03-16 - Avoid O(N) Array Lookups in Loops
+**Learning:** Using `Array.prototype.find()` inside an `Array.prototype.map()` loop creates an O(N*M) time complexity. For operations like merging scores into jobs, this severely degrades performance as datasets grow.
+**Action:** Refactor the inner lookup by extracting the data into an intermediate `Map` or plain object before the loop, enabling O(1) lookups and reducing overall complexity to O(N).
