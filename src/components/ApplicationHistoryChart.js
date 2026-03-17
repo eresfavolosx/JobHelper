@@ -48,7 +48,6 @@ export default function ApplicationHistoryChart({ jobs }) {
                 jobIndex < jobsWithTime.length &&
                 jobsWithTime[jobIndex]._timestamp <= endOfDay
             ) {
-                cumulativeCount++;
                 jobIndex++;
             }
 
