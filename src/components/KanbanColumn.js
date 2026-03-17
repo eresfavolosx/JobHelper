@@ -10,6 +10,33 @@ function ColumnDroppable({ id, children }) {
     return <div ref={setNodeRef} style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>{children}</div>;
 }
 
+// Custom comparison for memo to prevent re-renders when parent creates new array ref
+// but jobs inside are same objects (common in this app's store updates)
+const arePropsEqual = (prevProps, nextProps) => {
+    // Basic prop checks
+    // Column object reference is stable (defined as constant outside component)
+    if (prevProps.column !== nextProps.column) return false;
+    if (prevProps.index !== nextProps.index) return false;
+
+    // Array reference check (fast path)
+    if (prevProps.jobs === nextProps.jobs) return true;
+
+    // Safety check for jobs array
+    if (!prevProps.jobs || !nextProps.jobs) return false;
+
+    // Length check (fast path)
+    if (prevProps.jobs.length !== nextProps.jobs.length) return false;
+
+    // Shallow item comparison
+    // Since store updates return same object reference for unchanged items,
+    // we can just check reference equality for each item.
+    for (let i = 0; i < prevProps.jobs.length; i++) {
+        if (prevProps.jobs[i] !== nextProps.jobs[i]) return false;
+    }
+
+    return true;
+};
+
 const KanbanColumn = memo(({ column, jobs, index }) => {
     return (
         <div
@@ -55,6 +82,8 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
             </SortableContext>
         </div>
     );
-});
+}, arePropsEqual);
+
+KanbanColumn.displayName = 'KanbanColumn';
 
 export default KanbanColumn;
