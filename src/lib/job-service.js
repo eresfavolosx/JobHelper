@@ -120,9 +120,18 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
         const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         const scores = JSON.parse(cleanJson);
 
+        // ⚡ Bolt: Refactor O(N) find inside O(M) map to O(1) lookups via an intermediate object.
+        // Preserving 'first-one-wins' logic by checking for existing keys.
+        const scoreMap = {};
+        for (const s of scores) {
+            if (scoreMap[s.index] === undefined) {
+                scoreMap[s.index] = s;
+            }
+        }
+
         // Merge scores back into jobs
         return jobs.map((job, i) => {
-            const scoreData = scores.find(s => s.index === i);
+            const scoreData = scoreMap[i];
             return {
                 ...job,
                 relevanceScore: scoreData?.score || 0,
