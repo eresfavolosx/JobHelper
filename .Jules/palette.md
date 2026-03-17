@@ -26,3 +26,7 @@
 ## 2026-03-10 - Replacing Native Alerts with Inline Feedback
 **Learning:** Found instances where native `alert()` calls were used to provide success feedback (e.g., adding a job to the board from AI recommendations). This blocks the UI, interrupts the user's flow, and creates a jarring experience.
 **Action:** Replace blocking native alerts with inline visual feedback. For example, temporarily change the clicked button's state to visually confirm the action (e.g., changing text to 'Added!', color to success theme, and disabling it).
+
+## 2024-10-27 - Inline Feedback over Native Alerts
+**Learning:** Found instances where native `alert()` calls were used to provide feedback for premium features and error states. Native alerts block the UI and create a jarring experience.
+**Action:** Replace blocking native alerts with inline visual feedback using state variables and conditional rendering with ARIA attributes to maintain accessibility.
