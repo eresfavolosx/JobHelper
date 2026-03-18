@@ -40,6 +40,7 @@ const JobCard = memo(function JobCard({ job }) {
     };
 
     const sanitizedUrl = sanitizeUrl(job.url);
+    const jobDate = safeDate(job.createdAt || job.dateAdded);
 
     return (
         <div
@@ -76,10 +77,10 @@ const JobCard = memo(function JobCard({ job }) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '16px' }}>
                 <span
-                    title={safeDate(job.createdAt || job.dateAdded).toLocaleString()}
+                    title={jobDate.toLocaleString()}
                     style={{ background: 'var(--glass-highlight)', padding: '4px 8px', borderRadius: '6px' }}
                 >
-                    {formatDistanceToNow(safeDate(job.createdAt || job.dateAdded), { addSuffix: true })}
+                    {formatDistanceToNow(jobDate, { addSuffix: true })}
                 </span>
                 {sanitizedUrl && (
                     <a
