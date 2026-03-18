@@ -35,13 +35,8 @@ export const getGeminiModel = () => {
         console.warn("[Gemini] Failed to read key from store:", e);
     }
 
-    // 2. Fallback to environment variable (legacy/dev)
     if (!apiKey) {
-        apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    }
-
-    if (!apiKey) {
-        console.error("Missing Gemini API Key. Please set it in Settings or provide NEXT_PUBLIC_GEMINI_API_KEY.");
+        console.error("Missing Gemini API Key. Please set it in Settings.");
         throw new Error('API Key not configured. Please add your Gemini API Key in Profile settings.');
     }
 
