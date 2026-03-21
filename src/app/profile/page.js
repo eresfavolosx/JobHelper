@@ -7,7 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { getGeminiModel, fileToGenerativePart } from '@/lib/gemini-client';
 
 function ProfileContent() {
-    const { profile, updateProfile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const updateProfile = useAppStore(state => state.updateProfile);
     const { user, loading } = useAuth();
     const [mounted, setMounted] = useState(false);
 
@@ -249,12 +250,17 @@ function ProfileContent() {
 }
 
 function ExportDataButton() {
-    const { jobs, profile, isPremium } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
+    const isPremium = useAppStore(state => state.isPremium);
     const { user } = useAuth();
+    const [upgradePrompt, setUpgradePrompt] = useState(false);
 
     const handleExport = () => {
         if (!isPremium()) {
-            alert("📦 Data Export is a Premium feature. Please upgrade your plan to download your history.");
+            setUpgradePrompt(true);
+            setTimeout(() => setUpgradePrompt(false), 3000);
+
             const subSection = document.getElementById('subscription-section');
             if (subSection) subSection.scrollIntoView({ behavior: 'smooth' });
             return;
@@ -285,16 +291,17 @@ function ExportDataButton() {
             style={{
                 padding: '12px 20px',
                 borderRadius: '12px',
-                background: 'var(--bg-panel)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-primary)',
+                background: upgradePrompt ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-panel)',
+                border: upgradePrompt ? '1px solid var(--warning)' : '1px solid var(--border-subtle)',
+                color: upgradePrompt ? 'var(--warning)' : 'var(--text-primary)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                transition: 'all 0.3s ease'
             }}
         >
-            📦 Export My Data
+            {upgradePrompt ? '⭐ Premium Feature' : '📦 Export My Data'}
         </button>
     );
 }
@@ -303,11 +310,13 @@ function DeleteAccountButton() {
     const { user } = useAuth();
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
     const handleDelete = async () => {
         if (!user) return;
 
         setDeleting(true);
+        setErrorMsg('');
         try {
             // Delete Firestore data
             const { deleteAllUserData } = await import('@/lib/firestore-sync');
@@ -323,42 +332,49 @@ function DeleteAccountButton() {
             window.location.href = '/login';
         } catch (err) {
             console.error('Delete account error:', err);
-            alert('Failed to delete account. You may need to re-authenticate first.');
+            setErrorMsg('Failed to delete account. Please re-authenticate first.');
             setDeleting(false);
         }
     };
 
     if (confirming) {
         return (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Are you sure?</span>
-                <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    style={{
-                        padding: '10px 16px',
-                        borderRadius: '8px',
-                        background: 'var(--error)',
-                        color: 'white',
-                        border: 'none',
-                        cursor: deleting ? 'not-allowed' : 'pointer'
-                    }}
-                >
-                    {deleting ? 'Deleting...' : 'Yes, Delete'}
-                </button>
-                <button
-                    onClick={() => setConfirming(false)}
-                    style={{
-                        padding: '10px 16px',
-                        borderRadius: '8px',
-                        background: 'var(--bg-panel)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-subtle)',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Cancel
-                </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Are you sure?</span>
+                    <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            background: 'var(--error)',
+                            color: 'white',
+                            border: 'none',
+                            cursor: deleting ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        {deleting ? 'Deleting...' : 'Yes, Delete'}
+                    </button>
+                    <button
+                        onClick={() => { setConfirming(false); setErrorMsg(''); }}
+                        style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            background: 'var(--bg-panel)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Cancel
+                    </button>
+                </div>
+                {errorMsg && (
+                    <div role="alert" aria-live="assertive" style={{ color: 'var(--error)', fontSize: '0.85rem' }}>
+                        {errorMsg}
+                    </div>
+                )}
             </div>
         );
     }
@@ -384,8 +400,10 @@ function DeleteAccountButton() {
 }
 
 function SubscriptionManager() {
-    const { profile, updateProfile, isPremium } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const isPremium = useAppStore(state => state.isPremium);
     const [loading, setLoading] = useState(false);
+    const [subscribeFeedback, setSubscribeFeedback] = useState('');
 
     const isCurrentlyPremium = typeof isPremium === 'function' ? isPremium() : isPremium;
     const isTrial = profile?.subscriptionStatus === 'trial';
@@ -401,10 +419,12 @@ function SubscriptionManager() {
 
     const handleSubscribe = () => {
         setLoading(true);
+        setSubscribeFeedback('');
         // Simulate Stripe Checkout
         setTimeout(() => {
-            alert("This would normally redirect to Stripe Checkout. For now, we've enabled trial mode or manual premium status.");
             setLoading(false);
+            setSubscribeFeedback('Redirecting to Stripe... (Simulated)');
+            setTimeout(() => setSubscribeFeedback(''), 3000);
         }, 1500);
     };
 
@@ -470,11 +490,11 @@ function SubscriptionManager() {
                     {!isCurrentlyPremium || isTrial ? (
                         <button 
                             onClick={handleSubscribe}
-                            disabled={loading}
+                            disabled={loading || !!subscribeFeedback}
                             className="btn-primary" 
                             style={{ width: '100%', justifyContent: 'center', py: '12px' }}
                         >
-                            {loading ? <Loader size={18} className="spin" /> : 'Upgrade to Monthly Premium ($9.99)'}
+                            {loading ? <Loader size={18} className="spin" /> : subscribeFeedback ? subscribeFeedback : 'Upgrade to Monthly Premium ($9.99)'}
                         </button>
                     ) : (
                         <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
@@ -506,7 +526,8 @@ function SubscriptionManager() {
 
 function SyncButton() {
     const { user } = useAuth();
-    const { jobs, profile } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
     const [syncing, setSyncing] = useState(false);
     const [status, setStatus] = useState('idle'); // idle, success, error
 
@@ -554,7 +575,8 @@ export default function ProfilePage() {
 }
 
 function ApiKeyInput() {
-    const { profile, updateProfile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const updateProfile = useAppStore(state => state.updateProfile);
     const [key, setKey] = useState('');
     const [show, setShow] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -623,7 +645,7 @@ function ResumeUpload({ onAnalysisComplete }) {
     const fileInputRef = useRef(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [error, setError] = useState(null);
-    const { profile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
