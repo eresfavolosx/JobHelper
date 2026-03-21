@@ -38,6 +38,10 @@
 **Vulnerability:** The Chrome extension was storing the Gemini API key using `chrome.storage.sync`.
 **Learning:** `chrome.storage.sync` synchronizes data across all devices signed into the same Google account, meaning sensitive credentials (like API keys) are transmitted over the network and stored on Google servers. This is inappropriate for sensitive data.
 **Prevention:** Use `chrome.storage.local` for sensitive data like API keys, credentials, or personal information. Only use `chrome.storage.sync` for non-sensitive user preferences. Always provide a migration path when changing storage mechanisms.
+## 2024-05-30 - Hardcoded API Key Fallback in Client Code
+**Vulnerability:** The Gemini API Key had a fallback to `process.env.NEXT_PUBLIC_GEMINI_API_KEY` in `src/lib/gemini-client.js`. This exposed the API key to the client side, allowing any user to potentially extract it from the bundled JavaScript and abuse the service.
+**Learning:** Client-side code should never contain hardcoded or environment-injected API keys that can be exposed in the browser. Secrets must be securely managed per-user or securely accessed via a backend proxy.
+**Prevention:** Ensure that all sensitive keys are provided directly by the user via secure settings or managed by backend services, never using `NEXT_PUBLIC_` prefixes for secrets.
 
 ## 2024-05-30 - Reflected XSS via AI Recommended Job URL in Recommendations Board
 **Vulnerability:** Job URLs fetched from external RSS feeds and scored by AI were rendered directly into `url` attributes when adding jobs to the board from `src/app/recommendations/page.js` without sanitization, posing a Stored XSS risk when the user views the job card.
