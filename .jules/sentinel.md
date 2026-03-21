@@ -43,3 +43,8 @@
 **Vulnerability:** Job URLs fetched from external RSS feeds and scored by AI were rendered directly into `url` attributes when adding jobs to the board from `src/app/recommendations/page.js` without sanitization, posing a Stored XSS risk when the user views the job card.
 **Learning:** External data sources (like RSS feeds and AI outputs) cannot be implicitly trusted, even if they seem benign. Data fetched dynamically must be sanitized before being added to persistent state or rendered in DOM.
 **Prevention:** Always use the project's `sanitizeUrl` utility function on any external or dynamically generated URLs before passing them to application state or `href` attributes.
+
+## 2024-05-30 - Client-Side API Key Exposure via Environment Variables
+**Vulnerability:** The Gemini API key was accessible via `process.env.NEXT_PUBLIC_GEMINI_API_KEY`. In Next.js, any environment variable starting with `NEXT_PUBLIC_` is embedded into the client-side JavaScript bundle during the build process. This would expose the sensitive API key to any user inspecting the site's source code.
+**Learning:** `NEXT_PUBLIC_` prefixed environment variables must never be used for sensitive credentials or secrets (like API keys, passwords, or tokens), as they are intentionally exposed in the client-side bundle. They should only be used for non-sensitive public configuration (like feature flags or API URLs).
+**Prevention:** API keys should be provided directly by the user via secure application settings and stored locally (e.g., `localStorage` or `chrome.storage.local`), or managed securely on a backend server. Never expose them via `NEXT_PUBLIC_` variables.
