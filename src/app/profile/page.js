@@ -7,7 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { getGeminiModel, fileToGenerativePart } from '@/lib/gemini-client';
 
 function ProfileContent() {
-    const { profile, updateProfile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const updateProfile = useAppStore(state => state.updateProfile);
     const { user, loading } = useAuth();
     const [mounted, setMounted] = useState(false);
 
@@ -249,7 +250,9 @@ function ProfileContent() {
 }
 
 function ExportDataButton() {
-    const { jobs, profile, isPremium } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
+    const isPremium = useAppStore(state => state.isPremium);
     const { user } = useAuth();
     const [upgradePrompt, setUpgradePrompt] = useState(false);
 
@@ -397,7 +400,8 @@ function DeleteAccountButton() {
 }
 
 function SubscriptionManager() {
-    const { profile, updateProfile, isPremium } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const isPremium = useAppStore(state => state.isPremium);
     const [loading, setLoading] = useState(false);
     const [subscribeFeedback, setSubscribeFeedback] = useState('');
 
@@ -522,7 +526,8 @@ function SubscriptionManager() {
 
 function SyncButton() {
     const { user } = useAuth();
-    const { jobs, profile } = useAppStore();
+    const jobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
     const [syncing, setSyncing] = useState(false);
     const [status, setStatus] = useState('idle'); // idle, success, error
 
@@ -570,7 +575,8 @@ export default function ProfilePage() {
 }
 
 function ApiKeyInput() {
-    const { profile, updateProfile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const updateProfile = useAppStore(state => state.updateProfile);
     const [key, setKey] = useState('');
     const [show, setShow] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -639,7 +645,7 @@ function ResumeUpload({ onAnalysisComplete }) {
     const fileInputRef = useRef(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [error, setError] = useState(null);
-    const { profile } = useAppStore();
+    const profile = useAppStore(state => state.profile);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
