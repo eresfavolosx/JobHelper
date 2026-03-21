@@ -5,7 +5,8 @@ import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check, Ch
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 export default function RecommendationsPage() {
-    const { profile, isPremium } = useAppStore();
+    const profile = useAppStore(state => state.profile);
+    const isPremium = useAppStore(state => state.isPremium);
     const addJob = useAppStore((state) => state.addJob);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -218,7 +219,7 @@ export default function RecommendationsPage() {
                                             addJob({
                                                 company: 'Unknown',
                                                 role: job.title,
-                                                url: job.link,
+                                                url: sanitizeUrl(job.link),
                                                 status: 'wishlist',
                                                 notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                             });
