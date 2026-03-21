@@ -60,23 +60,17 @@ export default function Onboarding() {
                 </div>
 
                 {/* Option 2: Extension (now second, with mobile-specific content) */}
-                <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: isMobile ? 'default' : 'pointer', transition: 'transform 0.2s', opacity: isMobile ? 0.8 : 1 }}
-                    onMouseOver={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-5px)')}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--glass-highlight)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-                        {isMobile ? <Monitor size={32} color="var(--text-secondary)" /> : <Download size={32} color="var(--text-primary)" />}
-                    </div>
-                    <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
-                        {isMobile ? 'Browser Extension' : 'Use the Extension'}
-                    </h3>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
-                        {isMobile
-                            ? 'Our Chrome extension lets you save jobs with one click. Visit this page on your desktop to install it.'
-                            : 'Automatically capture jobs from LinkedIn, Indeed, and more with one click.'
-                        }
-                    </p>
-                    {isMobile ? (
+                {isMobile ? (
+                    <div className="card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', opacity: 0.8 }}>
+                        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--glass-highlight)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+                            <Monitor size={32} color="var(--text-secondary)" />
+                        </div>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
+                            Browser Extension
+                        </h3>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
+                            Our Chrome extension lets you save jobs with one click. Visit this page on your desktop to install it.
+                        </p>
                         <div style={{
                             width: '100%',
                             padding: '12px 16px',
@@ -91,12 +85,23 @@ export default function Onboarding() {
                         }}>
                             <Monitor size={16} /> Desktop Only
                         </div>
-                    ) : (
-                        <Link href="/install" className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
+                    </div>
+                ) : (
+                    <Link href="/install" className="card interactive-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', textDecoration: 'none', color: 'inherit' }}>
+                        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--glass-highlight)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+                            <Download size={32} color="var(--text-primary)" />
+                        </div>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
+                            Use the Extension
+                        </h3>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
+                            Automatically capture jobs from LinkedIn, Indeed, and more with one click.
+                        </p>
+                        <div className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                             <Download size={18} /> Install Extension
-                        </Link>
-                    )}
-                </div>
+                        </div>
+                    </Link>
+                )}
             </div>
 
             <div style={{ marginTop: '60px', padding: '24px', background: 'var(--bg-card)', borderRadius: '12px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
