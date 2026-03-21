@@ -21,3 +21,7 @@
 ## 2026-03-16 - Avoid O(N) Array Lookups in Loops
 **Learning:** Using `Array.prototype.find()` inside an `Array.prototype.map()` loop creates an O(N*M) time complexity. For operations like merging scores into jobs, this severely degrades performance as datasets grow.
 **Action:** Refactor the inner lookup by extracting the data into an intermediate `Map` or plain object before the loop, enabling O(1) lookups and reducing overall complexity to O(N).
+
+## 2026-03-24 - Extract Repeated Expensive Functions
+**Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
+**Action:** Extract expensive logic calculations to a single constant before the `return` statement in React components and reuse the calculated value in JSX to reduce processing overhead on every render.
