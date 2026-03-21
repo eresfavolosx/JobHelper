@@ -21,6 +21,9 @@
 ## 2026-03-16 - Avoid O(N) Array Lookups in Loops
 **Learning:** Using `Array.prototype.find()` inside an `Array.prototype.map()` loop creates an O(N*M) time complexity. For operations like merging scores into jobs, this severely degrades performance as datasets grow.
 **Action:** Refactor the inner lookup by extracting the data into an intermediate `Map` or plain object before the loop, enabling O(1) lookups and reducing overall complexity to O(N).
+## 2026-03-20 - Zustand Selectors vs Store Destructuring
+**Learning:** In React applications using Zustand (`useAppStore`), destructuring the entire store object (e.g., `const { profile } = useAppStore()`) creates a performance bottleneck. This pattern causes the component to re-render whenever *any* unrelated state within the store updates (like `jobs` or `activeId`), even if the specific values used by the component remain unchanged.
+**Action:** Always use specific state selectors (e.g., `const profile = useAppStore(state => state.profile)`) to ensure components only re-render when the exact piece of state they depend on changes.
 
 ## 2026-03-24 - Extract Repeated Expensive Functions
 **Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
