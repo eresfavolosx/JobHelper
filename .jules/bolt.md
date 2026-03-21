@@ -28,3 +28,7 @@
 ## 2026-03-24 - Extract Repeated Expensive Functions
 **Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
 **Action:** Extract expensive logic calculations to a single constant before the `return` statement in React components and reuse the calculated value in JSX to reduce processing overhead on every render.
+
+## 2024-05-24 - ApplicationHistoryChart O(N) optimization crash
+**Learning:** A previous performance optimization attempted to convert an O(N^2) operation to O(N) but introduced a ReferenceError by using undefined variables (`jobIndex`, `cumulativeCount`) and failing to increment the count, which crashed the chart component.
+**Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance, and ensure tests cover the new logic.
