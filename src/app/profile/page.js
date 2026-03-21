@@ -254,13 +254,12 @@ function ExportDataButton() {
     const profile = useAppStore(state => state.profile);
     const isPremium = useAppStore(state => state.isPremium);
     const { user } = useAuth();
-    const [upgradePrompt, setUpgradePrompt] = useState(false);
+    const [showPremiumToast, setShowPremiumToast] = useState(false);
 
     const handleExport = () => {
         if (!isPremium()) {
-            setUpgradePrompt(true);
-            setTimeout(() => setUpgradePrompt(false), 3000);
-
+            setShowPremiumToast(true);
+            setTimeout(() => setShowPremiumToast(false), 5000);
             const subSection = document.getElementById('subscription-section');
             if (subSection) subSection.scrollIntoView({ behavior: 'smooth' });
             return;
@@ -286,23 +285,42 @@ function ExportDataButton() {
     };
 
     return (
-        <button
-            onClick={handleExport}
-            style={{
-                padding: '12px 20px',
-                borderRadius: '12px',
-                background: upgradePrompt ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg-panel)',
-                border: upgradePrompt ? '1px solid var(--warning)' : '1px solid var(--border-subtle)',
-                color: upgradePrompt ? 'var(--warning)' : 'var(--text-primary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.3s ease'
-            }}
-        >
-            {upgradePrompt ? '⭐ Premium Feature' : '📦 Export My Data'}
-        </button>
+        <div style={{ position: 'relative' }}>
+            <button
+                onClick={handleExport}
+                style={{
+                    padding: '12px 20px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}
+            >
+                📦 Export My Data
+            </button>
+            {showPremiumToast && (
+                <div role="alert" aria-live="assertive" className="animate-fade-in" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: 'var(--warning)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    whiteSpace: 'nowrap',
+                    zIndex: 10
+                }}>
+                    📦 Data Export is a Premium feature.
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -310,7 +328,7 @@ function DeleteAccountButton() {
     const { user } = useAuth();
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [errorMsg, setErrorMsg] = useState('');
+    const [error, setError] = useState('');
 
     const handleDelete = async () => {
         if (!user) return;
@@ -332,7 +350,7 @@ function DeleteAccountButton() {
             window.location.href = '/login';
         } catch (err) {
             console.error('Delete account error:', err);
-            setErrorMsg('Failed to delete account. Please re-authenticate first.');
+            setError('Failed to delete account. You may need to re-authenticate first.');
             setDeleting(false);
         }
     };
@@ -357,7 +375,7 @@ function DeleteAccountButton() {
                         {deleting ? 'Deleting...' : 'Yes, Delete'}
                     </button>
                     <button
-                        onClick={() => { setConfirming(false); setErrorMsg(''); }}
+                        onClick={() => { setConfirming(false); setError(''); }}
                         style={{
                             padding: '10px 16px',
                             borderRadius: '8px',
@@ -370,9 +388,9 @@ function DeleteAccountButton() {
                         Cancel
                     </button>
                 </div>
-                {errorMsg && (
-                    <div role="alert" aria-live="assertive" style={{ color: 'var(--error)', fontSize: '0.85rem' }}>
-                        {errorMsg}
+                {error && (
+                    <div role="alert" aria-live="assertive" className="animate-fade-in" style={{ color: 'var(--error)', fontSize: '0.85rem', marginTop: '4px' }}>
+                        {error}
                     </div>
                 )}
             </div>
@@ -403,7 +421,7 @@ function SubscriptionManager() {
     const profile = useAppStore(state => state.profile);
     const isPremium = useAppStore(state => state.isPremium);
     const [loading, setLoading] = useState(false);
-    const [subscribeFeedback, setSubscribeFeedback] = useState('');
+    const [checkoutMessage, setCheckoutMessage] = useState('');
 
     const isCurrentlyPremium = typeof isPremium === 'function' ? isPremium() : isPremium;
     const isTrial = profile?.subscriptionStatus === 'trial';
@@ -419,12 +437,12 @@ function SubscriptionManager() {
 
     const handleSubscribe = () => {
         setLoading(true);
-        setSubscribeFeedback('');
+        setCheckoutMessage('');
         // Simulate Stripe Checkout
         setTimeout(() => {
+            setCheckoutMessage("This would normally redirect to Stripe Checkout. For now, we've enabled trial mode or manual premium status.");
             setLoading(false);
-            setSubscribeFeedback('Redirecting to Stripe... (Simulated)');
-            setTimeout(() => setSubscribeFeedback(''), 3000);
+            setTimeout(() => setCheckoutMessage(''), 5000);
         }, 1500);
     };
 
@@ -488,14 +506,30 @@ function SubscriptionManager() {
                     </ul>
 
                     {!isCurrentlyPremium || isTrial ? (
-                        <button 
-                            onClick={handleSubscribe}
-                            disabled={loading || !!subscribeFeedback}
-                            className="btn-primary" 
-                            style={{ width: '100%', justifyContent: 'center', py: '12px' }}
-                        >
-                            {loading ? <Loader size={18} className="spin" /> : subscribeFeedback ? subscribeFeedback : 'Upgrade to Monthly Premium ($9.99)'}
-                        </button>
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                onClick={handleSubscribe}
+                                disabled={loading}
+                                className="btn-primary"
+                                style={{ width: '100%', justifyContent: 'center', py: '12px' }}
+                            >
+                                {loading ? <Loader size={18} className="spin" /> : 'Upgrade to Monthly Premium ($9.99)'}
+                            </button>
+                            {checkoutMessage && (
+                                <div role="alert" aria-live="polite" className="animate-fade-in" style={{
+                                    marginTop: '12px',
+                                    padding: '8px 12px',
+                                    background: 'rgba(56, 189, 248, 0.1)',
+                                    color: 'var(--accent-primary)',
+                                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    textAlign: 'center'
+                                }}>
+                                    {checkoutMessage}
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
                             Manage Billing
