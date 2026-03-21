@@ -219,7 +219,7 @@ export default function RecommendationsPage() {
                                             addJob({
                                                 company: 'Unknown',
                                                 role: job.title,
-                                                url: job.link,
+                                                url: sanitizeUrl(job.link),
                                                 status: 'wishlist',
                                                 notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                             });
