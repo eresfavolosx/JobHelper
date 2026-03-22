@@ -28,3 +28,7 @@
 ## 2026-03-24 - Extract Repeated Expensive Functions
 **Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
 **Action:** Extract expensive logic calculations to a single constant before the `return` statement in React components and reuse the calculated value in JSX to reduce processing overhead on every render.
+
+## 2026-03-30 - Fix ApplicationHistoryChart cumulative count
+**Learning:** Extracting out test logic to a completely separate test harness without verifying the actual integrated app code can allow ReferenceErrors to easily slip in. The test passed for O(N) optimizations since the test code worked correctly but the component was still referencing undefined variables `jobIndex` and `cumulativeCount`.
+**Action:** Be sure to always manually verify components utilizing performance changes to ensure regressions are caught that tests miss when refactored.
