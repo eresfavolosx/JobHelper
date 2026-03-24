@@ -52,3 +52,8 @@
 **Vulnerability:** The Gemini API key was accessible via `process.env.NEXT_PUBLIC_GEMINI_API_KEY`. In Next.js, any environment variable starting with `NEXT_PUBLIC_` is embedded into the client-side JavaScript bundle during the build process. This would expose the sensitive API key to any user inspecting the site's source code.
 **Learning:** `NEXT_PUBLIC_` prefixed environment variables must never be used for sensitive credentials or secrets (like API keys, passwords, or tokens), as they are intentionally exposed in the client-side bundle. They should only be used for non-sensitive public configuration (like feature flags or API URLs).
 **Prevention:** API keys should be provided directly by the user via secure application settings and stored locally (e.g., `localStorage` or `chrome.storage.local`), or managed securely on a backend server. Never expose them via `NEXT_PUBLIC_` variables.
+
+## 2026-03-24 - API Key Storage in Extension Popup
+**Vulnerability:** The Chrome extension's `popup.js` explicitly called `chrome.storage.local.get` and `chrome.storage.local.set`, completely bypassing the existing secure wrapper functions in `storage.js` (like `getApiKey` and `saveApiKey`). This also left stale references to the insecure `chrome.storage.sync` in nested callbacks, increasing the attack surface.
+**Learning:** Having a secure abstraction (`storage.js`) is useless if calling code bypasses it. Direct usage of native storage APIs where wrappers exist leads to duplicated, potentially insecure logic.
+**Prevention:** Always refactor code to enforce usage of custom storage abstractions and remove direct usage of `chrome.storage.*` APIs in UI components like `popup.js`.
