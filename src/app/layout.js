@@ -154,6 +154,7 @@ function NavContent() {
                 className="mobile-menu-btn"
                 onClick={toggleMobileMenu}
                 aria-label="Toggle menu"
+                title="Toggle menu"
             >
                 {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -169,6 +170,7 @@ function NavContent() {
                 className="fab-btn"
                 onClick={openNewJobModal}
                 aria-label="Add New Job"
+                title="Add New Job"
             >
                 <Plus size={24} />
             </button>
