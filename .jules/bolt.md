@@ -28,3 +28,7 @@
 ## 2026-03-24 - Extract Repeated Expensive Functions
 **Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
 **Action:** Extract expensive logic calculations to a single constant before the `return` statement in React components and reuse the calculated value in JSX to reduce processing overhead on every render.
+
+## 2026-03-26 - Test Mocks Masking Runtime Errors
+**Learning:** When internal component logic is mocked in test files (e.g., `calculateChartData` in `ApplicationHistoryChart.test.mjs`), passing tests do not guarantee the component works in the real application. The tests might pass against the mock while the actual component crashes due to `ReferenceError`s or other runtime exceptions.
+**Action:** Always manually or visually verify performance optimizations and refactors (e.g., via Playwright UI tests or manual inspection) when modifying components whose core logic might be mocked in the test suite.
