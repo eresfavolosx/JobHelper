@@ -28,3 +28,7 @@
 ## 2026-03-24 - Extract Repeated Expensive Functions
 **Learning:** Functions that parse data or perform complex logic (e.g. `safeDate`) are often called repeatedly in JSX inline bindings (like title and text content), degrading performance during list rendering.
 **Action:** Extract expensive logic calculations to a single constant before the `return` statement in React components and reuse the calculated value in JSX to reduce processing overhead on every render.
+
+## 2026-03-30 - Extract Date.now() from O(N) Array Operations
+**Learning:** Calling `Date.now()` inside an `Array.prototype.find()`, `filter()`, or `map()` callback causes the JavaScript engine to redundantly execute the function on every iteration. While `Date.now()` is fast, doing it inside an O(N) traversal on large arrays (like comparing a timestamp to find a recently deleted job) causes unnecessary overhead.
+**Action:** Always extract invariant function calls like `Date.now()` to a constant *outside* of array iteration loops. Combine this with avoiding parsing new `Date` objects inside the loop by reusing primitive timestamps where possible.

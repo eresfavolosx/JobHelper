@@ -12,11 +12,14 @@ export default function UndoToast() {
 
     // Watch for newly deleted jobs
     useEffect(() => {
-        const recentlyDeleted = jobs.find(j =>
-            j.status === 'deleted' &&
-            j.deletedAt &&
-            Date.now() - new Date(j.deletedAt).getTime() < 1000 // Within last second
-        );
+        const now = Date.now();
+        const recentlyDeleted = jobs.find(j => {
+            if (j.status !== 'deleted' || !j.deletedAt) return false;
+            // ⚡ Bolt: Use a single Date.now() reference and optimize parsing
+            // This avoids creating new Date objects inside the O(N) array search
+            const deletedTime = typeof j.deletedAt === 'number' ? j.deletedAt : new Date(j.deletedAt).getTime();
+            return now - deletedTime < 1000;
+        });
 
         if (recentlyDeleted && (!deletedJob || deletedJob.id !== recentlyDeleted.id)) {
             setDeletedJob(recentlyDeleted);
