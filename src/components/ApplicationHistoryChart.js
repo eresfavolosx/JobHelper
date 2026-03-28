@@ -37,16 +37,18 @@ export default function ApplicationHistoryChart({ jobs }) {
 
         // 3. Single pass accumulation (O(N) instead of O(N^2))
         let currentJobIndex = 0;
+        let cumulativeCount = 0;
 
         return days.map(day => {
             const endOfDay = new Date(day).setHours(23, 59, 59, 999);
 
             // Add jobs that happened on or before the end of this day
             while (
-                jobIndex < jobsWithTime.length &&
-                jobsWithTime[jobIndex]._timestamp <= endOfDay
+                currentJobIndex < jobsWithTime.length &&
+                jobsWithTime[currentJobIndex]._timestamp <= endOfDay
             ) {
-                jobIndex++;
+                cumulativeCount++;
+                currentJobIndex++;
             }
 
             return {
