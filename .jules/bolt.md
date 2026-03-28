@@ -32,3 +32,7 @@
 ## 2026-03-30 - Extract Date.now() from O(N) Array Operations
 **Learning:** Calling `Date.now()` inside an `Array.prototype.find()`, `filter()`, or `map()` callback causes the JavaScript engine to redundantly execute the function on every iteration. While `Date.now()` is fast, doing it inside an O(N) traversal on large arrays (like comparing a timestamp to find a recently deleted job) causes unnecessary overhead.
 **Action:** Always extract invariant function calls like `Date.now()` to a constant *outside* of array iteration loops. Combine this with avoiding parsing new `Date` objects inside the loop by reusing primitive timestamps where possible.
+
+## 2026-03-28 - Fix ApplicationHistoryChart O(N) Optimization
+**Learning:** A prior performance optimization renamed `jobIndex` to `currentJobIndex` but left references to `jobIndex` and `cumulativeCount` undefined, causing a ReferenceError crash. Tests passed because core logic was mocked.
+**Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance. Manually verify components when core logic is mocked in test suites.
