@@ -48,9 +48,13 @@ toggleKeyBtn.addEventListener('click', () => {
     if (apiKeyInput.type === 'password') {
         apiKeyInput.type = 'text';
         toggleKeyBtn.innerText = 'Hide';
+        toggleKeyBtn.setAttribute('aria-label', 'Hide API key');
+        toggleKeyBtn.setAttribute('title', 'Hide API key');
     } else {
         apiKeyInput.type = 'password';
         toggleKeyBtn.innerText = 'Show';
+        toggleKeyBtn.setAttribute('aria-label', 'Show API key');
+        toggleKeyBtn.setAttribute('title', 'Show API key');
     }
 });
 
