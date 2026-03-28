@@ -84,6 +84,7 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
     // Sanitize candidate profile
     const safeRole = escapeXml(resumeData.targetRoles?.join(', ') || resumeData.targetRole);
     const safeExperience = escapeXml(resumeData.experienceLevel);
+    const safeSkills = escapeXml(resumeData.skills?.join(', ') || resumeData.skills || '');
     const safeCountry = escapeXml(resumeData.country || 'Global');
     const safeModality = escapeXml(resumeData.modality || 'Remote');
     const safeSalary = escapeXml(resumeData.minimumSalary ? `$${resumeData.minimumSalary}` : 'Not Specified');
