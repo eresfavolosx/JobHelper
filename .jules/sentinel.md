@@ -56,3 +56,8 @@
 **Vulnerability:** The Gemini API prompt in `scoreJobsWithGemini` interpolated `safeSkills` which was undefined, and failed to escape candidate skills. This could lead to a ReferenceError, or allow malicious input in the skills field to manipulate the prompt (Prompt Injection) or break XML parsing.
 **Learning:** All inputs passed to an LLM, especially structured ones like XML, must be sanitized and defined before interpolation to prevent Prompt Injection and unexpected execution errors.
 **Prevention:** Always define, sanitize, and escape (e.g., using `escapeXml`) every variable before interpolating it into an LLM prompt.
+
+## 2026-03-28 - API Key Storage Bypass in Extension Popup
+**Vulnerability:** The `popup.js` had duplicate legacy code directly calling `chrome.storage.local` and `chrome.storage.sync`, bypassing the secure `getApiKey`/`saveApiKey` wrappers from `storage.js`.
+**Learning:** Having secure abstractions is useless if calling code bypasses them. Direct usage of native storage APIs where wrappers exist creates duplicated, potentially insecure logic.
+**Prevention:** Always enforce usage of custom storage abstractions and remove direct usage of `chrome.storage.*` APIs in UI components.
