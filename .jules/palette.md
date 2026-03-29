@@ -29,3 +29,6 @@
 ## 2026-03-10 - Replace native blocking alerts with inline feedback
 **Learning:** Native `alert()` calls for user feedback (such as missing premium features, simulated redirects, or deletion errors) interrupt user flow and present a jarring experience.
 **Action:** Replaced `alert()` calls with inline visual feedback. For example, temporarily changing button text and color to indicate a premium feature, or showing an inline error message using an `aria-live="assertive"` region.
+## 2024-05-24 - Missing ARIA Labels on Destructive Actions
+**Learning:** Found an app-wide pattern where destructive actions (like deleting an account) with confirmation states lacked explicit ARIA labels on both the initial trigger and the subsequent confirmation/cancellation buttons. This reduces accessibility for screen reader users.
+**Action:** Ensure all destructive actions and their confirmation states receive descriptive `aria-label` attributes to clearly communicate intent to assistive technologies.
