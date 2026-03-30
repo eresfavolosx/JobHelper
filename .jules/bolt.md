@@ -36,3 +36,6 @@
 ## 2026-03-28 - Fix ApplicationHistoryChart O(N) Optimization
 **Learning:** A prior performance optimization renamed `jobIndex` to `currentJobIndex` but left references to `jobIndex` and `cumulativeCount` undefined, causing a ReferenceError crash. Tests passed because core logic was mocked.
 **Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance. Manually verify components when core logic is mocked in test suites.
+## 2026-03-30 - Optimize Dashboard Stats Calculation with For-Loop
+**Learning:** Using `Array.prototype.reduce` inside a `useMemo` block to compute derived stats like dashboard counts introduces unnecessary callback allocation overhead on every render, degrading O(N) performance for large arrays (like a user's saved jobs list).
+**Action:** To optimize React render performance and reduce callback allocation overhead on large datasets, prefer explicit `for` loops over `Array.prototype.reduce()` when aggregating values or derived states.
