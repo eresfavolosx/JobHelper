@@ -44,7 +44,7 @@ export default function RecommendationsPage() {
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
             setJobs(scoredJobs);
         } catch (err) {
-            setError(err.message);
+            setError('An unexpected error occurred. Please try again later.');
         } finally {
             setLoading(false);
         }
