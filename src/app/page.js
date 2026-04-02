@@ -35,14 +35,16 @@ export default function Home() {
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     const stats = useMemo(() => {
-        return jobs.reduce(
-            (acc, job) => {
-                if (job.status === 'interviewing') acc.interviewing++;
-                if (job.status === 'offer') acc.offers++;
-                return acc;
-            },
-            { total: jobs.length, interviewing: 0, offers: 0 }
-        );
+        // ⚡ Bolt: Replaced Array.reduce with an explicit for-loop.
+        // This avoids callback allocation overhead for each item in large datasets,
+        // reducing memory pressure and improving execution time.
+        const acc = { total: jobs.length, interviewing: 0, offers: 0 };
+        for (let i = 0; i < jobs.length; i++) {
+            const job = jobs[i];
+            if (job.status === 'interviewing') acc.interviewing++;
+            if (job.status === 'offer') acc.offers++;
+        }
+        return acc;
     }, [jobs]);
 
     if (jobs.length === 0) {
