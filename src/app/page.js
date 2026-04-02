@@ -35,14 +35,13 @@ export default function Home() {
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     const stats = useMemo(() => {
-        return jobs.reduce(
-            (acc, job) => {
-                if (job.status === 'interviewing') acc.interviewing++;
-                if (job.status === 'offer') acc.offers++;
-                return acc;
-            },
-            { total: jobs.length, interviewing: 0, offers: 0 }
-        );
+        let interviewing = 0;
+        let offers = 0;
+        for (let i = 0; i < jobs.length; i++) {
+            if (jobs[i].status === 'interviewing') interviewing++;
+            if (jobs[i].status === 'offer') offers++;
+        }
+        return { total: jobs.length, interviewing, offers };
     }, [jobs]);
 
     if (jobs.length === 0) {

@@ -36,3 +36,7 @@
 ## 2026-03-28 - Fix ApplicationHistoryChart O(N) Optimization
 **Learning:** A prior performance optimization renamed `jobIndex` to `currentJobIndex` but left references to `jobIndex` and `cumulativeCount` undefined, causing a ReferenceError crash. Tests passed because core logic was mocked.
 **Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance. Manually verify components when core logic is mocked in test suites.
+
+## 2026-04-03 - Memoize SortableContext items
+**Learning:** Passing an inline array (e.g., `jobs.map(j => j.id)`) to `SortableContext`'s `items` prop creates a new array reference on every render. This forces `dnd-kit` to redundantly recalculate the sortable context, leading to jank during drag-and-drop operations, even if the parent container is memoized.
+**Action:** When using `dnd-kit`, always memoize the `items` array passed to `SortableContext` using `useMemo` so that the reference only changes when the underlying data actually changes.
