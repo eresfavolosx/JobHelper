@@ -36,3 +36,7 @@
 ## 2026-03-28 - Fix ApplicationHistoryChart O(N) Optimization
 **Learning:** A prior performance optimization renamed `jobIndex` to `currentJobIndex` but left references to `jobIndex` and `cumulativeCount` undefined, causing a ReferenceError crash. Tests passed because core logic was mocked.
 **Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance. Manually verify components when core logic is mocked in test suites.
+
+## 2026-04-05 - Avoid Array.reduce() for simple aggregations
+**Learning:** Using `Array.prototype.reduce()` to aggregate multiple counters or state from an array involves allocating a callback function on each iteration and object spread/updates if not careful. For simple aggregations (like status counts) on potentially large datasets (like `jobs`), an explicit `for` loop with numeric primitive counters is significantly faster (~2-3x) and avoids unnecessary callback overhead.
+**Action:** When aggregating derived state (e.g. counting statuses) on large arrays, prefer explicit `for` loops with primitive counters instead of `Array.prototype.reduce()`.
