@@ -36,3 +36,6 @@
 ## 2026-03-28 - Fix ApplicationHistoryChart O(N) Optimization
 **Learning:** A prior performance optimization renamed `jobIndex` to `currentJobIndex` but left references to `jobIndex` and `cumulativeCount` undefined, causing a ReferenceError crash. Tests passed because core logic was mocked.
 **Action:** Always verify variables are properly defined and updated when rewriting loop logic for performance. Manually verify components when core logic is mocked in test suites.
+## 2024-04-02 - Prefer Explicit Loops for O(N) Aggregations
+**Learning:** Using `Array.prototype.reduce()` to aggregate multiple values (e.g., tallying counts) across large datasets forces the JavaScript engine to allocate and invoke a callback function for every element. While syntactically clean, this creates unnecessary memory allocation overhead and degrades performance compared to a simple loop.
+**Action:** Always replace `Array.prototype.reduce()` with explicit `for` loops when aggregating or deriving state from large lists, especially inside React render cycles or `useMemo` hooks.
