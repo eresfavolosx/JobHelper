@@ -725,7 +725,7 @@ function ResumeUpload({ onAnalysisComplete }) {
             onAnalysisComplete(analysis);
         } catch (err) {
             console.error('Resume analysis error:', err);
-            setError(err.message || 'Failed to analyze resume');
+            setError('Failed to analyze resume. Please try again.');
         } finally {
             setAnalyzing(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
