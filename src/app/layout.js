@@ -185,6 +185,8 @@ function NavContent() {
                         openNewJobModal();
                         closeMobileMenu();
                     }}
+                    aria-label="Add New Job"
+                    title="Add New Job"
                     className="btn-primary"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
@@ -284,6 +286,8 @@ function NavContent() {
                         </div>
                         <button
                             onClick={handleSignOut}
+                            aria-label="Sign Out"
+                            title="Sign Out"
                             style={{
                                 padding: '10px',
                                 borderRadius: '6px',

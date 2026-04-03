@@ -62,6 +62,8 @@ class ErrorBoundary extends Component {
 
                     <button
                         onClick={this.handleReset}
+                        aria-label="Refresh Page"
+                        title="Refresh Page"
                         className="btn-primary"
                         style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
