@@ -15,6 +15,7 @@ export default function LoginPage() {
     const router = useRouter();
 
     const handleGoogleLogin = async () => {
+        setLoading(true);
         try {
             setError('');
             await signInWithPopup(auth, googleProvider);
@@ -22,6 +23,8 @@ export default function LoginPage() {
         } catch (err) {
             console.error(err);
             setError(err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -224,6 +227,7 @@ export default function LoginPage() {
 
                 <button
                     onClick={handleGoogleLogin}
+                    disabled={loading}
                     className="animate-slide-up delay-400"
                     style={{
                         width: '100%',
@@ -238,11 +242,12 @@ export default function LoginPage() {
                         borderRadius: '12px',
                         color: 'var(--text-primary)',
                         cursor: 'pointer',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.2s',
+                        opacity: loading ? 0.7 : 1
                     }}
                 >
                     <img src="https://www.google.com/favicon.ico" alt="G" style={{ width: '18px', height: '18px' }} />
-                    Continue with Google
+                    {loading ? 'Please wait...' : 'Continue with Google'}
                 </button>
             </div>
         </div>
