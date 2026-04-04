@@ -61,3 +61,7 @@
 **Vulnerability:** The `popup.js` had duplicate legacy code directly calling `chrome.storage.local` and `chrome.storage.sync`, bypassing the secure `getApiKey`/`saveApiKey` wrappers from `storage.js`.
 **Learning:** Having secure abstractions is useless if calling code bypasses them. Direct usage of native storage APIs where wrappers exist creates duplicated, potentially insecure logic.
 **Prevention:** Always enforce usage of custom storage abstractions and remove direct usage of `chrome.storage.*` APIs in UI components.
+## 2026-04-04 - Fix Information Disclosure in Error Messages
+**Vulnerability:** Raw error messages (`err.message`) from Firebase and other APIs were being logged and displayed directly to users in `src/app/login/page.js`, `src/app/profile/page.js`, and `src/app/recommendations/page.js`.
+**Learning:** These raw error messages can expose internal backend details or API structures, leading to Information Disclosure vulnerabilities. This happened because default catch blocks simply piped the error message to the UI state.
+**Prevention:** Always replace generic or API-specific error messages with user-friendly, safe fallback messages in the UI. Retain original errors in `console.error` for developer observability without exposing them to the end user.
