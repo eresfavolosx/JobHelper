@@ -1,5 +1,5 @@
 "use client";
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { Ghost } from 'lucide-react';
@@ -53,6 +53,7 @@ const arePropsEqual = (prevProps, nextProps) => {
 
 const KanbanColumn = memo(({ column, jobs, index }) => {
     KanbanColumn.displayName = 'KanbanColumn';
+    const jobIds = useMemo(() => jobs.map(j => j.id), [jobs]);
     return (
         <div
             className="glass-panel kanban-column animate-scale-in"
@@ -66,7 +67,7 @@ const KanbanColumn = memo(({ column, jobs, index }) => {
                 <span style={{ fontSize: '0.8rem', background: 'var(--glass-highlight)', padding: '4px 10px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>{jobs.length}</span>
             </div>
 
-            <SortableContext items={jobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={jobIds} strategy={verticalListSortingStrategy}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '100px' }} id={column.id}>
                     <ColumnDroppable id={column.id}>
                         {jobs.length === 0 ? (
