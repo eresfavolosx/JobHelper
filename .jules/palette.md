@@ -29,3 +29,6 @@
 ## 2026-03-10 - Replace native blocking alerts with inline feedback
 **Learning:** Native `alert()` calls for user feedback (such as missing premium features, simulated redirects, or deletion errors) interrupt user flow and present a jarring experience.
 **Action:** Replaced `alert()` calls with inline visual feedback. For example, temporarily changing button text and color to indicate a premium feature, or showing an inline error message using an `aria-live="assertive"` region.
+## 2026-04-04 - Add Loading State to Login Button
+**Learning:** Found that the 'Continue with Google' button in the login page did not provide immediate visual feedback (e.g., disabled state, loading text) upon click, which could lead to duplicate submissions and a confusing user experience.
+**Action:** When implementing async operations triggered by user interaction, always ensure the corresponding button enters a loading state (e.g., `disabled={loading}`, visual opacity cues, and updated text like 'Please wait...') to prevent double-clicks and provide clear feedback.
