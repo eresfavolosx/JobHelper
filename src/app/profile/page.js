@@ -361,6 +361,7 @@ function DeleteAccountButton() {
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <span style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Are you sure?</span>
                     <button
+                        aria-label={deleting ? 'Deleting account...' : 'Yes, Delete Account'}
                         onClick={handleDelete}
                         disabled={deleting}
                         style={{
@@ -375,6 +376,7 @@ function DeleteAccountButton() {
                         {deleting ? 'Deleting...' : 'Yes, Delete'}
                     </button>
                     <button
+                        aria-label="Cancel Account Deletion"
                         onClick={() => { setConfirming(false); setError(''); }}
                         style={{
                             padding: '10px 16px',
