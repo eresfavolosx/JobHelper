@@ -29,3 +29,7 @@
 ## 2026-03-10 - Replace native blocking alerts with inline feedback
 **Learning:** Native `alert()` calls for user feedback (such as missing premium features, simulated redirects, or deletion errors) interrupt user flow and present a jarring experience.
 **Action:** Replaced `alert()` calls with inline visual feedback. For example, temporarily changing button text and color to indicate a premium feature, or showing an inline error message using an `aria-live="assertive"` region.
+
+## 2024-06-26 - Missing ARIA Labels on Destructive Confirmation Flows
+**Learning:** Destructive UI actions (like 'Delete Account') and their subsequent confirmation/cancellation states often lack explicit `aria-label` attributes. This makes it difficult for screen reader users to understand the context and severity of the buttons they are interacting with.
+**Action:** Always ensure both the initial trigger button and any subsequent confirmation or cancellation buttons in destructive flows include explicit `aria-label` attributes to clarify their purpose.
