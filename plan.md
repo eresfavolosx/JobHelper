@@ -1,6 +1,16 @@
-1. **Replace `alert()` in `ExportDataButton`**: Use inline visual feedback. Update the button to show an error message temporarily (e.g., text changes to "Premium Feature", color changes to error/warning) and then revert back.
-2. **Replace `alert()` in `DeleteAccountButton`**: Use an inline error message near the buttons if deletion fails, rather than a blocking alert. We can add an `error` state.
-3. **Replace `alert()` in `SubscriptionSection` (`handleSubscribe`)**: Show an inline success/info message instead of an alert, or change the button text temporarily to simulate the redirect info.
-4. **Update `.Jules/palette.md`**: Add an entry about replacing `alert()` with inline feedback.
-5. **Run tests & verify**: Ensure `pnpm lint` and `pnpm test` pass.
-6. **Pre-commit steps**: Pre commit check.
+1. **Identify the Security Vulnerability**
+   - In `src/app/login/page.js`, the error handling logic directly exposes the original error message to the user interface via `setError(err.message)`.
+   - This occurs in both `handleGoogleLogin` and the default block of `handleEmailAuth`.
+   - Exposing raw error messages can lead to Information Disclosure, leaking sensitive internals to the user or attacker.
+
+2. **Develop the Fix**
+   - Replace `setError(err.message)` with a generic error message, such as `setError('An unexpected error occurred. Please try again.')`.
+   - Ensure the original error object is still passed to the internal logger via `console.error('[Auth] Login error:', err)` to maintain developer observability without exposing details.
+
+3. **Execution Steps**
+   - Modify `src/app/login/page.js` to replace the instances of `setError(err.message)` with a generic fallback message.
+   - Run tests if available to verify that the application still builds.
+   - Follow pre-commit instructions before submitting.
+
+4. **Verify**
+   - Review changes to ensure no sensitive error details are leaked in the login page.

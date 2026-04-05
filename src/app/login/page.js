@@ -21,7 +21,7 @@ export default function LoginPage() {
             router.push('/');
         } catch (err) {
             console.error(err);
-            setError(err.message);
+            setError('An error occurred during authentication. Please try again.');
         }
     };
 
@@ -57,7 +57,7 @@ export default function LoginPage() {
             } else if (err.code === 'auth/invalid-email') {
                 setError('Invalid email address.');
             } else {
-                setError(err.message);
+                setError('An error occurred during authentication. Please try again.');
             }
         } finally {
             setLoading(false);

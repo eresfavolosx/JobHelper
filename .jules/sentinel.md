@@ -61,3 +61,7 @@
 **Vulnerability:** The `popup.js` had duplicate legacy code directly calling `chrome.storage.local` and `chrome.storage.sync`, bypassing the secure `getApiKey`/`saveApiKey` wrappers from `storage.js`.
 **Learning:** Having secure abstractions is useless if calling code bypasses them. Direct usage of native storage APIs where wrappers exist creates duplicated, potentially insecure logic.
 **Prevention:** Always enforce usage of custom storage abstractions and remove direct usage of `chrome.storage.*` APIs in UI components.
+## 2026-03-29 - Error Information Disclosure in Authentication
+**Vulnerability:** The login component (`src/app/login/page.js`) directly exposed the `err.message` from failed authentication attempts directly to the frontend user interface.
+**Learning:** Returning raw error objects or unhandled error messages to the client risks Information Disclosure. These errors can inadvertently reveal sensitive system internals, stack traces, or architectural details to an attacker.
+**Prevention:** Always catch and handle errors on the client. Display generic, safe fallback messages to the user (e.g., "An unexpected error occurred"), while maintaining the original raw error in the internal logging (e.g., `console.error`) for debugging purposes.
