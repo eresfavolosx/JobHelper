@@ -1,3 +1,7 @@
+## 2026-04-06 - Avoid O(N) Lookups on Static Arrays in Event Handlers
+**Learning:** Using `Array.prototype.some` or `.find` on static arrays (like list of columns) inside frequent event handlers (like `onDragEnd`) creates unnecessary O(N) complexity and runtime callback allocation.
+**Action:** Always pre-calculate and extract derived structures (like `Set` or `Map`) from static/constant arrays outside of components to provide O(1) lookups and prevent repeated allocations during high-frequency events.
+
 ## 2026-02-18 - Kanban Column Memoization
 **Learning:** Extracting list components (like Kanban columns) into memoized children is critical when using `dnd-kit`. Drag operations cause state changes (`activeId`) in the parent container, which triggers unnecessary re-renders of all lists if not memoized, leading to jank during drag start/end.
 **Action:** When implementing drag-and-drop with `dnd-kit`, always separate the draggable lists into their own memoized components to isolate them from global drag state updates.

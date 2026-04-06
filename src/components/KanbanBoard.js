@@ -16,6 +16,10 @@ const COLUMNS = [
     { id: 'deleted', title: 'Deleted', isTrash: true },
 ];
 
+// ⚡ Bolt: Extract constant IDs to a Set for O(1) lookups during drag operations,
+// avoiding O(N) Array.some() overhead on every drag end.
+const COLUMN_IDS = new Set(COLUMNS.map(c => c.id));
+
 export default function KanbanBoard() {
     // ⚡ Bolt: Use specific selectors instead of destructuring the whole store to prevent
     // unnecessary re-renders when other state (like profile) changes
@@ -108,7 +112,8 @@ export default function KanbanBoard() {
             newStatus = overJob.status;
         }
 
-        if (activeJob.status !== newStatus && COLUMNS.some(c => c.id === newStatus)) {
+        // ⚡ Bolt: Use O(1) Set lookup instead of O(N) COLUMNS.some()
+        if (activeJob.status !== newStatus && COLUMN_IDS.has(newStatus)) {
             moveJob(activeJob.id, newStatus);
         }
     };
