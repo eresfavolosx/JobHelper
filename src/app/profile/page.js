@@ -363,6 +363,7 @@ function DeleteAccountButton() {
                     <button
                         onClick={handleDelete}
                         disabled={deleting}
+                        aria-label="Confirm Delete Account"
                         style={{
                             padding: '10px 16px',
                             borderRadius: '8px',
@@ -376,6 +377,7 @@ function DeleteAccountButton() {
                     </button>
                     <button
                         onClick={() => { setConfirming(false); setError(''); }}
+                        aria-label="Cancel Delete Account"
                         style={{
                             padding: '10px 16px',
                             borderRadius: '8px',
@@ -400,6 +402,8 @@ function DeleteAccountButton() {
     return (
         <button
             onClick={() => setConfirming(true)}
+            aria-label="Delete Account"
+            title="Delete Account"
             style={{
                 padding: '12px 20px',
                 borderRadius: '12px',
