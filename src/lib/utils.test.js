@@ -24,6 +24,7 @@ describe('utils', () => {
     it('should convert numbers to string', () => {
       assert.equal(escapeXml(123), '123');
     });
+
   });
 
   describe('sanitizeUrl', () => {
@@ -46,6 +47,11 @@ describe('utils', () => {
 
     it('should block vbscript: scheme', () => {
       assert.equal(sanitizeUrl('vbscript:msgbox'), null);
+    });
+
+    it('should block URLs longer than 2048 characters', () => {
+      const longUrl = 'https://example.com/' + 'a'.repeat(2048);
+      assert.equal(sanitizeUrl(longUrl), null);
     });
   });
 });
