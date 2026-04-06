@@ -20,8 +20,8 @@ export default function LoginPage() {
             await signInWithPopup(auth, googleProvider);
             router.push('/');
         } catch (err) {
-            console.error(err);
-            setError(err.message);
+            console.error('Authentication error occurred', err);
+            setError('An unexpected error occurred. Please try again.');
         }
     };
 
@@ -47,7 +47,7 @@ export default function LoginPage() {
             }
             router.push('/');
         } catch (err) {
-            console.error(err);
+            console.error('Authentication error occurred', err);
             if (err.code === 'auth/user-not-found') {
                 setError('No account found. Try signing up instead.');
             } else if (err.code === 'auth/wrong-password') {
@@ -57,7 +57,7 @@ export default function LoginPage() {
             } else if (err.code === 'auth/invalid-email') {
                 setError('Invalid email address.');
             } else {
-                setError(err.message);
+                setError('An unexpected error occurred. Please try again.');
             }
         } finally {
             setLoading(false);
