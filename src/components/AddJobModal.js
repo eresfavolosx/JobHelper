@@ -30,6 +30,22 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
         }
     }, [isOpen, initialData]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        if (isOpen) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const handleSubmit = (e) => {
@@ -53,6 +69,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
+            onClick={onClose}
             style={{
                 position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
                 backdropFilter: 'blur(8px)',
@@ -61,6 +78,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
             }}
         >
             <div
+                onClick={(e) => e.stopPropagation()}
                 className="card animate-scale-in"
                 style={{
                     width: '500px',
@@ -80,8 +98,8 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                     </h2>
                     <button
                         onClick={onClose}
-                        aria-label="Close modal"
-                        title="Close modal"
+                        aria-label="Close modal (Esc)"
+                        title="Close modal (Esc)"
                         style={{
                             width: '36px',
                             height: '36px',
