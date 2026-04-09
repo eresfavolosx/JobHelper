@@ -48,10 +48,8 @@ export default function LoginPage() {
             router.push('/');
         } catch (err) {
             console.error('Authentication error occurred', err);
-            if (err.code === 'auth/user-not-found') {
-                setError('No account found. Try signing up instead.');
-            } else if (err.code === 'auth/wrong-password') {
-                setError('Incorrect password. Please try again.');
+            if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                setError('Invalid email or password. Please try again.');
             } else if (err.code === 'auth/email-already-in-use') {
                 setError('Email already in use. Try signing in instead.');
             } else if (err.code === 'auth/invalid-email') {
