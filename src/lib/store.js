@@ -1,3 +1,4 @@
+import { cleanObject } from './utils';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
@@ -86,10 +87,7 @@ export const useAppStore = create(
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", newJob.id);
-                        const cleanJob = {};
-                        for (const [key, value] of Object.entries(newJob)) {
-                            if (value !== undefined) cleanJob[key] = value;
-                        }
+                        const cleanJob = cleanObject(newJob);
                         setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("[Store] Failed to save new job:", e));
                     });
                 }
@@ -102,10 +100,7 @@ export const useAppStore = create(
                 if (userId) {
                     import('firebase/firestore').then(({ updateDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", id);
-                        const cleanUpdates = {};
-                        for (const [key, value] of Object.entries(updates)) {
-                            if (value !== undefined) cleanUpdates[key] = value;
-                        }
+                        const cleanUpdates = cleanObject(updates);
                         updateDoc(jobRef, cleanUpdates).catch(e => console.error("[Store] Failed to update job:", e));
                     });
                 }
@@ -210,12 +205,7 @@ export const useAppStore = create(
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const profileRef = doc(db, "users", userId, "data", "profile");
-                        const cleanProfile = {};
-                        for (const [key, value] of Object.entries(newProfile)) {
-                            if (value !== undefined && key !== 'contextDocuments') {
-                                cleanProfile[key] = value;
-                            }
-                        }
+                        const cleanProfile = cleanObject(newProfile, 'contextDocuments');
                         if (Object.keys(cleanProfile).length > 0) {
                             setDoc(profileRef, cleanProfile, { merge: true })
                                 .catch(e => console.error("[Store] Failed to update profile:", e));

@@ -88,3 +88,20 @@ export const escapeXml = (unsafe) => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;');
 };
+
+/**
+ * Safely removes undefined values from an object to prepare it for Firestore saving,
+ * using a performant standard for loop with Object.keys instead of Object.entries.
+ */
+export const cleanObject = (obj, omitKey = null) => {
+    const clean = {};
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const value = obj[key];
+        if (value !== undefined && key !== omitKey) {
+            clean[key] = value;
+        }
+    }
+    return clean;
+};
