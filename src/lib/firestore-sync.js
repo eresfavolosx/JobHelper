@@ -1,3 +1,4 @@
+import { cleanObject } from './utils';
 import { doc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -25,12 +26,7 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
     if (profile && Object.keys(profile).length > 0) {
         const profileRef = doc(db, "users", userId, "data", "profile");
         // Filter out undefined values and contextDocuments (can be too large)
-        const cleanProfile = {};
-        for (const [key, value] of Object.entries(profile)) {
-            if (value !== undefined && key !== 'contextDocuments') {
-                cleanProfile[key] = value;
-            }
-        }
+        const cleanProfile = cleanObject(profile, 'contextDocuments');
         batch.set(profileRef, cleanProfile, { merge: true });
         console.log("Profile staged for sync");
     }
@@ -42,12 +38,7 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
             if (job.id) {
                 const jobRef = doc(db, "users", userId, "jobs", job.id);
                 // Clean job data - remove any undefined values
-                const cleanJob = {};
-                for (const [key, value] of Object.entries(job)) {
-                    if (value !== undefined) {
-                        cleanJob[key] = value;
-                    }
-                }
+                const cleanJob = cleanObject(job);
                 batch.set(jobRef, cleanJob, { merge: true });
             }
         });
