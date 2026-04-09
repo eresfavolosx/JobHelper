@@ -32,3 +32,6 @@
 ## 2024-05-24 - Missing ARIA Labels on Destructive Actions
 **Learning:** Found an app-wide pattern where destructive actions (like deleting an account) with confirmation states lacked explicit ARIA labels on both the initial trigger and the subsequent confirmation/cancellation buttons. This reduces accessibility for screen reader users.
 **Action:** Ensure all destructive actions and their confirmation states receive descriptive `aria-label` attributes to clearly communicate intent to assistive technologies.
+## 2026-03-10 - Replace Navigational Buttons with Semantic Links
+**Learning:** Found instances where a `<button>` element was used with an `onClick` handler (`window.location.href`) to handle navigation, such as "Upgrade to Premium". This breaks semantic accessibility, prevents native link behaviors (like middle-click or right-click context menus), and causes full page reloads instead of fast client-side routing.
+**Action:** Replace navigational `<button>` elements with Next.js `<Link>` components styled as buttons (using classes like `btn-primary`) to ensure native web accessibility and better performance.

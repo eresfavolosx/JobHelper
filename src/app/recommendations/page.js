@@ -1,4 +1,5 @@
 "use client";
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check, CheckCircle } from 'lucide-react';
@@ -113,13 +114,7 @@ export default function RecommendationsPage() {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 32px', lineHeight: '1.6' }}>
                             Unlock specialized job matches curated by AI based on your specific resume skills and experience level.
                         </p>
-                        <button 
-                            onClick={() => window.location.href = '/profile'}
-                            className="btn-primary" 
-                            style={{ padding: '16px 32px', fontSize: '1.1rem' }}
-                        >
-                            Upgrade to Premium
-                        </button>
+                        <Link href="/profile" className="btn-primary" style={{ padding: "16px 32px", fontSize: "1.1rem", display: "inline-flex", justifyContent: "center" }}>Upgrade to Premium</Link>
                     </div>
                 </div>
             ) : error ? (
