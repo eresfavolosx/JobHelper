@@ -66,3 +66,8 @@
 **Vulnerability:** Authentication and general errors were passed directly to the UI using `setError(err.message)`. This exposes internal error details, stack traces, and backend infrastructure information to the end user.
 **Learning:** Displaying raw error messages (`err.message`) is a security anti-pattern known as Information Disclosure. Attackers can use this information to understand the system architecture, identify specific library versions, or infer sensitive states.
 **Prevention:** Always log the detailed error securely on the server or console, and present a generic, user-friendly error message to the UI (e.g., "An unexpected error occurred").
+
+## 2026-04-10 - Account Enumeration via Login Error Messages
+**Vulnerability:** The login form returned distinct error messages for "No account found" and "Incorrect password". This allowed an attacker to enumerate valid email addresses registered in the system.
+**Learning:** Displaying specific authentication error messages helps attackers distinguish between registered and unregistered accounts, facilitating targeted brute-force or phishing attacks.
+**Prevention:** Always use generic error messages for authentication failures (e.g., "Invalid email or password") regardless of whether the user exists or the password is incorrect.
