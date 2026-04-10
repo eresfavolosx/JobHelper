@@ -88,3 +88,25 @@ export const escapeXml = (unsafe) => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;');
 };
+
+/**
+ * Creates a new object with all undefined values removed.
+ * Optionally omits specific keys.
+ * Uses Object.keys and a standard for loop to avoid intermediate array creation overhead.
+ *
+ * @param {Object} obj - The object to clean
+ * @param {Array<string>} [omitKeys=[]] - Keys to omit from the cleaned object
+ * @returns {Object} - The cleaned object
+ */
+export const cleanObject = (obj, omitKeys = []) => {
+    if (!obj) return {};
+    const result = {};
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (obj[key] !== undefined && !omitKeys.includes(key)) {
+            result[key] = obj[key];
+        }
+    }
+    return result;
+};
