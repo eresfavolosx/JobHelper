@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
-import { Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, Loader } from "lucide-react";
 
 export default function LoginPage() {
     const [error, setError] = useState('');
@@ -194,23 +194,26 @@ export default function LoginPage() {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            opacity: loading ? 0.7 : 1
+                            opacity: loading ? 0.7 : 1,
+                            cursor: loading ? 'not-allowed' : 'pointer'
                         }}
                     >
-                        <Mail size={18} />
+                        {loading ? <Loader size={18} className="spin" /> : <Mail size={18} />}
                         {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
                     </button>
                 </form>
 
                 <button
                     onClick={() => setIsSignUp(!isSignUp)}
+                    disabled={loading}
                     style={{
                         background: 'none',
                         border: 'none',
                         color: 'var(--accent-primary)',
-                        cursor: 'pointer',
+                        cursor: loading ? 'default' : 'pointer',
                         fontSize: '0.9rem',
-                        marginBottom: '20px'
+                        marginBottom: '20px',
+                        opacity: loading ? 0.7 : 1
                     }}
                 >
                     {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
@@ -224,6 +227,7 @@ export default function LoginPage() {
 
                 <button
                     onClick={handleGoogleLogin}
+                    disabled={loading}
                     className="animate-slide-up delay-400"
                     style={{
                         width: '100%',
@@ -237,11 +241,16 @@ export default function LoginPage() {
                         border: '1px solid var(--border-subtle)',
                         borderRadius: '12px',
                         color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: loading ? 0.7 : 1
                     }}
                 >
-                    <img src="https://www.google.com/favicon.ico" alt="G" style={{ width: '18px', height: '18px' }} />
+                    {loading ? (
+                        <Loader size={18} className="spin" />
+                    ) : (
+                        <img src="https://www.google.com/favicon.ico" alt="G" style={{ width: '18px', height: '18px' }} />
+                    )}
                     Continue with Google
                 </button>
             </div>

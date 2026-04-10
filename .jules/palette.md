@@ -35,3 +35,7 @@
 ## 2026-03-10 - Replace Navigational Buttons with Semantic Links
 **Learning:** Found instances where a `<button>` element was used with an `onClick` handler (`window.location.href`) to handle navigation, such as "Upgrade to Premium". This breaks semantic accessibility, prevents native link behaviors (like middle-click or right-click context menus), and causes full page reloads instead of fast client-side routing.
 **Action:** Replace navigational `<button>` elements with Next.js `<Link>` components styled as buttons (using classes like `btn-primary`) to ensure native web accessibility and better performance.
+
+## 2026-04-10 - Adding comprehensive loading states to authentication forms
+**Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
+**Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
