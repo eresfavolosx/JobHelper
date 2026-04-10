@@ -66,3 +66,8 @@
 **Vulnerability:** Authentication and general errors were passed directly to the UI using `setError(err.message)`. This exposes internal error details, stack traces, and backend infrastructure information to the end user.
 **Learning:** Displaying raw error messages (`err.message`) is a security anti-pattern known as Information Disclosure. Attackers can use this information to understand the system architecture, identify specific library versions, or infer sensitive states.
 **Prevention:** Always log the detailed error securely on the server or console, and present a generic, user-friendly error message to the UI (e.g., "An unexpected error occurred").
+
+## 2026-04-01 - Account Enumeration via Distinct Error Messages
+**Vulnerability:** The login form mapped specific Firebase authentication errors (`auth/user-not-found`, `auth/wrong-password`) to distinct UI error messages. This allowed an attacker to determine if an email address was registered in the system (Account Enumeration).
+**Learning:** Returning specific authentication error messages to users is an information disclosure vulnerability. Attackers can leverage this to build lists of valid usernames/emails for credential stuffing or phishing attacks.
+**Prevention:** Always use generic error messages for authentication failures (e.g., "Invalid email or password"). Do not differentiate between a missing user and an incorrect password in the UI. Keep detailed error logs on the server side for debugging.
