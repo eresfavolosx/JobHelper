@@ -11,8 +11,12 @@ import {
 } from 'recharts';
 import { format, startOfDay, eachDayOfInterval, subDays } from 'date-fns';
 import { safeDate } from '@/lib/utils';
+import { useUIStore } from '@/lib/uiStore';
+import { Plus } from 'lucide-react';
 
 export default function ApplicationHistoryChart({ jobs }) {
+    const openNewJobModal = useUIStore(s => s.openNewJobModal);
+
     const data = useMemo(() => {
         if (!jobs || jobs.length === 0) return [];
 
@@ -60,8 +64,11 @@ export default function ApplicationHistoryChart({ jobs }) {
 
     if (jobs.length < 2) {
         return (
-            <div className="card" style={{ marginTop: '20px', height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+            <div className="card" style={{ marginTop: '20px', height: '300px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                 <p>Add more jobs to see your history graph!</p>
+                <button onClick={openNewJobModal} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Plus size={16} /> Add Application
+                </button>
             </div>
         );
     }
