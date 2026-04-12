@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-05-24 - Avoiding Nested Interactive Controls
+**Learning:** Found an app-wide pattern (like the "Add Manually" card in `src/components/Onboarding.js`) where interactive elements like `<button>` were nested inside outer elements like `div` that had `onClick` handlers and `role="button"`. This invalid HTML structure causes issues for screen readers (which may ignore the inner button or announce the element incorrectly) and creates conflicting keyboard interaction states.
+**Action:** Replace interactive outer `div` elements with semantic `<button>` or `<Link>` tags. To maintain visual design, replace the nested semantic buttons with non-interactive elements (like `div`) styled to look like buttons (e.g., using `btn-primary` class), ensuring a single, accessible hit target.
