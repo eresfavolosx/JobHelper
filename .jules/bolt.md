@@ -47,3 +47,6 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2026-04-13 - Avoid Array Spread in Loops
+**Learning:** In loops, accumulating array data by repeatedly using array spread syntax (`allJobs = [...allJobs, ...newJobs]`) creates an O(N^2) complexity bottleneck, as it reallocates and copies the entire growing array on every iteration. This severely degrades performance for large datasets or multiple iterations.
+**Action:** When accumulating array data within a loop (or after parallel operations like `Promise.all`), use `.map()` to collect the nested arrays and then call `.flat()` once at the end to flatten them efficiently.
