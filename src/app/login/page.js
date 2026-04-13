@@ -49,9 +49,9 @@ export default function LoginPage() {
         } catch (err) {
             console.error('Authentication error occurred', err);
             if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                setError('Invalid email or password. Please try again.');
+                setError('Invalid email or password.');
             } else if (err.code === 'auth/email-already-in-use') {
-                setError('Email already in use. Try signing in instead.');
+                setError('Authentication failed. Please check your credentials or try signing in.');
             } else if (err.code === 'auth/invalid-email') {
                 setError('Invalid email address.');
             } else {
