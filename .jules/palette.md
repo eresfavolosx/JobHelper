@@ -39,3 +39,7 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+
+## 2024-05-25 - Inaccessible Div Navigation Cards with Button roles
+**Learning:** Found an onboarding card in `src/components/Onboarding.js` using `<div role="button">` with an `onClick` handler and complex internal content (including another `<button>`). This creates nested interactive controls which are invalid HTML and confuse screen readers, while also requiring manual keyboard event handling.
+**Action:** Replaced the `div` with a semantic `<button>` for the card, ensuring it naturally supports keyboard navigation and focus states. Converted the visually styled inner "button" to a `div` to prevent nested interactive controls.

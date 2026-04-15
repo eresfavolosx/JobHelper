@@ -30,18 +30,10 @@ export default function Onboarding() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
                 {/* Option 1: Manual (now first) */}
-                <div
+                <button
                     className="card interactive-card"
-                    style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: 'pointer', border: '2px solid var(--accent-primary)' }}
+                    style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', border: '2px solid var(--accent-primary)', width: '100%' }}
                     onClick={openNewJobModal}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openNewJobModal();
-                        }
-                    }}
                 >
                     <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
                         <Plus size={32} color="var(--accent-primary)" />
@@ -50,14 +42,13 @@ export default function Onboarding() {
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>
                         Have a job link ready? Add it directly to your dashboard.
                     </p>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); openNewJobModal(); }}
+                    <div
                         className="btn-primary"
                         style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                     >
                         <Plus size={18} /> Add Your First Job
-                    </button>
-                </div>
+                    </div>
+                </button>
 
                 {/* Option 2: Extension (now second, with mobile-specific content) */}
                 {isMobile ? (
