@@ -124,6 +124,7 @@ export default function LoginPage() {
                                 aria-label="Email address"
                                 id="email"
                                 type="email"
+                                autoFocus
                                 placeholder="Email address"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}

@@ -126,6 +126,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                         <input
                             id="job-company"
                             required
+                            autoFocus
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.company}
                             onChange={e => setFormData({ ...formData, company: e.target.value })}
