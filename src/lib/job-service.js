@@ -48,11 +48,14 @@ export async function fetchJobsFromRSS(keywords = []) {
 
     // Basic keyword filtering to reduce Gemini load
     if (keywords.length > 0) {
-        const lowerKeywords = keywords.map(k => k.toLowerCase());
+        // ⚡ Bolt: Pre-compiled case-insensitive RegExp avoids multiple string allocations (.toLowerCase) and O(N*M) loop comparisons
+        const escapedKeywords = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const keywordRegex = new RegExp(escapedKeywords.join('|'), 'i');
+
         allJobs = allJobs.filter(job => {
-            const content = (job.title + ' ' + job.description).toLowerCase();
+            const content = job.title + ' ' + job.description;
             // Match at least one keyword
-            return lowerKeywords.some(k => content.includes(k));
+            return keywordRegex.test(content);
         });
     }
 
