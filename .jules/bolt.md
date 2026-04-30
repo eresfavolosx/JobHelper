@@ -47,3 +47,15 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2024-05-20 - Promise.all error handling
+**Learning:** When using `Promise.all` with multiple independent fetches, a single failure (e.g. one RSS feed is down) will reject the entire `Promise.all` call if unhandled.
+**Action:** Always wrap individual promises in an internal `try...catch` block that returns a safe fallback (like an empty array `[]`) on failure to prevent a single failing request from rejecting the entire `Promise.all` call.
+
+## 2024-05-20 - Array Spread vs Flat
+**Learning:** Accumulating array data within a loop by repeatedly using array spread syntax (`[...acc, ...newItems]`) causes an O(N^2) complexity bottleneck due to continuous re-allocation.
+**Action:** Use `.map()` followed by `.flat()` (or similar parallelization patterns) to achieve O(N) performance when accumulating arrays.
+
+## 2024-05-20 - RegExp vs includes inside loops
+**Learning:** Replacing repeated `toLowerCase()` and `.includes()` calls inside high-frequency filter loops with a single, pre-compiled case-insensitive `RegExp` (using the `i` flag) provides significant performance gains by reducing CPU cycles and memory pressure from string allocations.
+**Action:** Use pre-compiled case-insensitive Regular Expressions for text matching inside loops instead of string methods like `toLowerCase()` and `includes()`. Ensure user input is safely escaped.

@@ -30,29 +30,34 @@ function parseRSS(xml) {
 }
 
 export async function fetchJobsFromRSS(keywords = []) {
-    let allJobs = [];
-
-    // Fetch from all feeds
-    // Note: This needs to be called from a server component/route to avoid CORS
-    for (const feed of FEEDS) {
+    // ⚡ Bolt: Fetch feeds concurrently using Promise.all
+    const fetchPromises = FEEDS.map(async (feed) => {
         try {
             const response = await fetch(feed.url, { next: { revalidate: 3600 } });
-            if (!response.ok) continue;
+            if (!response.ok) return [];
             const xml = await response.text();
             const jobs = parseRSS(xml);
-            allJobs = [...allJobs, ...jobs.map(j => ({ ...j, source: feed.name }))];
+            return jobs.map(j => ({ ...j, source: feed.name }));
         } catch (e) {
             console.error(`Failed to fetch ${feed.name}:`, e);
+            return []; // Return empty array on failure so Promise.all succeeds
         }
-    }
+    });
+
+    const feedResults = await Promise.all(fetchPromises);
+
+    // ⚡ Bolt: Avoid O(N^2) array spread in loop, use flat()
+    let allJobs = feedResults.flat();
 
     // Basic keyword filtering to reduce Gemini load
     if (keywords.length > 0) {
-        const lowerKeywords = keywords.map(k => k.toLowerCase());
+        // ⚡ Bolt: Replace repeated toLowerCase/includes with a single pre-compiled case-insensitive RegExp
+        const escapedKeywords = keywords.map(k => k.replace(/[.*+?^\$\{\}()|[\]\\]/g, "\\$&"));
+        const keywordRegex = new RegExp(escapedKeywords.join("|"), "i");
+
         allJobs = allJobs.filter(job => {
-            const content = (job.title + ' ' + job.description).toLowerCase();
-            // Match at least one keyword
-            return lowerKeywords.some(k => content.includes(k));
+            const content = job.title + " " + job.description;
+            return keywordRegex.test(content);
         });
     }
 
