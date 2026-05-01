@@ -71,3 +71,7 @@
 **Vulnerability:** The login form returned distinct error messages for "No account found" and "Incorrect password". This allowed an attacker to enumerate valid email addresses registered in the system.
 **Learning:** Displaying specific authentication error messages helps attackers distinguish between registered and unregistered accounts, facilitating targeted brute-force or phishing attacks.
 **Prevention:** Always use generic error messages for authentication failures (e.g., "Invalid email or password") regardless of whether the user exists or the password is incorrect.
+## 2026-05-15 - Account Enumeration via Login Error Messages
+**Vulnerability:** The login form returned specific error messages (like 'Email already in use') even during sign-up. Wait, this was already noted. Actually, the vulnerability was that "auth/email-already-in-use" was returned during sign-up, which allowed an attacker to enumerate existing users by attempting to sign up with their email.
+**Learning:** Returning highly specific error messages (e.g., 'Email already in use') during registration flows helps attackers distinguish between registered and unregistered accounts, facilitating targeted phishing or credential stuffing attacks.
+**Prevention:** Mask account-specific error messages with generic alternatives (e.g., 'Registration failed. Please try again or use another email.') during sensitive flows like account creation.
