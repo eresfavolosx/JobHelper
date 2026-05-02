@@ -51,7 +51,7 @@ export default function LoginPage() {
             if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
                 setError('Invalid email or password. Please try again.');
             } else if (err.code === 'auth/email-already-in-use') {
-                setError('Email already in use. Try signing in instead.');
+                setError(isSignUp ? 'Email already in use. Try signing in instead.' : 'Invalid email or password. Please try again.');
             } else if (err.code === 'auth/invalid-email') {
                 setError('Invalid email address.');
             } else {
