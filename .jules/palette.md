@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-05-04 - Semantic Interactive Controls
+**Learning:** Found nested interactive controls (a `<button>` inside a `<div role="button">`) in the Onboarding cards. This is a severe accessibility anti-pattern as screen readers struggle with nested interactive elements, causing confusion and poor navigation experiences.
+**Action:** Always use a single, semantic outer container (like `<button>` or `<Link>`) for clickable cards, and use visually styled non-interactive elements (like `<div>` or `<span>`) for any inner "buttons" or actions.
