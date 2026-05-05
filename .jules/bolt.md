@@ -47,3 +47,7 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2026-05-05 - Pre-compile Regex for Repeated String Searches
+**Learning:** Repeatedly calling `.toLowerCase()` and `.includes()` inside high-frequency filter loops introduces significant CPU and memory allocation overhead.
+**Action:** Replace repeated string searches inside loops with a single pre-compiled, case-insensitive `RegExp` to reduce complexity and improve execution speed.
