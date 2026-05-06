@@ -46,13 +46,13 @@ export async function fetchJobsFromRSS(keywords = []) {
         }
     }
 
-    // Basic keyword filtering to reduce Gemini load
+    // ⚡ Bolt: Replace repeated toLowerCase/includes with pre-compiled RegExp to reduce CPU cycles and string allocation
     if (keywords.length > 0) {
-        const lowerKeywords = keywords.map(k => k.toLowerCase());
+        const escapedKeywords = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const keywordRegex = new RegExp(escapedKeywords.join('|'), 'i');
         allJobs = allJobs.filter(job => {
-            const content = (job.title + ' ' + job.description).toLowerCase();
-            // Match at least one keyword
-            return lowerKeywords.some(k => content.includes(k));
+            const content = job.title + ' ' + job.description;
+            return keywordRegex.test(content);
         });
     }
 

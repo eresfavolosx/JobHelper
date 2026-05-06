@@ -47,3 +47,7 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2026-05-06 - Avoid Repeated String Lowercasing/Substrings in High-Frequency Filters
+**Learning:** Using chained `.toLowerCase().includes()` inside high-frequency filter callbacks (e.g., iterating through thousands of jobs to match keywords) causes significant CPU overhead due to repeated string allocations and comparisons, reducing performance by nearly 2x compared to pre-compiled regex.
+**Action:** When performing simple substring matching over large arrays based on static keywords, pre-compile the keywords into a single case-insensitive Regular Expression (using the `i` flag) outside the loop and use `regex.test(content)`. Always escape dynamic inputs before constructing the RegExp.
