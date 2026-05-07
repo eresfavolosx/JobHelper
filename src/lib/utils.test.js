@@ -41,6 +41,12 @@ describe('utils', () => {
       assert.equal(sanitizeUrl('javascript:alert(1)'), null);
     });
 
+    it('should block javascript: scheme with control characters bypass', () => {
+      assert.equal(sanitizeUrl('j\x01avascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x00javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('javascript\x09:alert(1)'), null); // \x09 is tab, should be blocked by try block in URL constructor or stripped
+    });
+
     it('should block data: scheme', () => {
       assert.equal(sanitizeUrl('data:text/html,<script>'), null);
     });
