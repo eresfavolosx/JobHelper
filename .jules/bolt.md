@@ -47,3 +47,6 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2026-04-14 - Use RegExp instead of repeated .toLowerCase() and .includes() for array filtering
+**Learning:** Using chained `Array.prototype.map(toLowerCase)` and then using `.some` with `.includes` inside an `Array.prototype.filter` loop causes a significant O(N*K) time complexity penalty. It re-allocates strings and iterates multiple times for every item in the parent array.
+**Action:** When filtering a list of items against multiple keywords, pre-compile the keywords into a single case-insensitive `RegExp` (escaping special characters) outside the loop. Use `regex.test()` to perform the check in O(N) time without allocating new lowercase strings inside the loop.
