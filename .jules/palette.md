@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-10-27 - AutoFocus for Improved Form Interaction
+**Learning:** Adding the `autoFocus` attribute to the first logical input field within a newly opened modal (like the `AddJobModal`) eliminates an unnecessary click, allowing users to begin typing immediately. This small adjustment significantly streamlines data entry workflows.
+**Action:** When creating modals or dialogs with forms, ensure the first relevant input field has `autoFocus` enabled to reduce interaction friction and improve the "snappiness" of the UI.
