@@ -47,3 +47,7 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2026-05-09 - Optimize Keyword Filtering with RegExp
+**Learning:** Repeatedly allocating large strings (via `.toLowerCase()`) and iterating over an array to perform `.includes()` inside a `.filter()` loop for a large dataset degrades performance significantly compared to using the highly optimized V8 regex engine.
+**Action:** When filtering text datasets against multiple keywords, use a pre-compiled case-insensitive RegExp combined with `.test()` instead of repetitive substring methods to reduce string allocations and complexity.
