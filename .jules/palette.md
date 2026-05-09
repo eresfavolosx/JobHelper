@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-05-10 - Login form inputs not disabled during loading
+**Learning:** Found that the inputs (email, password, and the show password toggle) on the authentication form (`src/app/login/page.js`) were remaining active while the form was in a `loading` state, potentially allowing users to modify inputs while a request was already in flight.
+**Action:** Always add the `disabled` property to all form inputs and interactive elements (like visibility toggles) when a form is submitting to prevent unexpected state changes or duplicate submissions. Use inline styles to update opacity and cursor to provide clear visual feedback of the disabled state.

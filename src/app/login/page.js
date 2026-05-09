@@ -127,6 +127,7 @@ export default function LoginPage() {
                                 placeholder="Email address"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
                                     padding: '14px 14px 14px 44px',
@@ -134,7 +135,9 @@ export default function LoginPage() {
                                     border: '1px solid var(--border-subtle)',
                                     background: 'var(--bg-app)',
                                     color: 'var(--text-primary)',
-                                    fontSize: '1rem'
+                                    fontSize: '1rem',
+                                    opacity: loading ? 0.6 : 1,
+                                    cursor: loading ? 'not-allowed' : 'text'
                                 }}
                             />
                         </div>
@@ -150,6 +153,7 @@ export default function LoginPage() {
                                 placeholder="Password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
                                     padding: '14px 44px 14px 44px',
@@ -157,7 +161,9 @@ export default function LoginPage() {
                                     border: '1px solid var(--border-subtle)',
                                     background: 'var(--bg-app)',
                                     color: 'var(--text-primary)',
-                                    fontSize: '1rem'
+                                    fontSize: '1rem',
+                                    opacity: loading ? 0.6 : 1,
+                                    cursor: loading ? 'not-allowed' : 'text'
                                 }}
                             />
                             <button
@@ -165,6 +171,7 @@ export default function LoginPage() {
                                 aria-label={showPassword ? "Hide password" : "Show password"}
                                 title={showPassword ? "Hide password" : "Show password"}
                                 onClick={() => setShowPassword(!showPassword)}
+                                disabled={loading}
                                 style={{
                                     position: 'absolute',
                                     right: '14px',
@@ -172,8 +179,9 @@ export default function LoginPage() {
                                     transform: 'translateY(-50%)',
                                     background: 'none',
                                     border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '4px'
+                                    padding: '4px',
+                                    opacity: loading ? 0.6 : 1,
+                                    cursor: loading ? 'not-allowed' : 'pointer'
                                 }}
                             >
                                 {showPassword ? <EyeOff size={18} color="var(--text-secondary)" /> : <Eye size={18} color="var(--text-secondary)" />}
