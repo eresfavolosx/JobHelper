@@ -47,3 +47,7 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2026-04-10 - Concurrent Fetching with Promise.all
+**Learning:** Iterating over external network requests (like RSS feeds) sequentially using a `for...of` loop with `await fetch(...)` creates unnecessary delays.
+**Action:** When fetching from multiple independent sources, always refactor to map the requests to an array of promises and use `Promise.all` to fetch them concurrently, yielding significant speedups.
