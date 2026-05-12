@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-05-12 - Replace native alerts with inline UI feedback in popup.js
+**Learning:** Native `alert()` calls block the UI, especially in extension popups, creating a poor user experience. Temporary inline visual feedback (updating button text, color, and disabled state) provides a smoother and more accessible interaction without disrupting the workflow.
+**Action:** Always prefer non-blocking inline visual feedback over native dialogues for async operations or form validation in popup interfaces. Ensure state resets are handled independently in `try/catch` blocks to prevent race conditions.
