@@ -34,7 +34,16 @@ toggleKeyBtn.addEventListener('click', () => {
 saveBtn.addEventListener('click', async () => {
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
+        // Replace alert with inline feedback
+        const originalBtnText = saveBtn.innerText;
+        saveBtn.innerText = 'API Key Required!';
+        saveBtn.style.backgroundColor = 'var(--error, #ef4444)';
+        saveBtn.disabled = true;
+        setTimeout(() => {
+            saveBtn.innerText = originalBtnText;
+            saveBtn.style.backgroundColor = '';
+            saveBtn.disabled = false;
+        }, 3000);
         return;
     }
 
@@ -81,30 +90,38 @@ saveBtn.addEventListener('click', async () => {
         const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(extraction.role || pageData.title)}&company=${encodeURIComponent(extraction.company || '')}&salary=${encodeURIComponent(extraction.salary || '')}&location=${encodeURIComponent(extraction.location || '')}&description=${encodeURIComponent(extraction.description || '')}&url=${encodeURIComponent(sanitizedPageUrl)}&status=${status}`;
 
         chrome.tabs.create({ url: targetUrl });
+        saveBtn.innerText = originalText;
+        saveBtn.disabled = false;
 
     } catch (error) {
         console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
+        // Replace alert with inline feedback
+        saveBtn.innerText = 'Failed. Using basic info...';
+        saveBtn.style.backgroundColor = 'var(--warning, #eab308)';
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.style.backgroundColor = '';
+            saveBtn.disabled = false;
+        }, 3000);
 
-        // Fallback
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => ({
-                title: document.title,
-                url: window.location.href
-            })
-        }, (results) => {
-            if (results?.[0]?.result) {
-                const data = results[0].result;
-                const status = statusSelect.value;
-                const sanitizedDataUrl = sanitizeUrl(data.url) || '';
-                const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
-                chrome.tabs.create({ url: targetUrl });
-            }
-        });
-    } finally {
-        saveBtn.innerText = originalText;
-        saveBtn.disabled = false;
+        // Fallback with a short delay so the user can see the error message
+        setTimeout(() => {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: () => ({
+                    title: document.title,
+                    url: window.location.href
+                })
+            }, (results) => {
+                if (results?.[0]?.result) {
+                    const data = results[0].result;
+                    const status = statusSelect.value;
+                    const sanitizedDataUrl = sanitizeUrl(data.url) || '';
+                    const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
+                    chrome.tabs.create({ url: targetUrl });
+                }
+            });
+        }, 1500);
     }
 });
 
