@@ -32,9 +32,19 @@ toggleKeyBtn.addEventListener('click', () => {
 });
 
 saveBtn.addEventListener('click', async () => {
+    const originalText = saveBtn.innerText;
     const apiKey = apiKeyInput.value.trim();
+
     if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
+        saveBtn.innerText = 'API Key Required!';
+        saveBtn.style.background = '#ef4444'; // Error red
+        saveBtn.disabled = true;
+
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.style.background = '';
+            saveBtn.disabled = false;
+        }, 3000);
         return;
     }
 
@@ -44,7 +54,6 @@ saveBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Update button to show loading state
-    const originalText = saveBtn.innerText;
     saveBtn.innerText = 'Analysing Page...';
     saveBtn.disabled = true;
 
@@ -82,9 +91,22 @@ saveBtn.addEventListener('click', async () => {
 
         chrome.tabs.create({ url: targetUrl });
 
+        // Success reset
+        saveBtn.innerText = originalText;
+        saveBtn.disabled = false;
+
     } catch (error) {
         console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
+
+        // Inline feedback for extraction failure before fallback
+        saveBtn.innerText = 'Extraction Failed. Using Basics...';
+        saveBtn.style.background = '#eab308'; // Warning yellow
+
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.style.background = '';
+            saveBtn.disabled = false;
+        }, 3000);
 
         // Fallback
         chrome.scripting.executeScript({
@@ -102,9 +124,6 @@ saveBtn.addEventListener('click', async () => {
                 chrome.tabs.create({ url: targetUrl });
             }
         });
-    } finally {
-        saveBtn.innerText = originalText;
-        saveBtn.disabled = false;
     }
 });
 
