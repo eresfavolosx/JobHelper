@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2026-05-16 - Replaced Native Alerts with Inline Feedback
+**Learning:** Replacing native alerts with temporary inline visual feedback (changing text/color of buttons) prevents blocking the UI and improves the user experience. By capturing original text dynamically, it prevents hardcoding strings.
+**Action:** Handle UI state reset independently in try/catch blocks rather than finally blocks to prevent race conditions where success resets override error display timeouts.
