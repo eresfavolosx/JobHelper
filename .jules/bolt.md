@@ -47,3 +47,11 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+
+## 2026-05-17 - Optimize Async Operations & Accumulation
+**Learning:** Sequential await calls (e.g. fetching multiple RSS feeds in a loop) block execution, and accumulating the results using array spread syntax (`allJobs = [...allJobs, ...jobs]`) introduces O(N²) time complexity due to repeated memory allocations for the entire accumulated array.
+**Action:** When performing independent async operations like network requests, execute them concurrently using `Promise.all` to significantly reduce latency. To accumulate the results, iterate through the resolved arrays and use `array.push(...newItems)` to avoid the overhead of recreating the array on each step.
+
+## 2026-05-17 - Array Flattening
+**Learning:** Using `Array.prototype.flat()` is a cleaner and more efficient way to flatten arrays of arrays than manually iterating and pushing.
+**Action:** When combining arrays resulting from concurrent promises like `Promise.all(promises).then(results => ...)`, use `results.flat()` instead of manually looping over `results` and pushing each sub-array into a single target array.
