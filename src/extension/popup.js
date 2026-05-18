@@ -33,8 +33,16 @@ toggleKeyBtn.addEventListener('click', () => {
 
 saveBtn.addEventListener('click', async () => {
     const apiKey = apiKeyInput.value.trim();
+    const originalText = saveBtn.innerText;
     if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
+        saveBtn.innerText = 'API Key Required!';
+        saveBtn.style.backgroundColor = '#ef4444';
+        saveBtn.disabled = true;
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.style.backgroundColor = '';
+            saveBtn.disabled = false;
+        }, 2000);
         return;
     }
 
@@ -44,7 +52,6 @@ saveBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Update button to show loading state
-    const originalText = saveBtn.innerText;
     saveBtn.innerText = 'Analysing Page...';
     saveBtn.disabled = true;
 
@@ -82,9 +89,12 @@ saveBtn.addEventListener('click', async () => {
 
         chrome.tabs.create({ url: targetUrl });
 
+        saveBtn.innerText = originalText;
+        saveBtn.disabled = false;
     } catch (error) {
         console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
+        saveBtn.innerText = 'Extraction Failed. Basic details...';
+        saveBtn.style.backgroundColor = '#f59e0b'; // warning color
 
         // Fallback
         chrome.scripting.executeScript({
@@ -101,10 +111,12 @@ saveBtn.addEventListener('click', async () => {
                 const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
                 chrome.tabs.create({ url: targetUrl });
             }
+            setTimeout(() => {
+                saveBtn.innerText = originalText;
+                saveBtn.style.backgroundColor = '';
+                saveBtn.disabled = false;
+            }, 2000);
         });
-    } finally {
-        saveBtn.innerText = originalText;
-        saveBtn.disabled = false;
     }
 });
 
