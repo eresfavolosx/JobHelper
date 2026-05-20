@@ -48,19 +48,20 @@ export const sanitizeUrl = (url) => {
     if (stringUrl.length > 2048) return null;
 
 
+    // Strip control characters that can bypass simple prefix checks
+    const cleanedStringUrl = stringUrl.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
     // Explicitly block schemes that can execute code
-    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+    if (/^(javascript|vbscript|data):/i.test(cleanedStringUrl)) return null;
 
     let parsed;
     try {
-        parsed = new URL(stringUrl);
+        parsed = new URL(cleanedStringUrl);
     } catch {
         try {
             // If it fails parsing, try prepending https://
             // This handles domain.com and //domain.com
-            parsed = new URL('https://' + stringUrl);
+            parsed = new URL('https://' + cleanedStringUrl);
         } catch {
             return null;
         }
