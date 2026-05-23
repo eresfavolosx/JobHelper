@@ -59,7 +59,11 @@ import { AuthProvider } from '@/lib/auth-context';
 
 function AuthenticatedLayout({ children }) {
     const { user, loading } = useAuth();
-    const { isJobModalOpen, closeJobModal, editingJob } = useUIStore();
+    // ⚡ Bolt: Use specific selectors instead of destructuring the whole store to prevent
+    // unnecessary re-renders when other state changes
+    const isJobModalOpen = useUIStore(state => state.isJobModalOpen);
+    const closeJobModal = useUIStore(state => state.closeJobModal);
+    const editingJob = useUIStore(state => state.editingJob);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -108,7 +112,8 @@ export default function RootLayout({ children }) {
 }
 
 function NavContent() {
-    const { openNewJobModal } = useUIStore();
+    // ⚡ Bolt: Use specific selector instead of destructuring the whole store
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const { user } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
