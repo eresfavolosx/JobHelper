@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2026-04-10 - Replacing extension popup native alerts
+**Learning:** Using `alert()` within a Chrome Extension popup (e.g. for API key validation or AI extraction failure) blocks the entire popup UI and can even cause the popup to dismiss entirely when the user clicks 'OK', leading to a frustrating experience.
+**Action:** Replace blocking native `alert()` calls in extension popups with inline visual feedback. Modify button states (e.g. changing text to 'API Key Required!' or 'Extraction Failed' and temporarily disabling the button) to provide clear, non-blocking errors without dismissing the popup.
