@@ -334,7 +334,7 @@ function DeleteAccountButton() {
         if (!user) return;
 
         setDeleting(true);
-        setErrorMsg('');
+        setError('');
         try {
             // Delete Firestore data
             const { deleteAllUserData } = await import('@/lib/firestore-sync');
