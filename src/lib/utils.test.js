@@ -41,6 +41,18 @@ describe('utils', () => {
       assert.equal(sanitizeUrl('javascript:alert(1)'), null);
     });
 
+    it('should block javascript: scheme with control characters and spaces', () => {
+      assert.equal(sanitizeUrl('java\x00script:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x01script:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x09script:alert(1)'), null);
+      assert.equal(sanitizeUrl(' javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('j a v a s c r i p t :alert(1)'), null);
+      assert.equal(sanitizeUrl('javascript :alert(1)'), null);
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\nscript:alert(1)'), null);
+      assert.equal(sanitizeUrl('javascript\n:alert(1)'), null);
+    });
+
     it('should block data: scheme', () => {
       assert.equal(sanitizeUrl('data:text/html,<script>'), null);
     });
