@@ -43,7 +43,25 @@ export default function RecommendationsPage() {
 
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
-            setJobs(scoredJobs);
+
+            // ⚡ Bolt: Pre-calculate expensive operations (Regex, Date parsing) before render
+            // Avoids executing these functions repeatedly in the O(N) React render mapping
+            const optimizedJobs = scoredJobs.map(job => {
+                let formattedDate = 'Recent';
+                if (job.pubDate) {
+                    const parsed = new Date(job.pubDate);
+                    if (!isNaN(parsed.getTime())) {
+                        formattedDate = parsed.toLocaleDateString();
+                    }
+                }
+                return {
+                    ...job,
+                    cleanDescription: job.description ? job.description.replace(/<[^>]*>?/gm, '') : '',
+                    formattedDate
+                };
+            });
+
+            setJobs(optimizedJobs);
         } catch (err) {
             setError('An unexpected error occurred while fetching recommendations.');
         } finally {
@@ -154,7 +172,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    <span>{job.formattedDate}</span>
                                 </div>
 
                                 <div style={{
@@ -178,7 +196,7 @@ export default function RecommendationsPage() {
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 }}>
-                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                    {job.cleanDescription}
                                 </p>
                             </div>
 
