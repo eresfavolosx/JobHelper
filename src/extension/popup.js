@@ -114,14 +114,14 @@ saveBtn.addEventListener('click', async () => {
  */
 function sanitizeUrl(url) {
     if (!url) return null;
-    let stringUrl = String(url).trim();
+    let stringUrl = String(url);
+
+    // Strip control characters which browsers may ignore, bypassing naive prefix checks
+    stringUrl = stringUrl.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
 
     if (stringUrl.length > 2048) return null;
 
-
-    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+    if (/^(javascript|vbscript|data):/i.test(stringUrl)) return null;
 
     let parsed;
     try {

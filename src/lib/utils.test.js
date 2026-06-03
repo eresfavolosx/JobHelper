@@ -55,3 +55,12 @@ describe('utils', () => {
     });
   });
 });
+  describe('sanitizeUrl with control characters', () => {
+    it('should block javascript: scheme with control characters', () => {
+      assert.equal(sanitizeUrl('java\x01script:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('javascript\x01:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x09script:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x00javascript:alert(1)'), null);
+    });
+  });
