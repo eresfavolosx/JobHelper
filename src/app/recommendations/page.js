@@ -43,7 +43,19 @@ export default function RecommendationsPage() {
 
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
-            setJobs(scoredJobs);
+
+            // ⚡ Bolt: Pre-calculate expensive operations before setting state
+            // Prevents O(N) regex matching and date parsing on every render cycle
+            const optimizedJobs = scoredJobs.map(job => ({
+                ...job,
+                cleanDescription: job.description ? job.description.replace(/<[^>]*>?/gm, '') : '',
+                formattedDate: (job.pubDate && !isNaN(new Date(job.pubDate).getTime()))
+                    ? new Date(job.pubDate).toLocaleDateString()
+                    : 'Recent',
+                safeLink: sanitizeUrl(job.link)
+            }));
+
+            setJobs(optimizedJobs);
         } catch (err) {
             setError('An unexpected error occurred while fetching recommendations.');
         } finally {
@@ -130,7 +142,6 @@ export default function RecommendationsPage() {
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
                     {jobs.map((job, i) => {
-                        const sanitizedLink = sanitizeUrl(job.link);
                         return (
                         <div key={i} className="card animate-scale-in" style={{
                             padding: '24px',
@@ -154,7 +165,8 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    {/* ⚡ Bolt: Use pre-calculated date */}
+                                    <span>{job.formattedDate}</span>
                                 </div>
 
                                 <div style={{
@@ -178,13 +190,14 @@ export default function RecommendationsPage() {
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 }}>
-                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                    {/* ⚡ Bolt: Use pre-calculated description */}
+                                    {job.cleanDescription}
                                 </p>
                             </div>
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-highlight)' }}>
                                 <a
-                                    href={sanitizeUrl(job.link) || '#'}
+                                    href={job.safeLink || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="btn-secondary"
@@ -214,7 +227,7 @@ export default function RecommendationsPage() {
                                             addJob({
                                                 company: 'Unknown',
                                                 role: job.title,
-                                                url: sanitizeUrl(job.link),
+                                                url: job.safeLink,
                                                 status: 'wishlist',
                                                 notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                             });
