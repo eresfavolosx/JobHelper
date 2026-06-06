@@ -34,16 +34,23 @@ export async function fetchJobsFromRSS(keywords = []) {
 
     // Fetch from all feeds
     // Note: This needs to be called from a server component/route to avoid CORS
-    for (const feed of FEEDS) {
+    // ⚡ Bolt: Execute independent I/O calls concurrently using Promise.all
+    const results = await Promise.all(FEEDS.map(async (feed) => {
         try {
             const response = await fetch(feed.url, { next: { revalidate: 3600 } });
-            if (!response.ok) continue;
+            if (!response.ok) return [];
             const xml = await response.text();
             const jobs = parseRSS(xml);
-            allJobs = [...allJobs, ...jobs.map(j => ({ ...j, source: feed.name }))];
+            return jobs.map(j => ({ ...j, source: feed.name }));
         } catch (e) {
             console.error(`Failed to fetch ${feed.name}:`, e);
+            return [];
         }
+    }));
+
+    // ⚡ Bolt: Use array.push(...newItems) instead of array spread syntax to avoid O(N²) memory overhead
+    for (const feedJobs of results) {
+        allJobs.push(...feedJobs);
     }
 
     // Basic keyword filtering to reduce Gemini load
