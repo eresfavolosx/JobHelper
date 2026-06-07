@@ -119,9 +119,11 @@ function sanitizeUrl(url) {
     if (stringUrl.length > 2048) return null;
 
 
-    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+    // Strip control characters that browsers might ignore when evaluating schemes
+    stringUrl = stringUrl.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
+    // Explicitly block schemes that can execute code
+    if (/^(javascript|vbscript|data):/i.test(stringUrl)) return null;
 
     let parsed;
     try {
