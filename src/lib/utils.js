@@ -43,15 +43,13 @@ export const safeDate = (input) => {
  */
 export const sanitizeUrl = (url) => {
     if (!url) return null;
-    let stringUrl = String(url).trim();
+    let stringUrl = String(url).trim().replace(/[\x00-\x1F\x7F-\x9F]/g, '');
 
     if (stringUrl.length > 2048) return null;
 
 
     // Explicitly block schemes that can execute code
-    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+    if (/^(javascript|vbscript|data):/i.test(stringUrl)) return null;
 
     let parsed;
     try {
