@@ -41,6 +41,14 @@ describe('utils', () => {
       assert.equal(sanitizeUrl('javascript:alert(1)'), null);
     });
 
+    it('should block javascript: scheme with control characters', () => {
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x00javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x1Fjavascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x7Fjavascript:alert(1)'), null);
+      assert.equal(sanitizeUrl(' \x01javascript:alert(1)'), null);
+    });
+
     it('should block data: scheme', () => {
       assert.equal(sanitizeUrl('data:text/html,<script>'), null);
     });
