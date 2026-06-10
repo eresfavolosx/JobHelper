@@ -49,6 +49,12 @@ describe('utils', () => {
       assert.equal(sanitizeUrl('vbscript:msgbox'), null);
     });
 
+    it('should strip control characters and block malicious schemes', () => {
+      assert.equal(sanitizeUrl('java\x00script:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x09script:alert(1)'), null);
+    });
+
     it('should block URLs longer than 2048 characters', () => {
       const longUrl = 'https://example.com/' + 'a'.repeat(2048);
       assert.equal(sanitizeUrl(longUrl), null);
