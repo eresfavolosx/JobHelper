@@ -71,3 +71,8 @@
 **Vulnerability:** The login form returned distinct error messages for "No account found" and "Incorrect password". This allowed an attacker to enumerate valid email addresses registered in the system.
 **Learning:** Displaying specific authentication error messages helps attackers distinguish between registered and unregistered accounts, facilitating targeted brute-force or phishing attacks.
 **Prevention:** Always use generic error messages for authentication failures (e.g., "Invalid email or password") regardless of whether the user exists or the password is incorrect.
+
+## 2025-02-14 - DOM XSS Bypass via Control Characters in URL Sanitization
+**Vulnerability:** The `sanitizeUrl` function relied on `.startsWith()` to block malicious schemes like `javascript:`. Attackers could bypass this by inserting control characters (e.g., `\x01` or `\x09`) which browsers ignore before executing the scheme, but which cause `.startsWith()` to return false.
+**Learning:** Simple string prefix matching is insufficient for URL sanitization. Browsers are overly permissive and will execute URLs even if they contain hidden control characters or mixed casing.
+**Prevention:** Always strip control characters (`\x00-\x1F`, `\x7F-\x9F`) from URLs before validation, and use robust regex (e.g., `/^(javascript|vbscript|data):/i`) instead of exact string matching.
