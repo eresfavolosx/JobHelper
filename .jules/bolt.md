@@ -47,3 +47,10 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2024-06-12 - Concurrent RSS Fetching
+**Learning:** The RSS ingestion logic in `src/lib/job-service.js` iterating over feeds sequentially limits the application's speed. Fetching multiple remote sources concurrently provides a ~50% speedup.
+**Action:** When aggregating data from multiple independent remote sources (like RSS feeds), use `Promise.all` to fetch them concurrently instead of sequentially iterating and awaiting each one.
+
+## 2024-06-12 - Avoid O(N²) Array Spread Accumulation
+**Learning:** Accumulating elements into an array using spread syntax (`array = [...array, ...newItems]`) inside a loop causes O(N²) memory allocations and performance penalties as the array grows.
+**Action:** Use `array.push(...newItems)` instead of array spread syntax to aggregate results from multiple iterations efficiently.
