@@ -5,7 +5,8 @@ import { useUIStore } from '@/lib/uiStore';
 import { useState, useEffect } from 'react';
 
 export default function Onboarding() {
-    const { openNewJobModal } = useUIStore();
+    // ⚡ Bolt: Use specific selectors to prevent re-renders when unrelated UI state changes
+    const openNewJobModal = useUIStore(s => s.openNewJobModal);
     const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
