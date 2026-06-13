@@ -48,10 +48,11 @@ export const sanitizeUrl = (url) => {
     if (stringUrl.length > 2048) return null;
 
 
-    // Explicitly block schemes that can execute code
-    if (stringUrl.toLowerCase().startsWith('javascript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('vbscript:')) return null;
-    if (stringUrl.toLowerCase().startsWith('data:')) return null;
+    // Strip control characters to prevent bypasses where browsers ignore them
+    stringUrl = stringUrl.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
+    // Explicitly block schemes that can execute code using regex for robustness
+    if (/^(javascript|vbscript|data):/i.test(stringUrl)) return null;
 
     let parsed;
     try {
