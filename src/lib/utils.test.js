@@ -53,5 +53,12 @@ describe('utils', () => {
       const longUrl = 'https://example.com/' + 'a'.repeat(2048);
       assert.equal(sanitizeUrl(longUrl), null);
     });
+
+    it('should block scheme bypass via control characters', () => {
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x0Bjavascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\nscript:alert(1)'), null);
+      assert.equal(sanitizeUrl(' javascript:alert(1)'), null);
+    });
   });
 });
