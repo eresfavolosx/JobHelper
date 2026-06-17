@@ -34,7 +34,13 @@ toggleKeyBtn.addEventListener('click', () => {
 saveBtn.addEventListener('click', async () => {
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = 'Please enter API Key!';
+        saveBtn.disabled = true;
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }, 2500);
         return;
     }
 
@@ -84,7 +90,11 @@ saveBtn.addEventListener('click', async () => {
 
     } catch (error) {
         console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
+        const prevText = saveBtn.innerText;
+        saveBtn.innerText = 'AI failed. Falling back...';
+        setTimeout(() => {
+            saveBtn.innerText = prevText;
+        }, 2500);
 
         // Fallback
         chrome.scripting.executeScript({
