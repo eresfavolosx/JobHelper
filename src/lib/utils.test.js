@@ -39,6 +39,9 @@ describe('utils', () => {
 
     it('should block javascript: scheme', () => {
       assert.equal(sanitizeUrl('javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x01javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x00script:alert(1)'), null);
+      assert.equal(sanitizeUrl(' java\x09script:alert(1)'), null);
     });
 
     it('should block data: scheme', () => {
