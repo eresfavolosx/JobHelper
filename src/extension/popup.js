@@ -32,9 +32,17 @@ toggleKeyBtn.addEventListener('click', () => {
 });
 
 saveBtn.addEventListener('click', async () => {
+    const originalText = saveBtn.innerText;
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
+        saveBtn.innerText = 'Error: Missing API Key';
+        saveBtn.style.background = 'var(--error)';
+        saveBtn.disabled = true;
+        setTimeout(() => {
+            saveBtn.innerText = originalText;
+            saveBtn.style.background = 'var(--accent-gradient)';
+            saveBtn.disabled = false;
+        }, 2500);
         return;
     }
 
@@ -44,7 +52,6 @@ saveBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Update button to show loading state
-    const originalText = saveBtn.innerText;
     saveBtn.innerText = 'Analysing Page...';
     saveBtn.disabled = true;
 
@@ -84,7 +91,8 @@ saveBtn.addEventListener('click', async () => {
 
     } catch (error) {
         console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
+        saveBtn.innerText = 'Extraction failed. Using basic details...';
+        saveBtn.style.background = 'var(--error)';
 
         // Fallback
         chrome.scripting.executeScript({
