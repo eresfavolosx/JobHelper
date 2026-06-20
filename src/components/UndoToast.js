@@ -78,12 +78,15 @@ export default function UndoToast() {
             `}</style>
 
             <div style={{ flex: 1 }}>
-                <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: '500' }}>
-                    "{deletedJob.role}" moved to trash
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: '500' }} aria-hidden="true">
+                    &quot;{deletedJob.role}&quot; moved to trash
                 </p>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }} aria-hidden="true">
                     Undo in {timeLeft}s
                 </p>
+                <span role="status" aria-live="polite" style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>
+                    {deletedJob.role} moved to trash. Undo available for 10 seconds.
+                </span>
             </div>
 
             <button
