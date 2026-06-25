@@ -40,7 +40,9 @@ export async function fetchJobsFromRSS(keywords = []) {
             if (!response.ok) continue;
             const xml = await response.text();
             const jobs = parseRSS(xml);
-            allJobs = [...allJobs, ...jobs.map(j => ({ ...j, source: feed.name }))];
+            // ⚡ Bolt: Use array.push(...) instead of array spread to avoid O(N²) memory
+            // allocations and unnecessary array copying on every loop iteration.
+            allJobs.push(...jobs.map(j => ({ ...j, source: feed.name })));
         } catch (e) {
             console.error(`Failed to fetch ${feed.name}:`, e);
         }
@@ -57,16 +59,6 @@ export async function fetchJobsFromRSS(keywords = []) {
     }
 
     return allJobs.slice(0, 20); // Limit to top 20 to save tokens
-}
-
-function sanitizeForPrompt(text) {
-    if (!text) return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
 }
 
 export async function scoreJobsWithGemini(jobs, resumeData) {
