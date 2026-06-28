@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-06-28 - Prevent Screen Reader Spam on Countdown Timers
+**Learning:** Rapidly updating countdown text causes screen readers to constantly interrupt themselves, leading to a spammy and confusing experience for users relying on assistive technology.
+**Action:** When implementing countdowns, hide the dynamic element using `aria-hidden="true"` and provide a single, visually hidden static announcement via `role="status"` and `aria-live="polite"`.
