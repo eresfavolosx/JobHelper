@@ -40,7 +40,8 @@ export async function fetchJobsFromRSS(keywords = []) {
             if (!response.ok) continue;
             const xml = await response.text();
             const jobs = parseRSS(xml);
-            allJobs = [...allJobs, ...jobs.map(j => ({ ...j, source: feed.name }))];
+            // ⚡ Bolt: Use push instead of array spread to avoid O(N^2) memory allocations
+            allJobs.push(...jobs.map(j => ({ ...j, source: feed.name })));
         } catch (e) {
             console.error(`Failed to fetch ${feed.name}:`, e);
         }

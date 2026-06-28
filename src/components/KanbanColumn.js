@@ -52,7 +52,7 @@ const arePropsEqual = (prevProps, nextProps) => {
 };
 
 const KanbanColumn = memo(({ column, jobs, index }) => {
-    KanbanColumn.displayName = 'KanbanColumn';
+    // KanbanColumn.displayName = 'KanbanColumn';
 
     // ⚡ Bolt: Memoize SortableContext items array
     // Prevents creating a new array reference on every render, avoiding unnecessary
