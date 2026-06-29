@@ -47,3 +47,6 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2024-06-29 - Zustand Selector Optimization
+**Learning:** Destructuring the return value of a Zustand hook (e.g., `const { property } = useStore()`) causes the component to subscribe to the entire store. This means any state change in the store triggers a re-render of the component, even if the properties it uses haven't changed.
+**Action:** Always use specific selectors (e.g., `useStore(state => state.property)`) instead of destructuring the entire hook return to prevent unnecessary component re-renders across the application.

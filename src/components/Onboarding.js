@@ -5,7 +5,9 @@ import { useUIStore } from '@/lib/uiStore';
 import { useState, useEffect } from 'react';
 
 export default function Onboarding() {
-    const { openNewJobModal } = useUIStore();
+    // ⚡ Bolt: Use specific selectors instead of destructuring the whole store to prevent
+    // unnecessary re-renders when other state changes
+    const openNewJobModal = useUIStore(s => s.openNewJobModal);
     const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
@@ -24,7 +26,7 @@ export default function Onboarding() {
                     Welcome to Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
                 </h1>
                 <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-                    Let's get you hired! Choose how you want to start tracking your applications.
+                    Let&apos;s get you hired! Choose how you want to start tracking your applications.
                 </p>
             </div>
 
