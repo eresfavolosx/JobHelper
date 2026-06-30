@@ -43,7 +43,24 @@ export default function RecommendationsPage() {
 
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
-            setJobs(scoredJobs);
+
+            // ⚡ Bolt: Pre-calculate expensive regex, date parsing, and URL sanitization
+            // outside of the React render loop to prevent re-computation on every render.
+            const optimizedJobs = scoredJobs.map(job => {
+                const cleanDescription = job.description ? job.description.replace(/<[^>]*>?/gm, '') : '';
+                const parsedDate = job.pubDate ? new Date(job.pubDate) : null;
+                const formattedDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : 'Recent';
+                const sanitizedLink = sanitizeUrl(job.link) || '#';
+
+                return {
+                    ...job,
+                    cleanDescription,
+                    formattedDate,
+                    sanitizedLink
+                };
+            });
+
+            setJobs(optimizedJobs);
         } catch (err) {
             setError('An unexpected error occurred while fetching recommendations.');
         } finally {
@@ -129,9 +146,7 @@ export default function RecommendationsPage() {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
-                    {jobs.map((job, i) => {
-                        const sanitizedLink = sanitizeUrl(job.link);
-                        return (
+                    {jobs.map((job, i) => (
                         <div key={i} className="card animate-scale-in" style={{
                             padding: '24px',
                             display: 'flex',
@@ -154,7 +169,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    <span>{job.formattedDate}</span>
                                 </div>
 
                                 <div style={{
@@ -178,13 +193,13 @@ export default function RecommendationsPage() {
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 }}>
-                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                    {job.cleanDescription}
                                 </p>
                             </div>
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-highlight)' }}>
                                 <a
-                                    href={sanitizeUrl(job.link) || '#'}
+                                    href={job.sanitizedLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="btn-secondary"
@@ -214,7 +229,7 @@ export default function RecommendationsPage() {
                                             addJob({
                                                 company: 'Unknown',
                                                 role: job.title,
-                                                url: sanitizeUrl(job.link),
+                                                url: job.sanitizedLink,
                                                 status: 'wishlist',
                                                 notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                             });
@@ -247,7 +262,7 @@ export default function RecommendationsPage() {
                                 )}
                             </div>
                         </div>
-                    )})}
+                    ))}
                 </div>
             )}
         </div>
