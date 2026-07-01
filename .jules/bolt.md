@@ -47,3 +47,6 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2026-04-12 - Pre-calculate Expensive Operations Before React Render
+**Learning:** Running expensive string operations like `.replace(/<[^>]*>?/gm, '')`, URL sanitization, or `new Date()` parsing inside a React component's `.map()` render loop forces the JavaScript engine to redundantly perform these heavy tasks on every single render, significantly degrading UI performance.
+**Action:** To avoid performance overhead during React rendering, always pre-calculate expensive operations (like regex replacements and date parsing) on the data source before setting state, rather than executing them directly inside a component's render `.map()` loop.
