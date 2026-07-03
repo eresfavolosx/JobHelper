@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-11-20 - Replace blocking alerts with inline feedback
+**Learning:** Native `alert()` calls for user feedback (like missing API key or extraction failures) interrupt user flow by blocking the main thread and presenting a jarring, system-level dialog.
+**Action:** Replace `alert()` calls with inline visual feedback, such as temporarily changing the action button text to 'API Key Required' or 'Extraction Failed' with an error state background color, and ensure the button is disabled during this period to prevent race conditions.
