@@ -43,7 +43,16 @@ export default function RecommendationsPage() {
 
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
-            setJobs(scoredJobs);
+
+            // ⚡ Bolt: Pre-calculate expensive date parsing and regex replacements before setting state
+            // This prevents executing these operations on every item during every render loop.
+            const processedJobs = scoredJobs.map(job => ({
+                ...job,
+                parsedPubDate: job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent',
+                cleanDescription: (job.description || '').replace(/<[^>]*>?/gm, '')
+            }));
+
+            setJobs(processedJobs);
         } catch (err) {
             setError('An unexpected error occurred while fetching recommendations.');
         } finally {
@@ -154,7 +163,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    <span>{job.parsedPubDate}</span>
                                 </div>
 
                                 <div style={{
@@ -178,7 +187,7 @@ export default function RecommendationsPage() {
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 }}>
-                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                    {job.cleanDescription}
                                 </p>
                             </div>
 
