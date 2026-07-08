@@ -59,7 +59,9 @@ import { AuthProvider } from '@/lib/auth-context';
 
 function AuthenticatedLayout({ children }) {
     const { user, loading } = useAuth();
-    const { isJobModalOpen, closeJobModal, editingJob } = useUIStore();
+    const isJobModalOpen = useUIStore(s => s.isJobModalOpen);
+    const closeJobModal = useUIStore(s => s.closeJobModal);
+    const editingJob = useUIStore(s => s.editingJob);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -108,7 +110,7 @@ export default function RootLayout({ children }) {
 }
 
 function NavContent() {
-    const { openNewJobModal } = useUIStore();
+    const openNewJobModal = useUIStore(s => s.openNewJobModal);
     const { user } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
