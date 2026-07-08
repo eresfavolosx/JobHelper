@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2026-06-15 - Replacing alerts with inline state feedback and aria-live announcements
+**Learning:** Replacing blocking `alert()` dialogs with inline visual feedback (like temporarily changing a button's text or color) significantly improves the user experience for sighted users. However, without the native dialog, screen reader users may not perceive the error or state change since the visual update is often not announced automatically.
+**Action:** When converting native alerts to inline visual feedback, always pair the visual change with a corresponding update to a visually hidden `aria-live` region (e.g., `<div id="announcer" aria-live="polite">`) to guarantee that assistive technologies can still access the critical notification context.
