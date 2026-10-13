@@ -1,8 +1,8 @@
-import { cleanObject } from './utils';
+import { cleanObject } from './utils.js';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db } from './firebase';
+import { db } from './firebase.js';
 
 export const useAppStore = create(
     persist(

@@ -1,5 +1,5 @@
-import { getGeminiModel } from './gemini-client';
-import { escapeXml } from './utils';
+import { getGeminiModel } from './gemini-client.js';
+import { escapeXml } from './utils.js';
 
 // RSS Feed URLs
 const FEEDS = [
@@ -9,7 +9,7 @@ const FEEDS = [
 
 // Helper to parse XML (simple regex/string manip to avoid heavy xml2js dependency if possible, or use a lightweight parser)
 // For robustness, we'll use a simple regex extractor for standard RSS fields: title, link, description, pubDate
-function parseRSS(xml) {
+export function parseRSS(xml) {
     const items = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;

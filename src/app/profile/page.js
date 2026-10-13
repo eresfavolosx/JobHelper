@@ -431,13 +431,14 @@ function SubscriptionManager() {
     const isTrial = profile?.subscriptionStatus === 'trial';
     
     // Safely calculate days left
+    const trialEndDate = profile?.trialEndDate;
     const trialDaysLeft = useMemo(() => {
-        if (!profile?.trialEndDate) return 0;
-        const end = new Date(profile.trialEndDate);
+        if (!trialEndDate) return 0;
+        const end = new Date(trialEndDate);
         if (isNaN(end.getTime())) return 0;
-        const diff = end - new Date();
+        const diff = end.getTime() - Date.now();
         return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-    }, [profile?.trialEndDate]);
+    }, [trialEndDate]);
 
     const handleSubscribe = () => {
         setLoading(true);

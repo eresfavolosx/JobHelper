@@ -1,4 +1,4 @@
-import { firebaseConfig } from './firebase';
+import { firebaseConfig } from './firebase.js';
 
 /**
  * Verifies a Firebase ID token using the Firebase Auth REST API.

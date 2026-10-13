@@ -31,9 +31,6 @@ export default function Home() {
         }
     }, [loading, user, mounted]);
 
-    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
-    if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
-
     const stats = useMemo(() => {
         // ⚡ Bolt: Use a single for-loop to calculate derived stats instead of reduce
         // This avoids callback allocation overhead per item, improving O(N) performance for large datasets.
@@ -46,6 +43,9 @@ export default function Home() {
         }
         return { total: jobs.length, interviewing, offers };
     }, [jobs]);
+
+    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
+    if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     if (jobs.length === 0) {
         return <Onboarding />;
