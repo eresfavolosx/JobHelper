@@ -2,9 +2,10 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, Check, CheckCircle } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
+import UpgradeModal from '@/components/UpgradeModal';
 export default function RecommendationsPage() {
     const profile = useAppStore(state => state.profile);
     const isPremium = useAppStore(state => state.isPremium);
@@ -13,10 +14,31 @@ export default function RecommendationsPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [addedJobs, setAddedJobs] = useState(new Set());
+    const [upgradeOpen, setUpgradeOpen] = useState(false);
+    const CACHE_KEY = 'jobhelper_recommendations_cache';
+    const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
     const isCurrentlyPremium = isPremium();
 
-    const findJobs = async () => {
+    const findJobs = async (forceRefresh = false) => {
+        // Check cache first if not explicitly refreshing
+        if (!forceRefresh && typeof window !== 'undefined') {
+            try {
+                const cachedRaw = localStorage.getItem(CACHE_KEY);
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    const isFresh = Date.now() - (cached.timestamp || 0) < CACHE_TTL_MS;
+                    const hasValidScores = Array.isArray(cached.jobs) && cached.jobs.length > 0 && cached.jobs.some(j => (j.relevanceScore || 0) > 0);
+                    if (isFresh && hasValidScores) {
+                        setJobs(cached.jobs);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to read recommendations cache:', e);
+            }
+        }
+
         setLoading(true);
         setError(null);
         try {
@@ -44,8 +66,26 @@ export default function RecommendationsPage() {
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
             setJobs(scoredJobs);
+
+            // Cache successfully scored jobs only if we obtained valid positive scores
+            if (typeof window !== 'undefined' && scoredJobs.length > 0 && scoredJobs.some(j => (j.relevanceScore || 0) > 0)) {
+                try {
+                    localStorage.setItem(CACHE_KEY, JSON.stringify({
+                        jobs: scoredJobs,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    console.warn('Failed to save recommendations cache:', e);
+                }
+            }
         } catch (err) {
-            setError('An unexpected error occurred while fetching recommendations.');
+            console.error('Error fetching recommendations:', err);
+            if (err?.code === 'SUBSCRIPTION_REQUIRED') {
+                setError('NovuJobs Pro ($9.99/mo) or your personal Gemini API key is required to score recommendations with AI.');
+                setUpgradeOpen(true);
+            } else {
+                setError(err.message || 'An unexpected error occurred while fetching recommendations.');
+            }
         } finally {
             setLoading(false);
         }
@@ -54,7 +94,7 @@ export default function RecommendationsPage() {
     // Auto-fetch on mount if no jobs
     useEffect(() => {
         if (jobs.length === 0) {
-            findJobs();
+            findJobs(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -71,7 +111,7 @@ export default function RecommendationsPage() {
                     </p>
                 </div>
                 <button
-                    onClick={findJobs}
+                    onClick={() => findJobs(true)}
                     disabled={loading}
                     className="btn-secondary"
                     style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -90,7 +130,7 @@ export default function RecommendationsPage() {
                 <div className="card" style={{ 
                     textAlign: 'center', 
                     padding: '80px 40px', 
-                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                    background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.06) 0%, rgba(212, 163, 115, 0.05) 100%)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: '24px',
                     position: 'relative',
@@ -121,7 +161,7 @@ export default function RecommendationsPage() {
                 <div style={{ textAlign: 'center', padding: '48px', color: 'var(--error)', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px' }}>
                     <AlertCircle size={48} style={{ marginBottom: '16px', display: 'inline-block' }} />
                     <p style={{ fontSize: '1.1rem', marginBottom: '24px' }}>{error}</p>
-                    <button onClick={findJobs} className="btn-primary">Try Again</button>
+                    <button onClick={() => findJobs(true)} className="btn-primary">Try Again</button>
                 </div>
             ) : jobs.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '64px', color: 'var(--text-secondary)', background: 'var(--bg-card)', borderRadius: '16px' }}>
@@ -184,7 +224,7 @@ export default function RecommendationsPage() {
 
                             <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--glass-highlight)' }}>
                                 <a
-                                    href={sanitizeUrl(job.link) || '#'}
+                                    href={sanitizedLink || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="btn-secondary"
@@ -211,27 +251,35 @@ export default function RecommendationsPage() {
                                 ) : (
                                     <button
                                         onClick={() => {
-                                            addJob({
-                                                company: 'Unknown',
-                                                role: job.title,
-                                                url: sanitizeUrl(job.link),
-                                                status: 'wishlist',
-                                                notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
-                                            });
+                                            try {
+                                                addJob({
+                                                    company: 'Unknown',
+                                                    role: job.title,
+                                                    url: sanitizeUrl(job.link),
+                                                    status: 'wishlist',
+                                                    notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
+                                                });
 
-                                            setAddedJobs(prev => {
-                                                const newSet = new Set(prev);
-                                                newSet.add(job.link);
-                                                return newSet;
-                                            });
-
-                                            setTimeout(() => {
                                                 setAddedJobs(prev => {
                                                     const newSet = new Set(prev);
-                                                    newSet.delete(job.link);
+                                                    newSet.add(job.link);
                                                     return newSet;
                                                 });
-                                            }, 2000);
+
+                                                setTimeout(() => {
+                                                    setAddedJobs(prev => {
+                                                        const newSet = new Set(prev);
+                                                        newSet.delete(job.link);
+                                                        return newSet;
+                                                    });
+                                                }, 2000);
+                                            } catch (err) {
+                                                if (err?.code === 'LIMIT_REACHED') {
+                                                    setUpgradeOpen(true);
+                                                } else {
+                                                    alert(err?.message || 'Failed to save job application.');
+                                                }
+                                            }
                                         }}
                                         className="btn-primary"
                                         style={{
@@ -250,6 +298,11 @@ export default function RecommendationsPage() {
                     )})}
                 </div>
             )}
+
+            <UpgradeModal
+                isOpen={upgradeOpen}
+                onClose={() => setUpgradeOpen(false)}
+            />
         </div>
     );
 }

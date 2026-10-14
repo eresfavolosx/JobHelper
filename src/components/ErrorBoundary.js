@@ -56,7 +56,7 @@ class ErrorBoundary extends Component {
                         maxWidth: '400px',
                         lineHeight: '1.6'
                     }}>
-                        We hit an unexpected error. Don't worry, your data is safe.
+                        We hit an unexpected error. Don&apos;t worry, your data is safe.
                         Try refreshing the page.
                     </p>
 

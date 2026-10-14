@@ -22,7 +22,7 @@ export default function InstallPage() {
                     <Monitor size={64} color="var(--accent-primary)" style={{ marginBottom: '24px' }} />
                     <h1 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '16px' }}>Desktop Only</h1>
                     <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        The Job Tracker browser extension is only available for desktop browsers like Chrome.
+                        The NovuJobs browser extension is only available for desktop browsers like Chrome.
                         Please visit this page on your computer to download and install the extension.
                     </p>
                 </div>
@@ -33,7 +33,7 @@ export default function InstallPage() {
     return (
         <div className="container" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <header className="animate-slide-up" style={{ marginBottom: '40px', textAlign: 'center' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '16px' }}>Install Job Extension</h1>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '16px' }}>Install NovuJobs Extension</h1>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
                     Track jobs from LinkedIn, Indeed, and more with a single click.
                 </p>
@@ -42,7 +42,7 @@ export default function InstallPage() {
             <div className="card animate-scale-in delay-100" style={{ padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', background: 'var(--glass-panel)' }}>
                 <a
                     href="/extension.zip"
-                    download="job-tracker-extension.zip"
+                    download="novujobs-extension.zip"
                     className="btn-primary"
                     style={{
                         fontSize: '1.2rem',
@@ -79,11 +79,11 @@ export default function InstallPage() {
                     </li>
                     <li>
                         <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>4. Load Unpacked</strong>
-                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Click "Load unpacked" button (top-left) and select the folder you extracted in step 1.</p>
+                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Click &ldquo;Load unpacked&rdquo; button (top-left) and select the folder you extracted in step 1.</p>
                     </li>
                     <li>
                         <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>5. Pin & Use</strong>
-                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Pin the extension to your toolbar. Don't forget to add your Gemini API Key!</p>
+                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Pin the extension to your toolbar. Don&apos;t forget to add your Gemini API Key!</p>
                     </li>
                 </ol>
             </div>

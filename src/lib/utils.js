@@ -94,6 +94,7 @@ export const escapeXml = (unsafe) => {
  * using a performant standard for loop with Object.keys instead of Object.entries.
  */
 export const cleanObject = (obj, omitKey = null) => {
+    if (!obj) return {};
     const clean = {};
     const keys = Object.keys(obj);
     for (let i = 0; i < keys.length; i++) {

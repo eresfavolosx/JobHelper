@@ -20,7 +20,7 @@ export default function DailyReminder() {
 
                     // Show browser notification
                     if (Notification.permission === 'granted') {
-                        new Notification('Job Tracker Reminder', {
+                        new Notification('NovuJobs Reminder', {
                             body: 'It takes consistency to land a job! Check for new listings today.',
                             icon: '/icon.png'
                         });

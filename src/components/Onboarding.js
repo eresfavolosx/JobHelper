@@ -24,7 +24,7 @@ export default function Onboarding() {
                     Welcome to Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
                 </h1>
                 <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-                    Let's get you hired! Choose how you want to start tracking your applications.
+                    Let&apos;s get you hired! Choose how you want to start tracking your applications.
                 </p>
             </div>
 

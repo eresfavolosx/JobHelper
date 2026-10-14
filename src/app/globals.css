@@ -1,66 +1,149 @@
 :root {
-  /* Liquid Glass Palette */
-  --bg-app: #000000;
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
+  /* Architectural House Palette: Warm Cotton, Slate Grey Pillar & Sage Fascia Accent */
+  --bg-app: #181C20;
+  /* Deep Architectural Slate */
+  --bg-card: #21262C;
+  /* Structural Slate Grey Card */
+  --bg-panel: #293037;
+  /* Mid Concrete / Slate Grey Panel */
+  --text-primary: #FAF8F4;
+  /* Crisp Cotton Off-White */
+  --text-secondary: #9DA7AE;
+  /* Concrete Slate Grey (from pillar) */
+  --text-muted: #6B757D;
 
-  --accent-primary: #0ea5e9;
-  /* Sky 500 */
-  --accent-secondary: #8b5cf6;
-  /* Violet 500 */
-  --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+  /* Structural Slate (Buttons, Framing, Structure) */
+  --accent-slate: #38424B;
+  --accent-slate-hover: #48545E;
 
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  /* Sage Green (Roof Fascia & Garden Accent - for status, progress, highlights) */
+  --accent-primary: #6B7E67;
+  /* Muted Olive/Sage Green */
+  --accent-secondary: #76858E;
+  /* Architectural Slate Grey */
+  --accent-gradient: linear-gradient(135deg, #4A7C55 0%, #5F956B 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #416F4B 0%, #548860 100%);
+  --shadow-btn: 0 4px 16px 0 rgba(74, 124, 85, 0.4);
+  --shadow-btn-hover: 0 8px 24px rgba(74, 124, 85, 0.52);
+  --accent-terracotta: #C85A3E;
+  /* Bougainvillea flower accent */
 
-  /* Glass Materials */
-  --glass-panel: rgba(255, 255, 255, 0.05);
-  /* Very subtle fill */
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --border-subtle: var(--glass-border);
-  --glass-highlight: rgba(255, 255, 255, 0.05);
+  --success: #5F8263;
+  --warning: #D4A373;
+  --error: #C85A3E;
+
+  /* Materials */
+  --glass-panel: rgba(33, 38, 44, 0.75);
+  --glass-border: rgba(157, 167, 174, 0.16);
+  --border-subtle: rgba(157, 167, 174, 0.13);
+  --glass-highlight: rgba(250, 248, 244, 0.06);
   --blur-md: blur(12px);
   --blur-lg: blur(24px);
 
-  --shadow-glow: 0 0 20px rgba(14, 165, 233, 0.2);
-  --radius-lg: 24px;
-  --radius-md: 16px;
-  --radius-sm: 12px;
+  --shadow-glow: 0 4px 24px rgba(24, 28, 32, 0.35);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
 }
 
-/* Light Theme Overrides */
+/* Light Theme Overrides (Warm Cotton Plaster & Architectural Slate Grey) */
+/* Light Theme: activated via system preference OR explicit data-theme="light" */
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg-app: #f4f4f5;
-    /* Zinc 100 */
-    --text-primary: #09090b;
-    /* Zinc 950 */
-    --text-secondary: #52525b;
-    /* Zinc 600 */
+  :root:not([data-theme="dark"]) {
+    --bg-app: #F5F2EB;
+    /* Authentic Warm Cotton Plaster Wall */
+    --bg-card: #FFFFFF;
+    /* Crisp Cotton Card */
+    --bg-panel: #EAE5DB;
+    /* Linen Stone Panel */
+    --text-primary: #22272B;
+    /* Deep Slate Charcoal (window trim & foundation) */
+    --text-secondary: #58636B;
+    /* Architectural Slate Grey (pillar) */
+    --text-muted: #7B868F;
 
-    --accent-primary: #0284c7;
-    /* Sky 600 */
-    --accent-secondary: #7c3aed;
-    /* Violet 600 */
-    --accent-gradient: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
+    /* Structural Slate (Frames & Secondary controls) */
+    --accent-slate: #2C353D;
+    --accent-slate-hover: #3B464F;
 
-    --glass-panel: rgba(255, 255, 255, 0.7);
-    /* More opaque for contrast against light bg */
-    --glass-border: rgba(0, 0, 0, 0.1);
-    --border-subtle: rgba(0, 0, 0, 0.08);
-    --glass-highlight: rgba(0, 0, 0, 0.03);
+    /* Highlighted Garden Sage Green for CTA buttons */
+    --accent-primary: #3D6C48;
+    --accent-secondary: #607079;
+    --accent-gradient: linear-gradient(135deg, #366942 0%, #4D8259 100%);
+    --accent-gradient-hover: linear-gradient(135deg, #2E5C39 0%, #43734D 100%);
+    --shadow-btn: 0 4px 14px 0 rgba(54, 105, 66, 0.35);
+    --shadow-btn-hover: 0 8px 24px rgba(54, 105, 66, 0.45);
+    --accent-terracotta: #C4553B;
 
-    --shadow-glow: 0 4px 20px rgba(2, 132, 199, 0.15);
+    --glass-panel: rgba(255, 255, 255, 0.88);
+    --glass-border: rgba(55, 66, 74, 0.12);
+    --border-subtle: rgba(55, 66, 74, 0.10);
+    --glass-highlight: rgba(255, 255, 255, 0.85);
+
+    --shadow-glow: 0 4px 20px rgba(44, 53, 61, 0.10);
   }
+}
 
-  /* Aurora Background Adjustment for Light Mode */
-  body::before {
-    background:
-      radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.08), transparent 50%),
-      radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.08), transparent 40%),
-      radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.08), transparent 40%);
-  }
+/* Explicit Light Theme Selection */
+:root[data-theme="light"],
+[data-theme="light"] {
+  --bg-app: #F5F2EB;
+  --bg-card: #FFFFFF;
+  --bg-panel: #EAE5DB;
+  --text-primary: #22272B;
+  --text-secondary: #58636B;
+  --text-muted: #7B868F;
+
+  --accent-slate: #2C353D;
+  --accent-slate-hover: #3B464F;
+
+  --accent-primary: #3D6C48;
+  --accent-secondary: #607079;
+  --accent-gradient: linear-gradient(135deg, #366942 0%, #4D8259 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #2E5C39 0%, #43734D 100%);
+  --shadow-btn: 0 4px 14px 0 rgba(54, 105, 66, 0.35);
+  --shadow-btn-hover: 0 8px 24px rgba(54, 105, 66, 0.45);
+  --accent-terracotta: #C4553B;
+
+  --glass-panel: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(55, 66, 74, 0.12);
+  --border-subtle: rgba(55, 66, 74, 0.10);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+
+  --shadow-glow: 0 4px 20px rgba(44, 53, 61, 0.10);
+}
+
+/* Explicit Dark Theme Selection (overrides OS light mode when user picks dark) */
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --bg-app: #181C20;
+  --bg-card: #21262C;
+  --bg-panel: #293037;
+  --text-primary: #FAF8F4;
+  --text-secondary: #9DA7AE;
+  --text-muted: #6B757D;
+
+  --accent-slate: #38424B;
+  --accent-slate-hover: #48545E;
+
+  --accent-primary: #6B7E67;
+  --accent-secondary: #76858E;
+  --accent-gradient: linear-gradient(135deg, #4A7C55 0%, #5F956B 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #416F4B 0%, #548860 100%);
+  --shadow-btn: 0 4px 16px 0 rgba(74, 124, 85, 0.4);
+  --shadow-btn-hover: 0 8px 24px rgba(74, 124, 85, 0.52);
+  --accent-terracotta: #C85A3E;
+
+  --success: #5F8263;
+  --warning: #D4A373;
+  --error: #C85A3E;
+
+  --glass-panel: rgba(33, 38, 44, 0.75);
+  --glass-border: rgba(157, 167, 174, 0.16);
+  --border-subtle: rgba(157, 167, 174, 0.13);
+  --glass-highlight: rgba(250, 248, 244, 0.06);
+
+  --shadow-glow: 0 4px 24px rgba(24, 28, 32, 0.35);
 }
 
 * {
@@ -87,7 +170,7 @@ html {
   overflow-x: hidden;
 }
 
-/* Aurora Background */
+/* Architectural Ambient Background */
 body::before {
   content: '';
   position: fixed;
@@ -96,12 +179,36 @@ body::before {
   width: 200%;
   height: 200%;
   background:
-    radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.15), transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15), transparent 40%),
-    radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.15), transparent 40%);
+    radial-gradient(circle at 65% 25%, rgba(118, 133, 142, 0.12), transparent 50%),
+    radial-gradient(circle at 20% 75%, rgba(107, 126, 103, 0.08), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(200, 90, 62, 0.05), transparent 40%);
   z-index: -1;
-  animation: aurora 20s ease infinite alternate;
+  animation: aurora 22s ease infinite alternate;
   pointer-events: none;
+}
+
+/* Light mode ambient glow */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) body::before {
+    background:
+      radial-gradient(circle at 75% 20%, rgba(96, 112, 121, 0.08), transparent 50%),
+      radial-gradient(circle at 20% 65%, rgba(82, 103, 80, 0.06), transparent 55%),
+      radial-gradient(circle at 85% 85%, rgba(196, 85, 59, 0.04), transparent 45%);
+  }
+}
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(circle at 75% 20%, rgba(96, 112, 121, 0.08), transparent 50%),
+    radial-gradient(circle at 20% 65%, rgba(82, 103, 80, 0.06), transparent 55%),
+    radial-gradient(circle at 85% 85%, rgba(196, 85, 59, 0.04), transparent 45%) !important;
+}
+
+[data-theme="dark"] body::before {
+  background:
+    radial-gradient(circle at 65% 25%, rgba(118, 133, 142, 0.12), transparent 50%),
+    radial-gradient(circle at 20% 75%, rgba(107, 126, 103, 0.08), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(200, 90, 62, 0.05), transparent 40%) !important;
 }
 
 @keyframes aurora {
@@ -181,13 +288,68 @@ button {
 }
 
 .job-source-link:hover {
-  color: #60a5fa;
+  color: var(--accent-primary);
+}
+
+/* Primary & Secondary Buttons */
+.btn-primary {
+  background: var(--accent-gradient);
+  color: #FAF8F4;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: var(--shadow-btn);
+  position: relative;
+  overflow: hidden;
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--accent-gradient-hover, var(--accent-gradient));
+  box-shadow: var(--shadow-btn-hover);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(rgba(255, 255, 255, 0.12), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.btn-primary:hover::after {
+  opacity: 1;
 }
 
 /* Secondary Buttons */
 .btn-secondary {
-  background: var(--glass-highlight);
-  border: 1px solid var(--glass-border);
+  background: var(--glass-panel);
+  border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   padding: 10px 20px;
   border-radius: var(--radius-md);
@@ -196,12 +358,16 @@ button {
   transition: all 0.2s ease;
   -webkit-appearance: none;
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--glass-panel);
-  border-color: rgba(139, 92, 246, 0.3);
-  /* Let border pop on hover */
+  background: var(--bg-panel);
+  border-color: var(--accent-secondary);
 }
 
 .btn-secondary:disabled {
@@ -210,7 +376,6 @@ button {
 }
 
 @media (max-width: 768px) {
-
   /* Always show actions on mobile */
   .job-actions-group {
     opacity: 1;
@@ -220,47 +385,7 @@ button {
     padding: 0;
     /* main already provides padding on mobile */
   }
-
-  /* Buttons */
-  .btn-primary {
-    background: var(--accent-gradient);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    box-shadow: 0 4px 14px 0 rgba(14, 165, 233, 0.4);
-    position: relative;
-    overflow: hidden;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
-  }
-
-  .btn-primary::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(rgba(255, 255, 255, 0.2), transparent);
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-
-  .btn-primary:hover::after {
-    opacity: 1;
-  }
 }
-
-/* Close mobile media query that was left open */
 
 .card {
   background: var(--glass-panel);
@@ -396,8 +521,8 @@ button {
   border-radius: 50%;
   background: var(--accent-gradient);
   color: white;
-  border: none;
-  box-shadow: 0 8px 30px rgba(14, 165, 233, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-btn-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -435,7 +560,7 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent-primary);
+  border-color: var(--accent-secondary);
   background: var(--glass-panel);
 }
 
@@ -545,36 +670,161 @@ textarea:focus {
   background: var(--btn-secondary);
 }
 
-/* Kanban Board Responsive Layout */
+/* Main Content Layout Container */
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Kanban Board Container & Responsive Layout */
+.kanban-board-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  padding: 24px 32px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 .kanban-board {
   display: flex;
   gap: 20px;
   overflow-x: auto;
-  padding-bottom: 20px;
-  height: calc(100vh - 100px);
+  overflow-y: hidden;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 4px 4px 18px 4px;
+  align-items: stretch;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
+/* Individual Kanban Column */
 .kanban-column {
   min-width: 320px;
+  width: 320px;
+  max-width: 320px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-lg);
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+  padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+/* Inner scrollable cards list */
+.kanban-cards-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border) transparent;
+}
+
+.kanban-cards-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.kanban-cards-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kanban-cards-list::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+}
+
+.kanban-cards-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Horizontal scrollbar for the Kanban Board */
+.kanban-board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.kanban-board::-webkit-scrollbar-track {
+  background: var(--glass-highlight);
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
+.kanban-board::-webkit-scrollbar-thumb {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+}
+
+.kanban-board::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Hide scrollbar utility for clean stage pills */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 768px) {
+  .kanban-board-container {
+    padding: 16px;
+    height: auto;
+    overflow: visible;
+  }
+
   .kanban-board {
     flex-direction: column;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: visible;
     height: auto;
     padding-bottom: 100px;
-    /* Space for FAB/Nav */
   }
 
   .kanban-column {
     min-width: 100%;
     width: 100%;
+    max-width: 100%;
     height: auto;
-    margin-bottom: 24px;
-    /* Add spacing between columns */
+    max-height: none;
+    margin-bottom: 20px;
+  }
+
+  .kanban-cards-list {
+    overflow-y: visible;
+    max-height: none;
   }
 }

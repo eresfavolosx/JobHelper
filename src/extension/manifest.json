@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Job Tracker Helper",
-    "version": "1.0",
-    "description": "One-click save to your local Job Tracker.",
+    "name": "NovuJobs - AI Job Tracker",
+    "version": "1.1",
+    "description": "One-click save jobs to NovuJobs.",
     "permissions": [
         "activeTab",
         "scripting",

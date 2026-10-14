@@ -7,36 +7,41 @@ export default function UndoToast() {
     const [deletedJob, setDeletedJob] = useState(null);
     const [timeLeft, setTimeLeft] = useState(0);
     const restoreJob = useAppStore(s => s.restoreJob);
-    const permanentDeleteJob = useAppStore(s => s.permanentDeleteJob);
     const jobs = useAppStore(s => s.jobs);
 
     // Watch for newly deleted jobs
     useEffect(() => {
         const now = Date.now();
-        const recentlyDeleted = jobs.find(j => {
+        const recentlyDeleted = jobs?.find(j => {
             if (j.status !== 'deleted' || !j.deletedAt) return false;
-            // ⚡ Bolt: Use a single Date.now() reference and optimize parsing
-            // This avoids creating new Date objects inside the O(N) array search
             const deletedTime = typeof j.deletedAt === 'number' ? j.deletedAt : new Date(j.deletedAt).getTime();
             return now - deletedTime < 1000;
         });
 
         if (recentlyDeleted && (!deletedJob || deletedJob.id !== recentlyDeleted.id)) {
-            setDeletedJob(recentlyDeleted);
-            setTimeLeft(10); // 10 second undo window
+            const timer = setTimeout(() => {
+                setDeletedJob(recentlyDeleted);
+                setTimeLeft(10); // 10 second undo window
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [jobs, deletedJob]);
 
     // Countdown timer
     useEffect(() => {
-        if (timeLeft > 0 && deletedJob) {
-            const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-            return () => clearTimeout(timer);
-        } else if (timeLeft === 0 && deletedJob) {
-            // Timer expired - clear toast (job stays in deleted)
-            setDeletedJob(null);
-        }
-    }, [timeLeft, deletedJob]);
+        if (!deletedJob) return;
+        const interval = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(interval);
+                    setDeletedJob(null);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [deletedJob]);
 
     const handleUndo = () => {
         if (deletedJob) {
@@ -79,7 +84,7 @@ export default function UndoToast() {
 
             <div style={{ flex: 1 }}>
                 <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: '500' }}>
-                    "{deletedJob.role}" moved to trash
+                    &ldquo;{deletedJob.role}&rdquo; moved to trash
                 </p>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
                     Undo in {timeLeft}s

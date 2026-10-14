@@ -1,4 +1,4 @@
-import { getGeminiModel } from './gemini-client';
+import { generateWithFallback, extractJson } from './gemini-client';
 import { escapeXml } from './utils';
 
 // RSS Feed URLs
@@ -59,20 +59,10 @@ export async function fetchJobsFromRSS(keywords = []) {
     return allJobs.slice(0, 20); // Limit to top 20 to save tokens
 }
 
-function sanitizeForPrompt(text) {
-    if (!text) return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
+
 
 export async function scoreJobsWithGemini(jobs, resumeData) {
     if (!jobs.length || !resumeData) return jobs;
-
-    const model = getGeminiModel();
 
     // Sanitize and structure jobs data
     const jobsForPrompt = jobs.map((j, i) => `
@@ -116,10 +106,8 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
     `;
 
     try {
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const scores = JSON.parse(cleanJson);
+        const responseText = await generateWithFallback(prompt, { jsonMode: true });
+        const scores = extractJson(responseText);
 
         // ⚡ Bolt: Refactor O(N) find inside O(M) map to O(1) lookups via an intermediate object.
         // Preserving 'first-one-wins' logic by checking for existing keys.
@@ -135,13 +123,14 @@ export async function scoreJobsWithGemini(jobs, resumeData) {
             const scoreData = scoreMap[i];
             return {
                 ...job,
-                relevanceScore: scoreData?.score || 0,
-                matchReason: scoreData?.reason || 'Analysis failed'
+                relevanceScore: typeof scoreData?.score === 'number' ? scoreData.score : 0,
+                matchReason: scoreData?.reason || 'Profile match analyzed'
             };
         }).sort((a, b) => b.relevanceScore - a.relevanceScore);
 
     } catch (e) {
         console.error("Gemini scoring failed:", e);
-        return jobs.map(j => ({ ...j, relevanceScore: 0, matchReason: "Scoring unavailable" }));
+        // Propagate error to caller so UI gives clear feedback and avoids caching failed results
+        throw e;
     }
 }

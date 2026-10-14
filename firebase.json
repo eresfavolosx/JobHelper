@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "jobhelper-c3cd7",
     "public": "out",
     "ignore": [
       "firebase.json",
@@ -24,7 +25,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://generativelanguage.googleapis.com; frame-src 'self' https://jobhelper-c3cd7.firebaseapp.com; object-src 'none'"
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebaseinstallations.googleapis.com https://generativelanguage.googleapis.com https://maps.googleapis.com https://weworkremotely.com https://remoteok.com; frame-src 'self' https://jobhelper-c3cd7.firebaseapp.com https://novu.works https://*.novu.works; object-src 'none'"
           }
         ]
       },
