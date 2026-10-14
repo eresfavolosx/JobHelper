@@ -146,4 +146,47 @@ describe('Application History Chart & Granularity Switcher', () => {
             assert.equal(oct.newJobs, 2, 'New jobs in Oct should be 2');
         });
     });
+
+    describe('4. Time Range Filtering & Daily Zero-Skipping Timeline', () => {
+        const refNow = new Date('2026-10-13T12:00:00Z');
+        const olderJob = { id: 1, createdAt: '2026-08-01T10:00:00Z' }; // 73 days ago
+        const recentJob1 = { id: 2, createdAt: '2026-10-11T10:00:00Z' }; // 2 days ago
+        const recentJob2 = { id: 3, createdAt: '2026-10-13T09:00:00Z' }; // Today
+        const allJobs = [olderJob, recentJob1, recentJob2];
+
+        it('should generate exactly 7 consecutive days for range=7d without skipping a single day', () => {
+            const data = calculateChartData(allJobs, 'daily', { now: refNow, range: '7d' });
+            assert.equal(data.length, 7, 'Should contain exactly 7 points for 7D range');
+            // The first point should already include the older job in cumulative count
+            assert.equal(data[0].count, 1, 'Cumulative count at start of 7D range includes past job');
+            assert.equal(data[data.length - 1].count, 3, 'Cumulative count at end includes all 3 jobs');
+        });
+
+        it('should generate exactly 14 consecutive days for range=14d without skipping a single day', () => {
+            const data = calculateChartData(allJobs, 'daily', { now: refNow, range: '14d' });
+            assert.equal(data.length, 14, 'Should contain exactly 14 points for 14D range');
+            assert.equal(data[data.length - 1].count, 3);
+        });
+
+        it('should generate exactly 30 consecutive days for range=30d without skipping a single day', () => {
+            const data = calculateChartData(allJobs, 'daily', { now: refNow, range: '30d' });
+            assert.equal(data.length, 30, 'Should contain exactly 30 points for 30D range');
+            assert.equal(data[data.length - 1].count, 3);
+        });
+
+        it('should generate exactly 90 consecutive days for range=90d without skipping a single day', () => {
+            const data = calculateChartData(allJobs, 'daily', { now: refNow, range: '90d' });
+            assert.equal(data.length, 90, 'Should contain exactly 90 points for 90D range');
+            assert.equal(data[data.length - 1].count, 3);
+        });
+
+        it('should generate complete consecutive day interval from first application for range=all', () => {
+            const data = calculateChartData(allJobs, 'daily', { now: refNow, range: 'all' });
+            // August 1 to October 13 is 31 (Aug) + 30 (Sep) + 13 (Oct) = 74 days
+            assert.equal(data.length, 74, 'Should contain all 74 days from Aug 1 to Oct 13 without skipping');
+            assert.equal(data[0].date, 'Aug 1');
+            assert.equal(data[data.length - 1].date, 'Oct 13');
+            assert.equal(data[data.length - 1].count, 3);
+        });
+    });
 });
