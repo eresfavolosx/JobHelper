@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".firebase/**",
+    ".temp_firebase_config/**",
+    "GYB*/**",
+    "gyb-repository/**",
+    "scripts/**",
   ]),
 ]);
 

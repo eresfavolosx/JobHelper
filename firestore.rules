@@ -2,8 +2,244 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}/data/profile (single document 'profile')
+    // Document ID: 'profile'
+    // Fields:
+    //   - fullName: string (optional, 0..100 chars) - User's full name
+    //   - targetRole: string (optional, 0..100 chars) - Desired job role/title
+    //   - location: string (optional, 0..200 chars) - User's home location
+    //   - keywords: string (optional, 0..1000 chars) - Comma-separated search keywords
+    //   - isRemote: bool (optional) - Remote work preference
+    //   - experienceLevel: string (optional, 0..50 chars) - Experience level
+    //   - country: string (optional, 0..100 chars) - User country
+    //   - modality: string (optional, 0..50 chars) - Work modality (Remote, Hybrid, On-site)
+    //   - minimumSalary: string (optional, 0..50 chars) - Desired minimum salary
+    //   - contextDocuments: list (optional, max 20 items) - Uploaded resume/context documents
+    //   - resumeAnalysis: map or null (optional, max 50 keys) - AI-extracted resume analysis
+    //   - geminiApiKey: string (optional, 0..200 chars) - User-provided Gemini API key
+    //   - googleMapsApiKey: string (optional, 0..200 chars) - User-provided Google Maps API key
+    //   - subscriptionStatus: string (optional, in ['free', 'premium', 'trial']) - Subscription status
+    //   - trialStartDate: string/timestamp/null (optional, 0..100 chars) - Trial start date
+    //   - trialEndDate: string/timestamp/null (optional, 0..100 chars) - Trial end date
+    //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate)
+    //
+    // Collection: /users/{userId}/jobs/{jobId}
+    // Document ID: {jobId} (string, 1..100 chars)
+    // Fields:
+    //   - id: string (optional, 1..100 chars, immutable) - Must match {jobId} if present
+    //   - company: string (optional, 0..200 chars) - Company name
+    //   - role: string (optional, 0..200 chars) - Job title/role
+    //   - title: string (optional, 0..200 chars) - Alias for job title
+    //   - location: string (optional, 0..200 chars) - Job location
+    //   - status: string (required, in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected', 'deleted'])
+    //   - url: string (optional, 0..2048 chars) - Job URL
+    //   - link: string (optional, 0..2048 chars) - Alias for job URL
+    //   - description: string (optional, 0..50000 chars) - Job description text
+    //   - salary: string (optional, 0..100 chars) - Salary range
+    //   - notes: string (optional, 0..10000 chars) - Notes or AI match info
+    //   - commuteTime: string (optional, 0..200 chars) - Calculated commute time
+    //   - relevanceScore: int/float (optional, 0..100) - AI relevance score percentage
+    //   - matchReason: string (optional, 0..2000 chars) - AI match reasoning
+    //   - createdAt: string/timestamp (optional, 0..100 chars, immutable) - Creation timestamp
+    //   - dateAdded: string/timestamp (optional, 0..100 chars, immutable) - Alias creation timestamp
+    //   - deletedAt: string/timestamp/number/null (optional, 0..100 chars) - Deletion timestamp
+    //   - previousStatus: string (optional, in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected'])
+    //   - source: string (optional, 0..100 chars) - Job source (e.g. RSS feed name)
+    //   - pubDate: string (optional, 0..100 chars) - Publication date
+    //
+    // ===============================================================
+
+    // Default deny for all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPlatformAdmin() {
+      return isAuthenticated() &&
+             request.auth.token.email != null &&
+             request.auth.token.email == 'fabian.velez1996@gmail.com';
+    }
+
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) ||
+             (data[field] is string &&
+              data[field].size() >= minLen &&
+              data[field].size() <= maxLen);
+    }
+
+    function isValidDateOrTimestamp(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is timestamp ||
+             (data[field] is string && data[field].size() <= 100);
+    }
+
+    function isValidDeletedAt(data) {
+      return !('deletedAt' in data) ||
+             data.deletedAt == null ||
+             data.deletedAt is timestamp ||
+             data.deletedAt is number ||
+             (data.deletedAt is string && data.deletedAt.size() <= 100);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Validator for /users/{userId}/data/profile
+    function isValidApplicationGoal(goal) {
+      return goal is map &&
+             goal.keys().size() <= 10 &&
+             goal.keys().hasOnly([
+               'target', 'cadence', 'targetRole', 'hoursPerWeek',
+               'reminderEnabled', 'enabled', 'startDate'
+             ]) &&
+             ('target' in goal && goal.target is int && goal.target >= 1 && goal.target <= 1000) &&
+             ('cadence' in goal && goal.cadence is string && goal.cadence in ['daily', 'weekly', 'monthly', 'total']) &&
+             isValidOptionalString(goal, 'targetRole', 0, 100) &&
+             (!('hoursPerWeek' in goal) ||
+              ((goal.hoursPerWeek is int || goal.hoursPerWeek is number) &&
+               goal.hoursPerWeek >= 0 && goal.hoursPerWeek <= 100)) &&
+             (!('reminderEnabled' in goal) || goal.reminderEnabled is bool) &&
+             (!('enabled' in goal) || goal.enabled is bool) &&
+             isValidDateOrTimestamp(goal, 'startDate');
+    }
+
+    // Validator for /users/{userId}/data/profile
+    function isValidProfile(data) {
+      return data.keys().hasOnly([
+               'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
+               'experienceLevel', 'country', 'modality', 'minimumSalary',
+               'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
+               'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
+               'applicationGoal'
+             ]) &&
+             isValidOptionalString(data, 'fullName', 0, 100) &&
+             isValidOptionalString(data, 'targetRole', 0, 100) &&
+             isValidOptionalString(data, 'location', 0, 200) &&
+             isValidOptionalString(data, 'keywords', 0, 1000) &&
+             (!('isRemote' in data) || data.isRemote is bool) &&
+             isValidOptionalString(data, 'experienceLevel', 0, 50) &&
+             isValidOptionalString(data, 'country', 0, 100) &&
+             isValidOptionalString(data, 'modality', 0, 50) &&
+             isValidOptionalString(data, 'minimumSalary', 0, 50) &&
+             isValidOptionalString(data, 'geminiApiKey', 0, 200) &&
+             isValidOptionalString(data, 'googleMapsApiKey', 0, 200) &&
+             (!('subscriptionStatus' in data) ||
+              (data.subscriptionStatus is string && data.subscriptionStatus in ['free', 'premium', 'trial'])) &&
+             isValidDateOrTimestamp(data, 'trialStartDate') &&
+             isValidDateOrTimestamp(data, 'trialEndDate') &&
+             (!('contextDocuments' in data) ||
+              (data.contextDocuments is list && data.contextDocuments.size() <= 20)) &&
+             (!('resumeAnalysis' in data) ||
+              data.resumeAnalysis == null ||
+              (data.resumeAnalysis is map && data.resumeAnalysis.keys().size() <= 50)) &&
+             (!('applicationGoal' in data) ||
+              data.applicationGoal == null ||
+              isValidApplicationGoal(data.applicationGoal));
+    }
+
+    // RBAC: Profile privilege escalation protection
+    function canCreateProfile(data) {
+      return !('subscriptionStatus' in data) ||
+             data.subscriptionStatus in ['free', 'trial'] ||
+             isPlatformAdmin();
+    }
+
+    function canUpdateProfile(data) {
+      return !('subscriptionStatus' in data) ||
+             data.subscriptionStatus in ['free', 'premium', 'trial'] ||
+             isPlatformAdmin();
+    }
+
+    // Validator for /users/{userId}/jobs/{jobId}
+    function isValidJob(data, jobId) {
+      return data.keys().hasOnly([
+               'id', 'role', 'title', 'company', 'location', 'salary',
+               'url', 'link', 'description', 'notes', 'commuteTime',
+               'relevanceScore', 'matchReason', 'status', 'createdAt',
+               'dateAdded', 'deletedAt', 'previousStatus', 'source', 'pubDate'
+             ]) &&
+             ('status' in data &&
+              data.status is string &&
+              data.status in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected', 'deleted']) &&
+             (!('previousStatus' in data) ||
+              (data.previousStatus is string &&
+               data.previousStatus in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected'])) &&
+             (!('id' in data) ||
+              (data.id is string && data.id.size() >= 1 && data.id.size() <= 100 && data.id == jobId)) &&
+             isValidOptionalString(data, 'role', 0, 200) &&
+             isValidOptionalString(data, 'title', 0, 200) &&
+             isValidOptionalString(data, 'company', 0, 200) &&
+             isValidOptionalString(data, 'location', 0, 200) &&
+             isValidOptionalString(data, 'salary', 0, 100) &&
+             isValidOptionalString(data, 'url', 0, 2048) &&
+             isValidOptionalString(data, 'link', 0, 2048) &&
+             isValidOptionalString(data, 'description', 0, 50000) &&
+             isValidOptionalString(data, 'notes', 0, 10000) &&
+             isValidOptionalString(data, 'commuteTime', 0, 200) &&
+             isValidOptionalString(data, 'matchReason', 0, 2000) &&
+             isValidOptionalString(data, 'source', 0, 100) &&
+             isValidOptionalString(data, 'pubDate', 0, 100) &&
+             isValidDateOrTimestamp(data, 'createdAt') &&
+             isValidDateOrTimestamp(data, 'dateAdded') &&
+             isValidDeletedAt(data) &&
+             (!('relevanceScore' in data) ||
+              ((data.relevanceScore is int || data.relevanceScore is float) &&
+               data.relevanceScore >= 0 && data.relevanceScore <= 100));
+    }
+
+    // Protect immutable job fields on update
+    function isJobUpdateImmutable(current, incoming) {
+      return (!('id' in current) || (('id' in incoming) && incoming.id == current.id)) &&
+             (!('createdAt' in current) || (('createdAt' in incoming) && incoming.createdAt == current.createdAt)) &&
+             (!('dateAdded' in current) || (('dateAdded' in incoming) && incoming.dateAdded == current.dateAdded));
+    }
+
+    // ===============================================================
+    // Collection Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // User profile subcollection document: /users/{userId}/data/profile
+      match /data/profile {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                        isValidProfile(request.resource.data) &&
+                        canCreateProfile(request.resource.data);
+        allow update: if isOwner(userId) &&
+                        isValidProfile(request.resource.data) &&
+                        canUpdateProfile(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      // User jobs subcollection: /users/{userId}/jobs/{jobId}
+      match /jobs/{jobId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                        isValidJob(request.resource.data, jobId);
+        allow update: if isOwner(userId) &&
+                        isValidJob(request.resource.data, jobId) &&
+                        isJobUpdateImmutable(resource.data, request.resource.data);
+        allow delete: if isOwner(userId);
+      }
     }
   }
 }

@@ -24,7 +24,7 @@ export default function TermsPage() {
                     <FileText size={20} color="var(--accent-primary)" /> Acceptance of Terms
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                    By accessing or using JobTracker ("the Service"), you agree to be bound by these Terms of Service.
+                    By accessing or using NovuJobs (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service.
                     If you do not agree to these terms, please do not use the Service.
                 </p>
             </div>
@@ -32,7 +32,7 @@ export default function TermsPage() {
             <div className="card" style={{ marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '16px' }}>Description of Service</h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                    JobTracker is a personal job application tracking tool that allows you to:
+                    NovuJobs is a personal job application tracking tool that allows you to:
                 </p>
                 <ul style={{ color: 'var(--text-secondary)', lineHeight: '2', paddingLeft: '24px', marginTop: '12px' }}>
                     <li>Track job applications across different stages</li>
@@ -69,7 +69,7 @@ export default function TermsPage() {
             <div className="card" style={{ marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '16px' }}>Your Content</h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                    You retain ownership of all content you submit to JobTracker. By using the Service, you grant us
+                    You retain ownership of all content you submit to NovuJobs. By using the Service, you grant us
                     a limited license to store and display your content solely for the purpose of providing the Service to you.
                 </p>
             </div>
@@ -80,7 +80,7 @@ export default function TermsPage() {
                     The Service integrates with third-party services including:
                 </p>
                 <ul style={{ color: 'var(--text-secondary)', lineHeight: '2', paddingLeft: '24px', marginTop: '12px' }}>
-                    <li><strong>Google:</strong> For authentication (subject to Google's Terms of Service)</li>
+                    <li><strong>Google:</strong> For authentication (subject to Google&apos;s Terms of Service)</li>
                     <li><strong>Google Gemini API:</strong> For AI-powered job extraction (requires your own API key)</li>
                     <li><strong>Firebase:</strong> For data storage and hosting</li>
                 </ul>
@@ -91,7 +91,7 @@ export default function TermsPage() {
                     <AlertTriangle size={20} color="var(--warning)" /> Disclaimer of Warranties
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                    THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. We do not guarantee that the Service
+                    THE SERVICE IS PROVIDED &ldquo;AS IS&rdquo; WITHOUT WARRANTY OF ANY KIND. We do not guarantee that the Service
                     will be uninterrupted, secure, or error-free. Use at your own risk.
                 </p>
             </div>
@@ -99,7 +99,7 @@ export default function TermsPage() {
             <div className="card" style={{ marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '16px' }}>Limitation of Liability</h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                    To the maximum extent permitted by law, JobTracker shall not be liable for any indirect, incidental,
+                    To the maximum extent permitted by law, NovuJobs shall not be liable for any indirect, incidental,
                     special, consequential, or punitive damages, including loss of data or employment opportunities.
                 </p>
             </div>
@@ -126,7 +126,7 @@ export default function TermsPage() {
                     For questions about these Terms of Service, contact us at:
                 </p>
                 <p style={{ marginTop: '12px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-                    legal@jobtracker.app
+                    legal@novu.works
                 </p>
             </div>
         </div>

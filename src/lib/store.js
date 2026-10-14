@@ -2,7 +2,8 @@ import { cleanObject } from './utils';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription';
 
 export const useAppStore = create(
     persist(
@@ -36,6 +37,7 @@ export const useAppStore = create(
                             minimumSalary: '',
                             contextDocuments: [],
                             geminiApiKey: '',
+                            googleMapsApiKey: '',
                             subscriptionStatus: 'free', // 'free', 'premium', 'trial'
                             trialStartDate: null,
                             trialEndDate: null
@@ -43,8 +45,30 @@ export const useAppStore = create(
                         currentUserId: userId
                     });
                 } else {
-                    // First login - just set the user ID
-                    console.log("First login, setting user ID");
+                    // First login - just set the user ID and upload any local jobs/profile to Firestore
+                    console.log("First login, setting user ID and migrating local data");
+                    const localJobs = get().jobs;
+                    const localProfile = get().profile;
+                    
+                    import('firebase/firestore').then(({ setDoc, doc }) => {
+                        // Migrate Jobs
+                        if (localJobs && localJobs.length > 0) {
+                            localJobs.forEach(job => {
+                                const jobRef = doc(db, "users", userId, "jobs", job.id);
+                                const cleanJob = cleanObject(job);
+                                setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Failed to migrate local job:", e));
+                            });
+                        }
+                        // Migrate Profile
+                        if (localProfile) {
+                            const profileRef = doc(db, "users", userId, "data", "profile");
+                            const cleanProfile = cleanObject(localProfile, 'contextDocuments');
+                            if (Object.keys(cleanProfile).length > 0) {
+                                setDoc(profileRef, cleanProfile, { merge: true }).catch(e => console.error("Failed to migrate local profile:", e));
+                            }
+                        }
+                    });
+                    
                     set({ currentUserId: userId });
                 }
             },
@@ -67,6 +91,7 @@ export const useAppStore = create(
                         minimumSalary: '',
                         contextDocuments: [],
                         geminiApiKey: '',
+                        googleMapsApiKey: '',
                         subscriptionStatus: 'free',
                         trialStartDate: null,
                         trialEndDate: null
@@ -75,10 +100,32 @@ export const useAppStore = create(
             },
 
             addJob: (job) => {
+                // Enforce Firebase cost protection for free tier (max 25 active jobs)
+                const currentActiveJobs = get().jobs.filter(j => j?.status !== 'deleted');
+                const currentUser = auth?.currentUser;
+                const profile = get().profile;
+                const check = canAddJob(currentUser, profile, currentActiveJobs.length);
+
+                if (!check.allowed) {
+                    const error = new Error(
+                        `Free tier limit reached (${FREE_TIER_MAX_JOBS} active jobs). Upgrade to NovuJobs Pro ($9.99/mo) for unlimited tracking.`
+                    );
+                    error.code = 'LIMIT_REACHED';
+                    throw error;
+                }
+
+                // Safe UUID generation fallback for non-secure contexts (HTTP network testing)
+                const generateId = () => {
+                    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                        return crypto.randomUUID();
+                    }
+                    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+                };
+
                 const newJob = {
                     status: 'wishlist',
                     ...job,
-                    id: crypto.randomUUID(),
+                    id: generateId(),
                     createdAt: new Date().toISOString()
                 };
                 set((state) => ({ jobs: [...state.jobs, newJob] }));
@@ -91,10 +138,11 @@ export const useAppStore = create(
                         setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("[Store] Failed to save new job:", e));
                     });
                 }
+                return newJob;
             },
             updateJob: (id, updates) => {
                 set((state) => ({
-                    jobs: state.jobs.map((job) => (job.id === id ? { ...job, ...updates } : job))
+                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
                 }));
                 const userId = get().currentUserId;
                 if (userId) {
@@ -106,7 +154,7 @@ export const useAppStore = create(
                 }
             },
             deleteJob: (id) => {
-                const job = get().jobs.find(j => j.id === id);
+                const job = get().jobs.find(j => j?.id === id);
                 const updates = { status: 'deleted', deletedAt: new Date().toISOString(), previousStatus: job?.status || 'wishlist' };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
@@ -122,7 +170,7 @@ export const useAppStore = create(
                 }
             },
             restoreJob: (id) => {
-                const job = get().jobs.find(j => j.id === id);
+                const job = get().jobs.find(j => j?.id === id);
                 const updates = { status: job?.previousStatus || 'wishlist', deletedAt: null, previousStatus: null };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
@@ -142,7 +190,7 @@ export const useAppStore = create(
             },
             permanentDeleteJob: (id) => {
                 set((state) => ({
-                    jobs: state.jobs.filter((job) => job.id !== id)
+                    jobs: state.jobs.filter((job) => job?.id !== id)
                 }));
                 const userId = get().currentUserId;
                 if (userId) {
@@ -154,7 +202,7 @@ export const useAppStore = create(
             },
             moveJob: (id, newStatus) => {
                 set((state) => ({
-                    jobs: state.jobs.map((job) => (job.id === id ? { ...job, status: newStatus } : job))
+                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, status: newStatus } : job))
                 }));
                 const userId = get().currentUserId;
                 if (userId) {
@@ -179,23 +227,15 @@ export const useAppStore = create(
                 contextDocuments: [], // { name, content, type }
                 resumeAnalysis: null, // { skills, summary, targetRoles, etc }
                 geminiApiKey: '', // User provided API key (overrides env var)
+                googleMapsApiKey: '', // Google Maps API Key for commute & location intelligence
                 subscriptionStatus: 'free',
                 trialStartDate: null,
                 trialEndDate: null
             },
             isPremium: () => {
-                // ⚡ User Request: Temporarily make all users premium
-                return true;
-                
-                /* Original logic for later:
+                const currentUser = auth?.currentUser;
                 const profile = get().profile;
-                if (!profile) return false;
-                if (profile.subscriptionStatus === 'premium') return true;
-                if (profile.subscriptionStatus === 'trial' && profile.trialEndDate) {
-                    return new Date().getTime() < new Date(profile.trialEndDate).getTime();
-                }
-                return false;
-                */
+                return isOwner(currentUser) || isProUser(currentUser, profile);
             },
             updateProfile: (newProfile) => {
                 set((state) => ({
@@ -243,7 +283,19 @@ export const useAppStore = create(
                             console.log("[Store] Profile data received from Firestore");
                             set(state => ({ profile: { ...state.profile, ...docSnap.data() } }));
                         } else {
-                            console.log("[Store] No profile data in Firestore yet");
+                            console.log("[Store] No profile data in Firestore yet - initializing trial");
+                            const now = new Date();
+                            const endDate = new Date();
+                            endDate.setDate(now.getDate() + 14);
+                            const initialProfile = {
+                                trialStartDate: now.toISOString(),
+                                trialEndDate: endDate.toISOString(),
+                                subscriptionStatus: 'trial'
+                            };
+                            set(state => ({ profile: { ...state.profile, ...initialProfile } }));
+                            import('firebase/firestore').then(({ setDoc }) => {
+                                setDoc(profileRef, initialProfile, { merge: true }).catch(e => console.error("Failed to init trial:", e));
+                            });
                         }
                     },
                     (error) => {
@@ -255,10 +307,29 @@ export const useAppStore = create(
                 const jobsRef = collection(db, "users", userId, "jobs");
                 const jobsUnsub = onSnapshot(jobsRef,
                     (snapshot) => {
-                        const jobs = [];
-                        snapshot.forEach(docSnap => jobs.push({ id: docSnap.id, ...docSnap.data() }));
-                        console.log("[Store] Synced jobs from cloud:", jobs.length);
-                        set({ jobs });
+                        const firestoreJobs = [];
+                        snapshot.forEach(docSnap => firestoreJobs.push({ id: docSnap.id, ...docSnap.data() }));
+                        set(state => {
+                            // Preserve local jobs that are not yet in Firestore
+                            // This prevents local jobs from being wiped out if the snapshot is momentarily empty or delayed
+                            const localOnlyJobs = state.jobs.filter(localJob => 
+                                !firestoreJobs.some(fsJob => fsJob.id === localJob.id)
+                            );
+                            
+                            // If we have local jobs that aren't in the cloud, upload them!
+                            // This happens if the user created a job before Firebase Auth finished initializing
+                            if (localOnlyJobs.length > 0 && userId) {
+                                console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
+                                import('firebase/firestore').then(({ setDoc, doc }) => {
+                                    localOnlyJobs.forEach(job => {
+                                        const jobRef = doc(db, "users", userId, "jobs", job.id);
+                                        setDoc(jobRef, cleanObject(job), { merge: true }).catch(e => console.error("Sync up failed:", e));
+                                    });
+                                });
+                            }
+                            
+                            return { jobs: [...firestoreJobs, ...localOnlyJobs] };
+                        });
                     },
                     (error) => {
                         console.error("[Store] Jobs snapshot error:", error);
@@ -282,3 +353,12 @@ export const useAppStore = create(
         }
     )
 );
+
+// Enable full cross-tab synchronization for Zustand state
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'job-tracker-storage') {
+            useAppStore.persist.rehydrate();
+        }
+    });
+}

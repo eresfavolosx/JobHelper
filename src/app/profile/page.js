@@ -1,20 +1,26 @@
 "use client";
-import { useState, useEffect, Suspense, useRef, useMemo } from 'react';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock } from 'lucide-react';
+import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore } from 'react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
-import { getGeminiModel, fileToGenerativePart } from '@/lib/gemini-client';
+import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
+import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
+import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
+import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import GoalCustomizationModal from '@/components/GoalCustomizationModal';
+
+const emptySubscribe = () => () => {};
 
 function ProfileContent() {
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
+    const jobs = useAppStore(state => state.jobs);
     const { user, loading } = useAuth();
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+    const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
 
     useEffect(() => {
         if (mounted && !loading && !user) {
@@ -23,7 +29,7 @@ function ProfileContent() {
     }, [mounted, loading, user]);
 
     // Local state to handle form inputs before saving to global store
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState(() => ({
         fullName: '',
         targetRole: '',
         location: 'Puerto Rico',
@@ -32,15 +38,19 @@ function ProfileContent() {
         experienceLevel: 'Mid-Senior',
         country: '',
         modality: 'Remote',
-        minimumSalary: ''
-    });
+        minimumSalary: '',
+        ...(profile || {})
+    }));
 
     const [saved, setSaved] = useState(false);
 
-    // Load from global store on mount
+    // Load from global store on mount / updates
     useEffect(() => {
         if (profile) {
-            setFormData(prev => ({ ...prev, ...profile }));
+            const timer = setTimeout(() => {
+                setFormData(prev => ({ ...prev, ...profile }));
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [profile]);
 
@@ -110,13 +120,9 @@ function ProfileContent() {
                     }} />
                 </div>
 
-                {/* 1.5. AI Configuration */}
+                {/* 1.5. Google Cloud & Developer Benefits */}
                 <div className="card animate-slide-up delay-175">
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>AI Configuration</h3>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                        Add your own Gemini API Key to enable AI features. This key is stored securely in your private profile.
-                    </p>
-                    <ApiKeyInput />
+                    <GoogleServicesConfig />
                 </div>
 
                 {/* 2. Profile Form */}
@@ -226,6 +232,65 @@ function ProfileContent() {
                     </form>
                 </div>
 
+                {/* 1.5. Application Goals & Cadence */}
+                <div className="card animate-slide-up delay-200">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Target size={20} color="var(--accent-primary)" /> Application Output Goal & Cadence
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>
+                                Set targets for how many applications you submit per week, month, or day.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsGoalModalOpen(true)}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.82rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            <Sliders size={14} /> Customize Goal
+                        </button>
+                    </div>
+
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '12px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'var(--bg-panel)',
+                        border: '1px solid var(--border-subtle)'
+                    }}>
+                        <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Current Target
+                            </span>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', marginTop: '4px', color: 'var(--accent-primary)' }}>
+                                {goalProgress.target} apps <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>/ {goalProgress.cadence}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Progress
+                            </span>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', marginTop: '4px' }}>
+                                {goalProgress.count} of {goalProgress.target} ({goalProgress.percentage}%)
+                            </div>
+                        </div>
+
+                        <div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Cadence Pacing
+                            </span>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginTop: '6px', color: goalProgress.pace === 'completed' ? '#10b981' : goalProgress.pace === 'on_track' ? 'var(--accent-primary)' : '#f59e0b' }}>
+                                {goalProgress.pace === 'completed' ? 'Goal Crushed! 🎉' : goalProgress.pace === 'on_track' ? 'On Track 🚀' : 'Behind Pace ⏳'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* 2. Subscription Management */}
                 <div id="subscription-section" className="card animate-slide-up delay-250">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -245,6 +310,11 @@ function ProfileContent() {
                     </div>
                 </div>
             </div>
+
+            <GoalCustomizationModal
+                isOpen={isGoalModalOpen}
+                onClose={() => setIsGoalModalOpen(false)}
+            />
         </div>
     );
 }
@@ -423,40 +493,76 @@ function DeleteAccountButton() {
 
 function SubscriptionManager() {
     const profile = useAppStore(state => state.profile);
-    const isPremium = useAppStore(state => state.isPremium);
-    const [loading, setLoading] = useState(false);
-    const [checkoutMessage, setCheckoutMessage] = useState('');
+    const updateProfile = useAppStore(state => state.updateProfile);
+    const { user } = useAuth();
+    const searchParams = useSearchParams();
+    const [successBanner, setSuccessBanner] = useState('');
 
-    const isCurrentlyPremium = typeof isPremium === 'function' ? isPremium() : isPremium;
-    const isTrial = profile?.subscriptionStatus === 'trial';
-    
-    // Safely calculate days left
+    const isPlatformOwner = isOwner(user);
+    const isPro = isProUser(user, profile);
+    const isTrial = !isPlatformOwner && profile?.subscriptionStatus === 'trial';
+
+    const [now] = useState(() => new Date());
+
+    // Handle return from Stripe Checkout redirect (?payment=success or ?session_id=...)
+    useEffect(() => {
+        if (!searchParams) return;
+        const paymentParam = searchParams.get('payment');
+        const sessionId = searchParams.get('session_id');
+        if (paymentParam === 'success' || sessionId) {
+            const timer = setTimeout(() => {
+                updateProfile({ subscriptionStatus: 'premium' });
+                setSuccessBanner('🎉 Welcome to NovuJobs Pro! Full AI and cloud features have been unlocked.');
+            }, 0);
+            const clearTimer = setTimeout(() => setSuccessBanner(''), 8000);
+            return () => {
+                clearTimeout(timer);
+                clearTimeout(clearTimer);
+            };
+        }
+    }, [searchParams, updateProfile]);
+
+    const trialEndDate = profile?.trialEndDate;
     const trialDaysLeft = useMemo(() => {
-        if (!profile?.trialEndDate) return 0;
-        const end = new Date(profile.trialEndDate);
+        if (!trialEndDate) return 0;
+        const end = new Date(trialEndDate);
         if (isNaN(end.getTime())) return 0;
-        const diff = end - new Date();
+        const diff = end.getTime() - now.getTime();
         return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-    }, [profile?.trialEndDate]);
+    }, [trialEndDate, now]);
 
-    const handleSubscribe = () => {
-        setLoading(true);
-        setCheckoutMessage('');
-        // Simulate Stripe Checkout
-        setTimeout(() => {
-            setCheckoutMessage("This would normally redirect to Stripe Checkout. For now, we've enabled trial mode or manual premium status.");
-            setLoading(false);
-            setTimeout(() => setCheckoutMessage(''), 5000);
-        }, 1500);
-    };
+    const stripeCheckoutUrl = getStripeCheckoutUrl(user);
 
     return (
         <div style={{ display: 'grid', gap: '20px' }}>
+            {successBanner && (
+                <div role="alert" className="animate-fade-in" style={{
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#10b981',
+                    fontWeight: 'bold',
+                    fontSize: '0.95rem',
+                    textAlign: 'center'
+                }}>
+                    {successBanner}
+                </div>
+            )}
+
             <div style={{ 
-                padding: '20px', 
+                padding: '24px', 
                 borderRadius: '16px', 
-                background: isCurrentlyPremium ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%)' : 'var(--bg-panel)',
-                border: '1px solid var(--border-subtle)',
+                background: isPlatformOwner 
+                    ? 'linear-gradient(135deg, rgba(212, 163, 115, 0.2) 0%, rgba(94, 135, 110, 0.18) 100%)'
+                    : isPro 
+                        ? 'linear-gradient(135deg, rgba(94, 135, 110, 0.18) 0%, rgba(132, 167, 145, 0.16) 100%)' 
+                        : 'var(--bg-panel)',
+                border: isPlatformOwner 
+                    ? '1px solid rgba(212, 163, 115, 0.45)' 
+                    : isPro 
+                        ? '1px solid var(--accent-primary)' 
+                        : '1px solid var(--border-subtle)',
                 position: 'relative',
                 overflow: 'hidden'
             }}>
@@ -468,15 +574,32 @@ function SubscriptionManager() {
                                 textTransform: 'uppercase', 
                                 letterSpacing: '0.05em', 
                                 fontWeight: 'bold',
-                                color: isCurrentlyPremium ? 'var(--accent-primary)' : 'var(--text-secondary)'
+                                color: isPlatformOwner ? '#eab308' : isPro ? 'var(--accent-primary)' : 'var(--text-secondary)'
                             }}>
-                                Current Plan
+                                Current Status
                             </span>
                             <h4 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginTop: '4px' }}>
-                                {isTrial ? 'Premium Trial' : profile?.subscriptionStatus === 'premium' ? 'Premium Pro' : 'Free Tier'}
+                                {isPlatformOwner 
+                                    ? 'Platform Owner (Unlimited Lifetime)' 
+                                    : isPro 
+                                        ? 'NovuJobs Pro' 
+                                        : isTrial 
+                                            ? 'Premium Trial' 
+                                            : 'Free Tier (25 Jobs Cap)'}
                             </h4>
                         </div>
-                        {isCurrentlyPremium && (
+                        {isPlatformOwner ? (
+                            <span style={{ 
+                                padding: '4px 12px', 
+                                borderRadius: '20px', 
+                                background: 'linear-gradient(135deg, #eab308, #ca8a04)', 
+                                color: 'black', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 'bold' 
+                            }}>
+                                👑 OWNER
+                            </span>
+                        ) : isPro ? (
                             <span style={{ 
                                 padding: '4px 12px', 
                                 borderRadius: '20px', 
@@ -485,12 +608,29 @@ function SubscriptionManager() {
                                 fontSize: '0.8rem', 
                                 fontWeight: 'bold' 
                             }}>
-                                ACTIVE
+                                ⭐ PRO ACTIVE
+                            </span>
+                        ) : (
+                            <span style={{ 
+                                padding: '4px 12px', 
+                                borderRadius: '20px', 
+                                background: 'rgba(255, 255, 255, 0.08)', 
+                                color: 'var(--text-secondary)', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 'bold' 
+                            }}>
+                                FREE TIER
                             </span>
                         )}
                     </div>
 
-                    {isTrial && trialDaysLeft > 0 && (
+                    {isPlatformOwner && (
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
+                            Permanent unrestricted access for <strong>{user?.email}</strong>. All AI features, Ghosting Radar, Unlimited Jobs, and Maps APIs are unlocked.
+                        </p>
+                    )}
+
+                    {isTrial && trialDaysLeft > 0 && !isPlatformOwner && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                             <Clock size={16} />
                             <span>{trialDaysLeft} days remaining in your trial</span>
@@ -499,64 +639,54 @@ function SubscriptionManager() {
 
                     <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px 0', fontSize: '0.9rem', display: 'grid', gap: '8px' }}>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Sparkles size={14} color="var(--accent-primary)" /> AI-Powered Job Recommendations
+                            <Sparkles size={14} color="var(--accent-primary)" /> 
+                            <strong>Ghosting Radar & 1-Click Follow-Up Strategist</strong>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Sparkles size={14} color="var(--accent-primary)" /> Advanced Application Analytics
+                            <Sparkles size={14} color="var(--accent-primary)" /> 
+                            <strong>Interview Power Coach with STAR frameworks</strong>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Sparkles size={14} color="var(--accent-primary)" /> Unlimited Resume Analyses
+                            <Sparkles size={14} color="var(--accent-primary)" /> 
+                            AI Resume Parsing & Job Match Scoring (Gemini 3.8 Flash)
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sparkles size={14} color="var(--accent-primary)" /> 
+                            Unlimited Applications & Real-time Cloud Sync
                         </li>
                     </ul>
 
-                    {!isCurrentlyPremium || isTrial ? (
-                        <div style={{ position: 'relative' }}>
-                            <button
-                                onClick={handleSubscribe}
-                                disabled={loading}
+                    {!isPlatformOwner && !isPro ? (
+                        <div style={{ display: 'grid', gap: '12px' }}>
+                            <a
+                                href={stripeCheckoutUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="btn-primary"
-                                style={{ width: '100%', justifyContent: 'center', py: '12px' }}
+                                style={{ width: '100%', justifyContent: 'center', py: '14px', textDecoration: 'none', fontWeight: 'bold' }}
                             >
-                                {loading ? <Loader size={18} className="spin" /> : 'Upgrade to Monthly Premium ($9.99)'}
-                            </button>
-                            {checkoutMessage && (
-                                <div role="alert" aria-live="polite" className="animate-fade-in" style={{
-                                    marginTop: '12px',
-                                    padding: '8px 12px',
-                                    background: 'rgba(56, 189, 248, 0.1)',
-                                    color: 'var(--accent-primary)',
-                                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                                    borderRadius: '8px',
-                                    fontSize: '0.85rem',
-                                    textAlign: 'center'
-                                }}>
-                                    {checkoutMessage}
-                                </div>
-                            )}
+                                <CreditCard size={18} /> Upgrade with Stripe ($9.99/mo)
+                            </a>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                                Want to use AI for free? Add your personal free Gemini API key below under Google Cloud Configuration.
+                            </p>
                         </div>
-                    ) : (
-                        <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-                            Manage Billing
-                        </button>
-                    )}
+                    ) : !isPlatformOwner && isPro ? (
+                        <a 
+                            href={stripeCheckoutUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-secondary" 
+                            style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }}
+                        >
+                            Manage Stripe Subscription
+                        </a>
+                    ) : null}
                 </div>
-                
-                {isCurrentlyPremium && (
-                    <Sparkles 
-                        size={120} 
-                        style={{ 
-                            position: 'absolute', 
-                            right: '-20px', 
-                            bottom: '-20px', 
-                            opacity: 0.05, 
-                            transform: 'rotate(-15deg)' 
-                        }} 
-                    />
-                )}
             </div>
             
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                Secure payments powered by <strong>Stripe</strong>. Cancel anytime.
+                Secure subscriptions powered by <strong>Stripe</strong>. Cancel anytime with one click.
             </p>
         </div>
     );
@@ -612,68 +742,395 @@ export default function ProfilePage() {
     );
 }
 
-function ApiKeyInput() {
+function GoogleServicesConfig() {
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
-    const [key, setKey] = useState('');
-    const [show, setShow] = useState(false);
-    const [saved, setSaved] = useState(false);
 
-    // Sync local state with profile
+    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || '') : '';
+    const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '') : '';
+
+    // Gemini State
+    const [geminiKey, setGeminiKey] = useState(() => profile?.geminiApiKey || envGemini || '');
+    const [showGemini, setShowGemini] = useState(false);
+    const [geminiSaved, setGeminiSaved] = useState(false);
+    const [testingGemini, setTestingGemini] = useState(false);
+    const [geminiStatus, setGeminiStatus] = useState(null);
+
+    // Google Maps State
+    const [mapsKey, setMapsKey] = useState(() => profile?.googleMapsApiKey || envMaps || '');
+    const [showMaps, setShowMaps] = useState(false);
+    const [mapsSaved, setMapsSaved] = useState(false);
+    const [testingMaps, setTestingMaps] = useState(false);
+    const [mapsStatus, setMapsStatus] = useState(null);
+
+    // Sync with store & environment
     useEffect(() => {
-        if (profile?.geminiApiKey) {
-            setKey(profile.geminiApiKey);
-        }
-    }, [profile?.geminiApiKey]);
+        const timer = setTimeout(() => {
+            setGeminiKey(profile?.geminiApiKey || envGemini || '');
+            setMapsKey(profile?.googleMapsApiKey || envMaps || '');
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [profile?.geminiApiKey, profile?.googleMapsApiKey, envGemini, envMaps]);
 
-    const handleSave = () => {
-        updateProfile({ geminiApiKey: key });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+    const handleSaveGemini = () => {
+        updateProfile({ geminiApiKey: geminiKey.trim() });
+        setGeminiSaved(true);
+        setTimeout(() => setGeminiSaved(false), 3000);
+    };
+
+    const handleTestGemini = async () => {
+        setTestingGemini(true);
+        setGeminiStatus(null);
+        const res = await testGeminiApiKey(geminiKey || profile?.geminiApiKey);
+        setTestingGemini(false);
+        setGeminiStatus(res);
+    };
+
+    const handleSaveMaps = () => {
+        updateProfile({ googleMapsApiKey: mapsKey.trim() });
+        setMapsSaved(true);
+        setTimeout(() => setMapsSaved(false), 3000);
+    };
+
+    const handleTestMaps = async () => {
+        setTestingMaps(true);
+        setMapsStatus(null);
+        const res = await testGoogleMapsApiKey(mapsKey || profile?.googleMapsApiKey);
+        setTestingMaps(false);
+        setMapsStatus(res);
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ position: 'relative' }}>
-                <input
-                    aria-label="Gemini API Key"
-                    type={show ? 'text' : 'password'}
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                    placeholder="Enter your Gemini API Key (starts with AIza...)"
-                    style={{ width: '100%', paddingRight: '80px' }}
-                />
-                <button
-                    onClick={() => setShow(!show)}
-                    aria-label={show ? "Hide API key" : "Show API key"}
-                    title={show ? "Hide API key" : "Show API key"}
-                    style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem'
-                    }}
-                >
-                    {show ? 'Hide' : 'Show'}
-                </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Sparkles size={20} color="var(--accent-primary)" /> Google Cloud & Developer Program Integration
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    Power NovuJobs with your Google Developer Program benefits. Your \$190.00 credit pool covers all Google Cloud APIs (Gemini Vertex AI, Firebase Blaze) and Google Maps Platform services through 2027.
+                </p>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button onClick={handleSave} className="btn-primary" style={{ padding: '8px 16px' }}>
-                    {saved ? 'Saved!' : 'Save Key'}
-                </button>
-                <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
-                >
-                    Get a Key
-                </a>
+
+            {/* Developer Program Credit Badge */}
+            <div style={{
+                background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.16) 0%, rgba(132, 167, 145, 0.14) 100%)',
+                border: '1px solid rgba(94, 135, 110, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                padding: '16px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <ShieldCheck size={24} color="var(--accent-primary)" />
+                        <div>
+                            <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Active Benefit: \$190.00 Google Cloud & Maps Credits</h4>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                                Scope: All Google Cloud Platform APIs + Google Maps Platform (List pricing)
+                            </p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <a
+                            href="https://console.cloud.google.com/apis/credentials"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                                fontSize: '0.78rem',
+                                color: 'var(--accent-primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'var(--glass-highlight)',
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                textDecoration: 'none'
+                            }}
+                        >
+                            GCP Credentials <ExternalLink size={12} />
+                        </a>
+                        <a
+                            href="https://console.cloud.google.com/billing"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                                fontSize: '0.78rem',
+                                color: 'var(--accent-primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'var(--glass-highlight)',
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                textDecoration: 'none'
+                            }}
+                        >
+                            Billing & Budgets <ExternalLink size={12} />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {/* 1. Gemini AI API Key */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Key size={16} color="var(--accent-primary)" /> Google Gemini API Key
+                </label>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                    Used for AI resume tailoring, automated interview questions, and job recommendation scoring.
+                </p>
+                <div style={{ position: 'relative' }}>
+                    <input
+                        aria-label="Gemini API Key"
+                        type={showGemini ? 'text' : 'password'}
+                        value={geminiKey}
+                        onChange={(e) => setGeminiKey(e.target.value)}
+                        placeholder="AIzaSy... (from AI Studio or Google Cloud Console)"
+                        style={{ width: '100%', paddingRight: '75px' }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowGemini(!showGemini)}
+                        aria-label={showGemini ? "Hide API key" : "Show API key"}
+                        style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '0.82rem'
+                        }}
+                    >
+                        {showGemini ? 'Hide' : 'Show'}
+                    </button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={handleSaveGemini} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                        {geminiSaved ? 'Saved!' : 'Save Key'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleTestGemini}
+                        disabled={testingGemini || (!geminiKey && !profile?.geminiApiKey)}
+                        style={{
+                            padding: '6px 14px',
+                            fontSize: '0.85rem',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--glass-highlight)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: testingGemini ? 'wait' : 'pointer'
+                        }}
+                    >
+                        {testingGemini ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                    >
+                        Get Key in AI Studio
+                    </a>
+                </div>
+                {geminiStatus && (
+                    <div style={{
+                        fontSize: '0.82rem',
+                        color: geminiStatus.success ? 'var(--success)' : 'var(--error)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '2px'
+                    }}>
+                        {geminiStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                        {geminiStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* 2. Google Maps Platform API Key */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--glass-border)' }}>
+                <label style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={16} color="var(--accent-primary)" /> Google Maps Platform API Key
+                </label>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                    Enables Distance Matrix commute calculations and company office mapping (Distance Matrix & Geocoding APIs).
+                </p>
+                <div style={{ position: 'relative' }}>
+                    <input
+                        aria-label="Google Maps API Key"
+                        type={showMaps ? 'text' : 'password'}
+                        value={mapsKey}
+                        onChange={(e) => setMapsKey(e.target.value)}
+                        placeholder="AIzaSy... (from Google Cloud Console Credentials)"
+                        style={{ width: '100%', paddingRight: '75px' }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowMaps(!showMaps)}
+                        aria-label={showMaps ? "Hide Google Maps key" : "Show Google Maps key"}
+                        style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '0.82rem'
+                        }}
+                    >
+                        {showMaps ? 'Hide' : 'Show'}
+                    </button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={handleSaveMaps} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                        {mapsSaved ? 'Saved!' : 'Save Key'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleTestMaps}
+                        disabled={testingMaps || (!mapsKey && !profile?.googleMapsApiKey)}
+                        style={{
+                            padding: '6px 14px',
+                            fontSize: '0.85rem',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--glass-highlight)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: testingMaps ? 'wait' : 'pointer'
+                        }}
+                    >
+                        {testingMaps ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    <a
+                        href="https://console.cloud.google.com/google/maps-apis/overview"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                    >
+                        Enable Maps APIs in GCP
+                    </a>
+                </div>
+                {mapsStatus && (
+                    <div style={{
+                        fontSize: '0.82rem',
+                        color: mapsStatus.success ? 'var(--success)' : 'var(--error)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '2px'
+                    }}>
+                        {mapsStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                        {mapsStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* 3. Zero-Overflow Budget & Credit Protection */}
+            <div style={{
+                background: 'rgba(234, 179, 8, 0.08)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                borderRadius: 'var(--radius-md)',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle size={20} color="var(--warning)" />
+                    <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Credit Overflow Protection (\$10/mo Safety Guard)</h4>
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                    To ensure you never pay beyond your monthly promotional credits, NovuJobs enforces local monthly request caps and persistent route caching.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                    {/* Maps Usage Box */}
+                    <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Google Maps Calls</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                                {getMapsUsageStats().used} / {getMapsUsageStats().cap}
+                            </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
+                            Past routes are cached locally to save API calls.
+                        </p>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                            <input
+                                aria-label="Monthly Maps API cap"
+                                type="number"
+                                min="10"
+                                max="1000"
+                                defaultValue={getMapsUsageStats().cap}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val) && val > 0) setMapsMonthlyCap(val);
+                                }}
+                                style={{ width: '80px', padding: '4px 8px', fontSize: '0.8rem' }}
+                                title="Max Maps calls allowed per month"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    clearMapsCache();
+                                    alert('Commute cache cleared.');
+                                }}
+                                style={{
+                                    fontSize: '0.75rem',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    background: 'var(--glass-panel)',
+                                    border: '1px solid var(--border-subtle)',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Clear Cache
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Gemini Usage Box */}
+                    <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Gemini AI Calls</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                                {getGeminiUsageStats().used} / {getGeminiUsageStats().cap}
+                            </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
+                            Covers resume parsing, tailor bullets, and job match.
+                        </p>
+                        <input
+                            aria-label="Monthly Gemini API cap"
+                            type="number"
+                            min="10"
+                            max="2000"
+                            defaultValue={getGeminiUsageStats().cap}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val) && val > 0) setGeminiMonthlyCap(val);
+                            }}
+                            style={{ width: '80px', padding: '4px 8px', fontSize: '0.8rem' }}
+                            title="Max Gemini AI calls allowed per month"
+                        />
+                    </div>
+                </div>
+
+                {/* Hard Cap GCP Recommendation */}
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid rgba(234, 179, 8, 0.2)', paddingTop: '10px' }}>
+                    <p style={{ margin: '0 0 6px 0', fontWeight: '600', color: 'var(--text-primary)' }}>
+                        🔒 100% Hard Stop in Google Cloud Console:
+                    </p>
+                    <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <li>Set a monthly budget of <strong>\$10.00</strong> in <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>GCP Billing & Budgets</a> with email notifications at 50%, 80%, and 100%.</li>
+                        <li>Set daily quota limits under <a href="https://console.cloud.google.com/apis/enabled" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>APIs & Services &rarr; Quotas</a> (e.g. max 50 Distance Matrix requests/day). Google will drop excess calls rather than billing extra.</li>
+                    </ol>
+                </div>
             </div>
         </div>
     );
@@ -701,9 +1158,8 @@ function ResumeUpload({ onAnalysisComplete }) {
         formData.append('file', file);
 
         try {
-            const model = getGeminiModel();
             const prompt = `
-            You are an expert career coagch and resume analyst.
+            You are an expert career coach and resume analyst.
             Analyze the following resume and extract the key information needed to find relevant job matches and improve the user's profile.
 
             Return a JSON object with the following structure:
@@ -719,17 +1175,18 @@ function ResumeUpload({ onAnalysisComplete }) {
             `;
 
             const documentPart = await fileToGenerativePart(file);
-            const result = await model.generateContent([prompt, documentPart]);
-            const responseText = result.response.text();
-
-            const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            const analysis = JSON.parse(cleanJson);
+            const responseText = await generateWithFallback([prompt, documentPart], { jsonMode: true });
+            const analysis = extractJson(responseText);
 
             console.log("Resume analysis:", analysis);
             onAnalysisComplete(analysis);
         } catch (err) {
             console.error('Resume analysis error:', err);
-            setError('Failed to analyze resume. Please try again.');
+            if (err?.code === 'SUBSCRIPTION_REQUIRED') {
+                setError('NovuJobs Pro ($9.99/mo) or your personal Gemini API key is required to analyze resumes with AI.');
+            } else {
+                setError(err.message || 'Failed to analyze resume. Please check your Gemini API key in Profile settings.');
+            }
         } finally {
             setAnalyzing(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -800,7 +1257,7 @@ function ResumeUpload({ onAnalysisComplete }) {
             {hasResume && (
                 <div style={{ background: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', fontSize: '0.9rem' }}>
                     <p style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--accent-primary)' }}>AI Summary:</p>
-                    <p style={{ fontStyle: 'italic', marginBottom: '12px', color: 'var(--text-secondary)' }}>"{profile.resumeAnalysis.summary}"</p>
+                    <p style={{ fontStyle: 'italic', marginBottom: '12px', color: 'var(--text-secondary)' }}>&ldquo;{profile.resumeAnalysis.summary}&rdquo;</p>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {profile.resumeAnalysis.skills?.slice(0, 5).map((skill, i) => (

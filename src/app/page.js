@@ -1,22 +1,23 @@
 "use client";
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
+import GoalTrackerWidget from '@/components/GoalTrackerWidget';
+
+const emptySubscribe = () => () => {};
 
 export default function Home() {
     // ⚡ Bolt: Use specific selector instead of destructuring the whole store to prevent
     // unnecessary re-renders when other state (like profile) changes
     const jobs = useAppStore(state => state.jobs);
     const { user, loading } = useAuth();
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
     useEffect(() => {
-        setMounted(true);
         // Clear any potential legacy auth flags that might conflict
         if (typeof window !== 'undefined') {
             localStorage.removeItem('is_authenticated');
@@ -31,15 +32,14 @@ export default function Home() {
         }
     }, [loading, user, mounted]);
 
-    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
-    if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
-
     const stats = useMemo(() => {
+        if (!jobs) return { total: 0, interviewing: 0, offers: 0 };
         // ⚡ Bolt: Use a single for-loop to calculate derived stats instead of reduce
         // This avoids callback allocation overhead per item, improving O(N) performance for large datasets.
         let interviewing = 0;
         let offers = 0;
         for (let i = 0; i < jobs.length; i++) {
+            if (!jobs[i]) continue;
             const status = jobs[i].status;
             if (status === 'interviewing') interviewing++;
             else if (status === 'offer') offers++;
@@ -47,7 +47,10 @@ export default function Home() {
         return { total: jobs.length, interviewing, offers };
     }, [jobs]);
 
-    if (jobs.length === 0) {
+    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
+    if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
+
+    if (!jobs || jobs.length === 0) {
         return <Onboarding />;
     }
 
@@ -95,6 +98,9 @@ export default function Home() {
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
                 </Link>
             </div>
+
+            {/* Application Output Goal & Cadence Command Center */}
+            <GoalTrackerWidget />
 
             <ApplicationHistoryChart jobs={jobs} />
         </div>

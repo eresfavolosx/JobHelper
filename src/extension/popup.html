@@ -3,32 +3,34 @@
 
 <head>
   <style>
-    /* Liquid Glass Palette Injection */
+    /* Architectural House Palette: Cotton & Slate Grey with Sage Accent */
     :root {
-      --bg-app: #0f172a;
-      --text-primary: #ffffff;
-      --text-secondary: rgba(255, 255, 255, 0.7);
-      --accent-primary: #0ea5e9;
-      --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
-      --glass-panel: rgba(255, 255, 255, 0.08);
-      --glass-border: rgba(255, 255, 255, 0.15);
-      --input-bg: rgba(0, 0, 0, 0.3);
-      --input-focus: rgba(0, 0, 0, 0.5);
-      --btn-secondary: rgba(255, 255, 255, 0.1);
+      --bg-app: #181C20;
+      --text-primary: #FAF8F4;
+      --text-secondary: #9DA7AE;
+      --accent-primary: #6B7E67;
+      --accent-secondary: #76858E;
+      --accent-gradient: linear-gradient(135deg, #4A7C55 0%, #5F956B 100%);
+      --glass-panel: rgba(33, 38, 44, 0.75);
+      --glass-border: rgba(157, 167, 174, 0.16);
+      --input-bg: rgba(0, 0, 0, 0.25);
+      --input-focus: rgba(0, 0, 0, 0.45);
+      --btn-secondary: rgba(157, 167, 174, 0.12);
     }
 
     @media (prefers-color-scheme: light) {
       :root {
-        --bg-app: #f4f4f5;
-        --text-primary: #09090b;
-        --text-secondary: #52525b;
-        --accent-primary: #0284c7;
-        --accent-gradient: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
-        --glass-panel: rgba(255, 255, 255, 0.7);
-        --glass-border: rgba(0, 0, 0, 0.1);
-        --input-bg: rgba(0, 0, 0, 0.05);
-        --input-focus: rgba(0, 0, 0, 0.1);
-        --btn-secondary: rgba(0, 0, 0, 0.05);
+        --bg-app: #F5F2EB;
+        --text-primary: #22272B;
+        --text-secondary: #58636B;
+        --accent-primary: #3D6C48;
+        --accent-secondary: #607079;
+        --accent-gradient: linear-gradient(135deg, #366942 0%, #4D8259 100%);
+        --glass-panel: rgba(255, 255, 255, 0.9);
+        --glass-border: rgba(55, 66, 74, 0.12);
+        --input-bg: rgba(0, 0, 0, 0.04);
+        --input-focus: rgba(0, 0, 0, 0.08);
+        --btn-secondary: rgba(55, 66, 74, 0.06);
       }
     }
 
@@ -163,19 +165,7 @@
 <body>
   <div class="background-aurora"></div>
   <div class="container">
-    <h2>🚀 Save to JobTracker</h2>
-
-    <div class="card" id="apiKeyContainer">
-      <label for="apiKeyInput">Gemini API Key</label>
-      <div class="key-input-wrapper">
-        <input type="password" id="apiKeyInput" placeholder="Paste key..." />
-        <button id="toggleKeyBtn" aria-label="Show API key" title="Show API key">Show</button>
-      </div>
-      <p style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 16px;">
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-          style="color: var(--accent-primary);">Get your free API key</a>
-      </p>
-    </div>
+    <h2>🚀 Save to NovuJobs</h2>
 
     <div class="form-group" style="margin-bottom: 20px;">
       <label for="statusSelect">Initial Status</label>
@@ -188,7 +178,7 @@
       </select>
     </div>
 
-    <button id="saveBtn">✨ Auto-Fill with AI</button>
+    <button id="saveBtn">Save Job</button>
   </div>
   <script type="module" src="popup.js"></script>
 </body>

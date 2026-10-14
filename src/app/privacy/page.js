@@ -24,7 +24,7 @@ export default function PrivacyPage() {
                     <Lock size={20} color="var(--accent-primary)" /> Data We Collect
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', lineHeight: '1.7', marginBottom: '16px' }}>
-                    JobTracker collects minimal data to provide our service:
+                    NovuJobs collects minimal data to provide our service:
                 </p>
                 <ul style={{ color: 'var(--text-secondary)', lineHeight: '2', paddingLeft: '24px' }}>
                     <li><strong>Google Account Info:</strong> Email and display name for authentication</li>
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
                 <ul style={{ color: 'var(--text-secondary)', lineHeight: '2', paddingLeft: '24px', marginTop: '12px' }}>
                     <li>Your Gemini API key is stored locally in your browser only</li>
                     <li>We never transmit or store your API key on our servers</li>
-                    <li>Page content is processed directly with Google's Gemini API</li>
+                    <li>Page content is processed directly with Google&apos;s Gemini API</li>
                 </ul>
             </div>
 
@@ -103,7 +103,7 @@ export default function PrivacyPage() {
                     For privacy-related inquiries or to exercise your data rights, contact us at:
                 </p>
                 <p style={{ marginTop: '12px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-                    privacy@jobtracker.app
+                    privacy@novu.works
                 </p>
             </div>
         </div>

@@ -32,3 +32,8 @@ pnpm-debug.log*
 # Vercel
 .vercel
 .firebase/
+
+# Local Scratch & Backups
+GYB-*
+gyb-*
+check_firestore.js

@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { Home, Search, ArrowLeft } from 'lucide-react';
+import { Home, Search } from 'lucide-react';
 
 export default function NotFound() {
     return (
@@ -36,7 +36,7 @@ export default function NotFound() {
                 lineHeight: '1.6'
             }}>
                 Looks like this page went on a job interview and never came back.
-                Let's get you back on track!
+                Let&apos;s get you back on track!
             </p>
 
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>

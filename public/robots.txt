@@ -1,9 +1,10 @@
-# robots.txt for JobTracker
-# https://jobhelper-c3cd7.web.app
+# robots.txt for NovuJobs
+# https://jobhelper.novu.works
 
 User-agent: *
 Allow: /
 Allow: /kanban
+Allow: /recommendations
 Allow: /profile
 Allow: /install
 Allow: /privacy
@@ -13,4 +14,4 @@ Allow: /terms
 Disallow: /login
 
 # Sitemap
-Sitemap: https://jobhelper-c3cd7.web.app/sitemap.xml
+Sitemap: https://jobhelper.novu.works/sitemap.xml

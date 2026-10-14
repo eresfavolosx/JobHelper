@@ -1,107 +1,90 @@
-import { getApiKey, saveApiKey } from './storage.js';
-
 const statusSelect = document.getElementById('statusSelect');
 const saveBtn = document.getElementById('saveBtn');
-const apiKeyInput = document.getElementById('apiKeyInput');
-const apiKeyContainer = document.getElementById('apiKeyContainer');
-const toggleKeyBtn = document.getElementById('toggleKeyBtn');
 
-// Configuration - Use the live Firebase Hosting URL
-const APP_URL = 'https://jobhelper-c3cd7.web.app';
-
-// Load stored API key securely
-getApiKey((key) => {
-    if (key) {
-        apiKeyInput.value = key;
-    }
-});
-
-// Toggle API key visibility
-toggleKeyBtn.addEventListener('click', () => {
-    if (apiKeyInput.type === 'password') {
-        apiKeyInput.type = 'text';
-        toggleKeyBtn.innerText = 'Hide';
-        toggleKeyBtn.setAttribute('aria-label', 'Hide API key');
-        toggleKeyBtn.setAttribute('title', 'Hide API key');
-    } else {
-        apiKeyInput.type = 'password';
-        toggleKeyBtn.innerText = 'Show';
-        toggleKeyBtn.setAttribute('aria-label', 'Show API key');
-        toggleKeyBtn.setAttribute('title', 'Show API key');
-    }
-});
+// Configuration - Use the custom domain
+const APP_URL = 'https://jobhelper.novu.works';
 
 saveBtn.addEventListener('click', async () => {
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-        alert('Please enter your Google Gemini API Key to use AI extraction.');
-        return;
-    }
-
-    // Save key securely for next time
-    saveApiKey(apiKey);
-
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     // Update button to show loading state
     const originalText = saveBtn.innerText;
-    saveBtn.innerText = 'Analysing Page...';
+    saveBtn.innerText = 'Saving...';
     saveBtn.disabled = true;
 
     try {
-        // 1. Get the page text content
-        const [{ result: pageData }] = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-                // Get visible text content, clean it up
-                const bodyText = document.body.innerText
-                    .replace(/\s+/g, ' ')
-                    .substring(0, 10000); // Limit context size
-                return {
-                    text: bodyText,
-                    url: window.location.href,
-                    title: document.title
-                };
-            }
-        });
-
-        // 2. Call Gemini API directly from Extension
-        console.log('--- [JobTracker] Extension Debug Log ---');
-        console.log('1. Page Context Captured:', pageData.text.substring(0, 100) + '...');
-        console.log('2. Sending to Gemini API (gemini-2.0-flash)...');
-
-        const extraction = await callGeminiAPI(apiKey, pageData.text);
-
-        console.log('3. Gemini Response:', extraction);
-        console.log('----------------------------------------');
-
-        // 3. Open the app with extracted data
-        const status = statusSelect.value;
-        const sanitizedPageUrl = sanitizeUrl(pageData.url) || '';
-        const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(extraction.role || pageData.title)}&company=${encodeURIComponent(extraction.company || '')}&salary=${encodeURIComponent(extraction.salary || '')}&location=${encodeURIComponent(extraction.location || '')}&description=${encodeURIComponent(extraction.description || '')}&url=${encodeURIComponent(sanitizedPageUrl)}&status=${status}`;
-
-        chrome.tabs.create({ url: targetUrl });
-
-    } catch (error) {
-        console.error('Extraction failed:', error);
-        alert('AI Extraction failed. Opening with basic details.');
-
-        // Fallback
+        // Fallback to basic metadata scraping (no API key required)
         chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            func: () => ({
-                title: document.title,
-                url: window.location.href
-            })
+            func: () => {
+                const doc = document;
+                const title = doc.title || '';
+                const url = window.location.href;
+
+                let company = '';
+                let location = '';
+                let role = title;
+
+                // LinkedIn
+                const liCompany = doc.querySelector('.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name');
+                const liLocation = doc.querySelector('.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet');
+                if (liCompany) company = liCompany.innerText.trim();
+                if (liLocation) location = liLocation.innerText.trim();
+
+                // Indeed
+                const indCompany = doc.querySelector('[data-testid="inlineHeader-companyName"]');
+                const indLocation = doc.querySelector('[data-testid="inlineHeader-companyLocation"], [data-testid="job-location"]');
+                if (indCompany) company = indCompany.innerText.trim();
+                if (indLocation) location = indLocation.innerText.trim();
+
+                // Greenhouse
+                const ghCompany = doc.querySelector('.company-name');
+                const ghLocation = doc.querySelector('.location');
+                if (ghCompany) company = ghCompany.innerText.trim();
+                if (ghLocation) location = ghLocation.innerText.trim();
+
+                // Lever
+                const leverCompany = doc.querySelector('.main-header-logo img')?.alt || '';
+                const leverLocation = doc.querySelector('.posting-categories .location');
+                if (leverCompany) company = leverCompany.trim();
+                if (leverLocation) location = leverLocation.innerText.trim();
+
+                // Fallback title parsing: "Role at Company" or "Company - Role"
+                if (!company) {
+                    if (title.includes(' at ')) {
+                        const parts = title.split(' at ');
+                        role = parts[0].trim();
+                        company = parts[1].split('|')[0].split('-')[0].trim();
+                    } else if (title.includes(' - ')) {
+                        const parts = title.split(' - ');
+                        if (parts.length >= 2) {
+                            company = parts[0].trim();
+                            role = parts[1].trim();
+                        }
+                    }
+                }
+
+                return {
+                    title: role || title,
+                    company: company || '',
+                    location: location || '',
+                    url: url
+                };
+            }
         }, (results) => {
             if (results?.[0]?.result) {
                 const data = results[0].result;
                 const status = statusSelect.value;
                 const sanitizedDataUrl = sanitizeUrl(data.url) || '';
-                const targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
+                let targetUrl = `${APP_URL}/?action=auto-open&role=${encodeURIComponent(data.title)}&url=${encodeURIComponent(sanitizedDataUrl)}&status=${status}`;
+                if (data.company) targetUrl += `&company=${encodeURIComponent(data.company)}`;
+                if (data.location) targetUrl += `&location=${encodeURIComponent(data.location)}`;
                 chrome.tabs.create({ url: targetUrl });
             }
         });
+    } catch (error) {
+        console.error('Failed to parse page:', error);
+        alert('Failed to parse page details.');
     } finally {
         saveBtn.innerText = originalText;
         saveBtn.disabled = false;
@@ -138,36 +121,4 @@ function sanitizeUrl(url) {
         return parsed.toString();
     }
     return null;
-}
-
-async function callGeminiAPI(apiKey, text) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const prompt = `
-        Extract the following job details from the text below. Return ONLY a valid JSON object.
-        Fields: company, role, salary, location, description (short summary, max 200 chars).
-        If a field is not found, use empty string.
-        
-        Text:
-        ${text}
-    `;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-        })
-    });
-
-    if (!response.ok) {
-        throw new Error(`Gemini API Error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const resultText = data.candidates[0].content.parts[0].text;
-
-    // Clean markdown code blocks if present
-    const jsonString = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonString);
 }

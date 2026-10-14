@@ -1,7 +1,9 @@
 "use client";
 import './globals.css';
-import { useState, useEffect, Suspense } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles } from 'lucide-react';
+import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target } from 'lucide-react';
+
+const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
 import Link from 'next/link';
 import { sanitizeUrl } from '@/lib/utils';
@@ -12,6 +14,13 @@ import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useAppStore } from '@/lib/store';
+import { isOwner, isProUser } from '@/lib/subscription';
+import NotificationCenter from '@/components/NotificationCenter';
+import MorningSyncModal from '@/components/MorningSyncModal';
+import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import GoalCustomizationModal from '@/components/GoalCustomizationModal';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
 
 
 
@@ -58,8 +67,22 @@ import { AuthProvider } from '@/lib/auth-context';
 /* ... imports ... */
 
 function AuthenticatedLayout({ children }) {
-    const { user, loading } = useAuth();
+    const { user } = useAuth();
     const { isJobModalOpen, closeJobModal, editingJob } = useUIStore();
+    const [morningSyncOpen, setMorningSyncOpen] = useState(false);
+
+    // Auto-launch Morning Career Radar on the first login of each day
+    useEffect(() => {
+        if (!user) return;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const lastSync = localStorage.getItem('novujobs_last_morning_sync');
+        if (lastSync !== todayStr) {
+            const timer = setTimeout(() => {
+                setMorningSyncOpen(true);
+            }, 1200);
+            return () => clearTimeout(timer);
+        }
+    }, [user]);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -74,8 +97,8 @@ function AuthenticatedLayout({ children }) {
     // User is authenticated - show full layout
     return (
         <>
-            <NavContent />
-            <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
+            <NavContent onOpenMorningSync={() => setMorningSyncOpen(true)} />
+            <main className="main-content">
                 {children}
             </main>
 
@@ -89,6 +112,11 @@ function AuthenticatedLayout({ children }) {
                 onClose={closeJobModal}
                 initialData={editingJob}
             />
+            <MorningSyncModal
+                isOpen={morningSyncOpen}
+                onClose={() => setMorningSyncOpen(false)}
+                autoLaunched={true}
+            />
         </>
     );
 }
@@ -96,6 +124,28 @@ function AuthenticatedLayout({ children }) {
 export default function RootLayout({ children }) {
     return (
         <html lang="en">
+            <head>
+                <title>NovuJobs - AI Career Command Center</title>
+                <meta name="description" content="AI career command center and smart job application tracking by Novu." />
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                        (function() {
+                            try {
+                                var stored = localStorage.getItem('novujobs_theme');
+                                if (stored === 'light' || stored === 'dark') {
+                                    document.documentElement.setAttribute('data-theme', stored);
+                                    document.documentElement.setAttribute('data-theme-forced', 'true');
+                                } else {
+                                    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                                }
+                            } catch(e) {}
+                        })();
+                        `
+                    }}
+                />
+            </head>
             <body style={{ display: 'flex', minHeight: '100vh' }}>
                 <AuthProvider>
                     <AuthenticatedLayout>
@@ -107,18 +157,22 @@ export default function RootLayout({ children }) {
     );
 }
 
-function NavContent() {
+function NavContent({ onOpenMorningSync }) {
     const { openNewJobModal } = useUIStore();
     const { user } = useAuth();
+    const profile = useAppStore((state) => state.profile);
+    const jobs = useAppStore((state) => state.jobs);
     const router = useRouter();
     const pathname = usePathname();
 
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
+    const isPlatformOwner = isOwner(user);
+    const isPro = isProUser(user, profile);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [goalModalOpen, setGoalModalOpen] = useState(false);
+    const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+
+    const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
     const closeMobileMenu = () => setIsMobileMenuOpen(false);
@@ -176,9 +230,12 @@ function NavContent() {
             </button>
 
             <nav className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
-                <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                    Job<span style={{ color: 'var(--accent-primary)' }}>Tracker</span>
-                </h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                        Novu<span style={{ color: 'var(--accent-primary)' }}>Jobs</span>
+                    </h1>
+                    <NotificationCenter onOpenMorningSync={onOpenMorningSync} />
+                </div>
 
                 <button
                     onClick={() => {
@@ -203,6 +260,45 @@ function NavContent() {
                     <Link href="/recommendations" onClick={closeMobileMenu} style={linkStyle('/recommendations')}>
                         <Sparkles size={18} /> Recommendations
                     </Link>
+
+                    {/* Mini Application Goal Tracker Card */}
+                    <div 
+                        onClick={() => setGoalModalOpen(true)}
+                        style={{
+                            padding: '10px 12px',
+                            borderRadius: '10px',
+                            background: 'var(--glass-highlight)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            marginTop: '4px',
+                            transition: 'all 0.2s ease'
+                        }}
+                        className="interactive-card"
+                        title="Click to customize application target and cadence"
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 'bold' }}>
+                                <Target size={13} color="var(--accent-primary)" />
+                                <span>Goal ({goalProgress.cadence})</span>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: goalProgress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)' }}>
+                                {goalProgress.count}/{goalProgress.target}
+                            </span>
+                        </div>
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${goalProgress.percentage}%`,
+                                height: '100%',
+                                background: goalProgress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)',
+                                borderRadius: '3px'
+                            }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            <span>{goalProgress.percentage}% reached</span>
+                            <span>{goalProgress.pace === 'completed' ? 'Crushed! 🎉' : goalProgress.pace === 'on_track' ? 'On track 🚀' : 'Behind pace'}</span>
+                        </div>
+                    </div>
+
                     <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
                     <Link href="/profile" onClick={closeMobileMenu} style={linkStyle('/profile')}>
                         <User size={18} /> My Profile
@@ -218,10 +314,20 @@ function NavContent() {
                     </Link>
                 </div>
 
+                {/* Appearance / Theme Switcher */}
+                <div style={{ marginTop: 'auto', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Appearance
+                        </span>
+                    </div>
+                    <ThemeSwitcher style={{ width: '100%', justifyContent: 'space-between' }} />
+                </div>
+
                 {/* User Profile & Sign Out Section */}
                 {user && (
                     <div style={{
-                        marginTop: 'auto',
+                        marginTop: '12px',
                         borderTop: '1px solid var(--border-subtle)',
                         paddingTop: '16px',
                         display: 'flex',
@@ -237,6 +343,7 @@ function NavContent() {
                             background: 'var(--bg-card)'
                         }}>
                             {user.photoURL ? (
+                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                     src={user.photoURL}
                                     alt="Profile"
@@ -282,6 +389,25 @@ function NavContent() {
                                 }}>
                                     {user.email}
                                 </p>
+                                <div style={{ marginTop: '4px' }}>
+                                    {isPlatformOwner ? (
+                                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'linear-gradient(135deg, #eab308, #ca8a04)', color: 'black', fontWeight: 'bold' }}>
+                                            👑 OWNER
+                                        </span>
+                                    ) : isPro ? (
+                                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-primary)', color: 'white', fontWeight: 'bold' }}>
+                                            ⭐ PRO
+                                        </span>
+                                    ) : (
+                                        <Link 
+                                            href="/profile#subscription-section" 
+                                            onClick={closeMobileMenu} 
+                                            style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 'bold' }}
+                                        >
+                                            Free (25 Cap) · Upgrade
+                                        </Link>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <button
@@ -306,6 +432,11 @@ function NavContent() {
                         </button>
                     </div>
                 )}
+
+                <GoalCustomizationModal
+                    isOpen={goalModalOpen}
+                    onClose={() => setGoalModalOpen(false)}
+                />
             </nav>
         </>
     );
