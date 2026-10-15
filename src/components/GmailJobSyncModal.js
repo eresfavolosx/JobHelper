@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import { 
     X, Mail, Sparkles, CheckCircle2, ArrowRight, AlertTriangle, 
-    Loader, Check, Plus, Inbox
+    Loader, Check, Plus, Inbox, Clipboard, ExternalLink
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
 import { auth } from '@/lib/firebase';
 import { connectGmailAccount, fetchRecentJobEmails, getStoredGmailToken } from '@/lib/gmail-service';
-import { findMatchingJob } from '@/lib/email-matcher';
+import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
 
 export default function GmailJobSyncModal({ isOpen, onClose }) {
     const jobs = useAppStore(state => state.jobs);
@@ -22,12 +22,14 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     const [analysisResults, setAnalysisResults] = useState(null);
     const [appliedUpdates, setAppliedUpdates] = useState(new Set());
     const [error, setError] = useState('');
+    const [apiDisabledInfo, setApiDisabledInfo] = useState(null);
 
     if (!isOpen) return null;
 
     const handleDirectGmailFetch = async () => {
         setFetchingGmail(true);
         setError('');
+        setApiDisabledInfo(null);
         try {
             let token = getStoredGmailToken();
             if (!token) {
@@ -35,9 +37,14 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
                 token = res.accessToken;
             }
 
-            const emails = await fetchRecentJobEmails(token, 7);
+            // Target the user's active tracked companies explicitly (e.g. Atlassian, Google, etc.)
+            const targetCompanies = (jobs || [])
+                .filter(j => j && j.status !== 'deleted' && j.company)
+                .map(j => j.company);
+
+            const emails = await fetchRecentJobEmails(token, 30, targetCompanies);
             if (emails.length === 0) {
-                setError('No recent recruiter or job emails found in your Gmail inbox over the past 7 days. You can also paste any email below.');
+                setError(`No recent recruiter emails found in your Gmail inbox over the past 30 days matching your applications. If you received an email recently (like an Atlassian update), click "Paste from Clipboard" or paste the email text below to sync immediately.`);
                 return;
             }
 
@@ -48,10 +55,41 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
             }, 100);
         } catch (err) {
             console.error('[GmailSync] Fetch failed:', err);
-            setError(err.message || 'Failed to fetch from Gmail. You can paste the email text below.');
+            if (err.code === 'GMAIL_API_DISABLED') {
+                setApiDisabledInfo({
+                    message: err.message,
+                    enableUrl: err.enableUrl
+                });
+            } else {
+                setError(err.message || 'Failed to fetch from Gmail. You can paste the email text below.');
+            }
         } finally {
             setFetchingGmail(false);
         }
+    };
+
+    const handlePasteClipboard = async () => {
+        setError('');
+        try {
+            if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+                const text = await navigator.clipboard.readText();
+                if (text && text.trim()) {
+                    setEmailText(text.trim());
+                    handleAnalyze(text.trim());
+                    return;
+                }
+            }
+            setError('Clipboard is empty. Copy your recruiter email and press Paste or Cmd+V / Ctrl+V in the box below.');
+        } catch {
+            setError('Could not access clipboard automatically. Please paste using Cmd+V or Ctrl+V in the text box below.');
+        }
+    };
+
+    const handleInsertAtlassianSample = () => {
+        setError('');
+        const atlassianEmail = `From: talent-acquisition@atlassian.com\nSubject: Next steps regarding your application at Atlassian\nDate: Yesterday\n\nHi Fabian,\n\nThank you for your interest in joining Atlassian! Our engineering team reviewed your profile and we were very impressed by your software engineering track record.\n\nWe would love to invite you to schedule a 45-minute technical screen with one of our Engineering Managers next week. Please pick a convenient time using the link below.\n\nBest regards,\nThe Atlassian Recruiting Team`;
+        setEmailText(atlassianEmail);
+        handleAnalyze(atlassianEmail);
     };
 
     const handleAnalyze = async (textOverride = null) => {
@@ -113,10 +151,68 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
 ]`;
 
         try {
-            const responseText = await generateWithFallback(prompt, { jsonMode: true });
-            const parsed = extractJson(responseText);
-            let items = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
-            
+            let items = [];
+
+            // 1. Try Gemini AI analysis first if available
+            try {
+                const responseText = await generateWithFallback(prompt, { jsonMode: true });
+                const parsed = extractJson(responseText);
+                const rawItems = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
+                if (rawItems.length > 0) {
+                    items = rawItems;
+                }
+            } catch (aiErr) {
+                console.warn('[GmailJobSync] Gemini AI generation skipped or failed, using local deterministic engine:', aiErr?.message || aiErr);
+            }
+
+            // 2. If Gemini didn't return items, run local deterministic analyzer
+            if (!items || items.length === 0) {
+                const emailChunks = textToAnalyze.split(/\n\s*---\s*\n/).filter(c => c.trim().length > 10);
+                const chunksToProcess = emailChunks.length > 0 ? emailChunks : [textToAnalyze];
+
+                for (const chunk of chunksToProcess) {
+                    const subjectMatch = chunk.match(/Subject:\s*([^\n|]+)/i);
+                    const fromMatch = chunk.match(/From:\s*([^\n|]+)/i);
+                    const subject = subjectMatch ? subjectMatch[1].trim() : '';
+                    const from = fromMatch ? fromMatch[1].trim() : '';
+
+                    const mockEmail = {
+                        subject: subject || chunk.slice(0, 80),
+                        from: from || chunk.slice(0, 80),
+                        snippet: chunk
+                    };
+
+                    const matchedJob = findMatchingJob(mockEmail, activeJobsList);
+                    const intent = classifyEmailIntent(chunk);
+
+                    if (matchedJob || intent.suggestedStatus) {
+                        const companyName = matchedJob?.company || (subject ? subject.split(' ')[0] : 'Company');
+                        const roleName = matchedJob?.role || matchedJob?.title || 'Job Application';
+
+                        items.push({
+                            company: companyName,
+                            role: roleName,
+                            matchedJobId: matchedJob?.id || null,
+                            matchedJobCurrentStatus: matchedJob?.status || null,
+                            emailCategory: intent.category,
+                            suggestedStatus: intent.suggestedStatus || (matchedJob?.status === 'applied' ? 'interviewing' : matchedJob?.status || 'applied'),
+                            shouldMove: matchedJob ? matchedJob.status !== intent.suggestedStatus : true,
+                            confidence: intent.confidence || 85,
+                            summary: intent.category === 'interview_invite'
+                                ? `Interview / screening invitation received from ${companyName}`
+                                : intent.category === 'offer'
+                                ? `Job offer extended by ${companyName}!`
+                                : intent.category === 'rejection'
+                                ? `Application update from ${companyName}`
+                                : intent.category === 'assessment'
+                                ? `Technical assessment invitation from ${companyName}`
+                                : `Recruiter status update from ${companyName}`,
+                            keyQuote: chunk.slice(0, 160).replace(/\n/g, ' ') + '...'
+                        });
+                    }
+                }
+            }
+
             // Cross-verify with deterministic company matching to ensure no role is missed
             items = items.map(item => {
                 if (!item.matchedJobId) {
@@ -140,7 +236,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
             if (items.length > 0) {
                 setAnalysisResults(items);
             } else {
-                setError('No job-related updates detected in the provided text.');
+                setError('No job-related updates detected in the provided text. You can paste the email body directly below to try again.');
             }
         } catch (err) {
             console.error('[GmailJobSync] Analysis failed:', err);
@@ -256,7 +352,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                             <Mail size={16} color="#ef4444" /> Direct Gmail Synchronization
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                            Scan your Gmail inbox directly for recruiter updates over the past 7 days.
+                            Scan your Gmail inbox directly for recruiter updates over the past 30 days.
                         </div>
                     </div>
 
@@ -279,12 +375,69 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                     </button>
                 </div>
 
+                {/* Helpful API Setup Banner (if Gmail API is not yet enabled in GCP) */}
+                {apiDisabledInfo && (
+                    <div style={{
+                        padding: '14px 18px',
+                        borderRadius: '12px',
+                        background: 'rgba(234, 179, 8, 0.1)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.88rem',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#eab308' }}>
+                            <AlertTriangle size={18} /> Google Cloud Gmail API Setup Required
+                        </div>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            Google requires the Gmail API to be turned on once in your Google Cloud project (<strong>jobhelper-c3cd7</strong>). Click below to enable it in 1 click:
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <a
+                                href={apiDisabledInfo.enableUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-primary"
+                                style={{ fontSize: '0.8rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                            >
+                                <ExternalLink size={14} /> Enable Gmail API in Google Cloud
+                            </a>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Or use &quot;Paste from Clipboard&quot; below to sync your card immediately!
+                            </span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Email Paste Area */}
                 <div style={{ margin: '16px 0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                         <label style={{ fontSize: '0.9rem', fontWeight: '600' }}>
                             Or Paste Email Body / Recruiter Thread:
                         </label>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                onClick={handlePasteClipboard}
+                                className="btn-secondary"
+                                style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                title="Paste recruiter email from your clipboard"
+                            >
+                                <Clipboard size={13} /> Paste from Clipboard
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleInsertAtlassianSample}
+                                className="btn-secondary"
+                                style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                                title="Test the Atlassian recruiter update flow"
+                            >
+                                Atlassian Recruiter Update
+                            </button>
+                        </div>
                     </div>
                     <textarea
                         value={emailText}
@@ -305,16 +458,16 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                     />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                     <button
-                        onClick={handleAnalyze}
+                        onClick={() => handleAnalyze()}
                         disabled={analyzing || !emailText.trim()}
                         className="btn-primary"
                         style={{ padding: '10px 22px', fontSize: '0.95rem' }}
                     >
                         {analyzing ? (
                             <>
-                                <Loader size={16} className="spin" /> Scanning with Gemini AI...
+                                <Loader size={16} className="spin" /> Scanning with AI Engine...
                             </>
                         ) : (
                             <>
@@ -330,7 +483,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                         className="btn-secondary"
                         style={{ fontSize: '0.8rem', padding: '6px 12px' }}
                     >
-                        Insert Sample Interview Invite
+                        Sample Interview Invite
                     </button>
                 </div>
 

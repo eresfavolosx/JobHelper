@@ -259,4 +259,31 @@ describe('QA Test Suite: Role Updates & Email Synchronization', () => {
             assert.equal(job.status, 'interviewing');
         });
     });
+
+    describe('6. End-to-End Simulation: Atlassian Recruiter Update & Fallback Ingestion', () => {
+        it('should accurately match an Atlassian email update and transition status to interviewing', () => {
+            const activeJobs = [
+                { id: 'job-atlassian-1', company: 'Atlassian', role: 'Full Stack Engineer', status: 'applied' },
+                { id: 'job-google-2', company: 'Google', role: 'Software Engineer', status: 'applied' }
+            ];
+
+            const atlassianEmail = {
+                from: 'talent-acquisition@atlassian.com',
+                subject: 'Next steps regarding your application at Atlassian',
+                snippet: 'We would love to invite you to schedule a 45-minute technical screen with one of our Engineering Managers next week.'
+            };
+
+            // 1. Deterministic match must pinpoint the Atlassian card
+            const match = findMatchingJob(atlassianEmail, activeJobs);
+            assert.ok(match, 'Should match the Atlassian job');
+            assert.equal(match.id, 'job-atlassian-1');
+            assert.equal(match.company, 'Atlassian');
+
+            // 2. Classify intent must suggest interviewing
+            const intent = classifyEmailIntent(`${atlassianEmail.subject} ${atlassianEmail.snippet}`);
+            assert.equal(intent.category, 'interview_invite');
+            assert.equal(intent.suggestedStatus, 'interviewing');
+            assert.ok(intent.confidence >= 90);
+        });
+    });
 });
