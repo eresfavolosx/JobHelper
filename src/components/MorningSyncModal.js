@@ -7,6 +7,7 @@ import { useAppStore } from '@/lib/store';
 import { getStoredGmailToken, fetchRecentJobEmails } from '@/lib/gmail-service';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
 
 export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLaunched = false }) {
     const jobs = useAppStore(state => state.jobs);
@@ -65,11 +66,11 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
             if (gmailToken) {
                 try {
                     setStatusText('Querying Gmail inbox for recent recruiter responses...');
-                    const targetCompanies = [...ghosts, ...followUps].map(j => j.company);
-                    const rawEmails = await fetchRecentJobEmails(gmailToken, 14, targetCompanies);
+                    const targetCompanies = [...ghosts, ...followUps, ...activeJobs.slice(0, 10)].map(j => j.company);
+                    const rawEmails = await fetchRecentJobEmails(gmailToken, 30, targetCompanies);
 
                     if (rawEmails && rawEmails.length > 0) {
-                        setStatusText('Analyzing recruiter email threads with Gemini AI...');
+                        setStatusText('Analyzing recruiter email threads with AI Engine...');
                         setProgress(65);
 
                         const activeJobsList = activeJobs.map(j => ({
@@ -98,10 +99,36 @@ Return ONLY a JSON array of status changes:
     "keyQuote": "quote from email"
   }
 ]`;
-                        const res = await generateWithFallback(prompt, { jsonMode: true });
-                        const parsed = extractJson(res);
-                        if (Array.isArray(parsed)) {
-                            detectedUpdates = parsed;
+                        try {
+                            const res = await generateWithFallback(prompt, { jsonMode: true });
+                            const parsed = extractJson(res);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                detectedUpdates = parsed;
+                            }
+                        } catch (aiErr) {
+                            console.warn('[MorningSync] Gemini AI generation skipped, using deterministic matcher:', aiErr);
+                        }
+
+                        // Local deterministic fallback if AI didn't return matches
+                        if (detectedUpdates.length === 0) {
+                            for (const email of rawEmails) {
+                                const matched = findMatchingJob(email, activeJobsList);
+                                const intent = classifyEmailIntent(`${email.subject} ${email.snippet}`);
+                                if (matched || intent.suggestedStatus) {
+                                    detectedUpdates.push({
+                                        company: matched?.company || email.from.split('@')[0],
+                                        matchedJobId: matched?.id || null,
+                                        matchedJobCurrentStatus: matched?.status || 'applied',
+                                        suggestedStatus: intent.suggestedStatus || 'interviewing',
+                                        summary: intent.category === 'interview_invite'
+                                            ? `Interview / screening invitation from ${matched?.company || 'recruiter'}`
+                                            : intent.category === 'offer'
+                                            ? `Job offer from ${matched?.company || 'recruiter'}!`
+                                            : `Status update regarding your application`,
+                                        keyQuote: email.snippet.slice(0, 140) + '...'
+                                    });
+                                }
+                            }
                         }
                     }
                 } catch (e) {
