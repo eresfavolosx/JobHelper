@@ -21,6 +21,7 @@ import MorningSyncModal from '@/components/MorningSyncModal';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
+import AiSafetyBadge from '@/components/AiSafetyBadge';
 
 
 
@@ -297,6 +298,10 @@ function NavContent({ onOpenMorningSync }) {
                             <span>{goalProgress.percentage}% reached</span>
                             <span>{goalProgress.pace === 'completed' ? 'Crushed! 🎉' : goalProgress.pace === 'on_track' ? 'On track 🚀' : 'Behind pace'}</span>
                         </div>
+                    </div>
+
+                    <div style={{ margin: '4px 0' }}>
+                        <AiSafetyBadge variant="navbar" />
                     </div>
 
                     <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />

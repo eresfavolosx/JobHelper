@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAppStore } from './store';
 import { auth } from './firebase';
 import { isOwner, isProUser } from './subscription';
+import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
 
@@ -203,6 +204,39 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
         }
     }
 
+    // AI Safety & Alignment Guardrail Layer
+    let safePromptOrParts = promptOrParts;
+    let piiRedactedCount = 0;
+
+    if (typeof promptOrParts === 'string') {
+        const injection = detectPromptInjection(promptOrParts);
+        if (injection.riskLevel === 'critical') {
+            recordSafetyEvent({ injectionsBlocked: 1, type: 'critical_injection_blocked', details: { matches: injection.matchedPatterns } });
+            throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
+        }
+        const piiResult = sanitizePII(promptOrParts);
+        safePromptOrParts = piiResult.sanitizedText;
+        piiRedactedCount = piiResult.redactedCount;
+    } else if (Array.isArray(promptOrParts)) {
+        safePromptOrParts = promptOrParts.map(part => {
+            if (typeof part === 'string') {
+                const injection = detectPromptInjection(part);
+                if (injection.riskLevel === 'critical') {
+                    recordSafetyEvent({ injectionsBlocked: 1, type: 'critical_injection_blocked', details: { matches: injection.matchedPatterns } });
+                    throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
+                }
+                const piiResult = sanitizePII(part);
+                piiRedactedCount += piiResult.redactedCount;
+                return piiResult.sanitizedText;
+            }
+            return part;
+        });
+    }
+
+    if (piiRedactedCount > 0) {
+        recordSafetyEvent({ piiRedacted: piiRedactedCount, type: 'pii_redacted' });
+    }
+
     const fallbackModels = [
         options.model || "gemini-3.8-flash",
         "gemini-3.7-flash",
@@ -220,7 +254,7 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
                     modelConfig.generationConfig = { responseMimeType: "application/json" };
                 }
                 const model = genAI.getGenerativeModel(modelConfig);
-                const result = await model.generateContent(promptOrParts);
+                const result = await model.generateContent(safePromptOrParts);
                 if (!isPersonal) {
                     recordGeminiCall();
                 }
