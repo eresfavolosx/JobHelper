@@ -7,6 +7,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import GoalTrackerWidget from '@/components/GoalTrackerWidget';
+import AiSafetyBadge from '@/components/AiSafetyBadge';
 
 const emptySubscribe = () => () => {};
 
@@ -97,6 +98,8 @@ export default function Home() {
                     </div>
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
                 </Link>
+
+                <AiSafetyBadge variant="dashboard-card" />
             </div>
 
             {/* Application Output Goal & Cadence Command Center */}
