@@ -39,3 +39,6 @@
 ## 2026-04-10 - Adding comprehensive loading states to authentication forms
 **Learning:** Users can click other authentication options (like OAuth or toggle modes) while an email authentication request is in flight. Not disabling all form actions during async operations can lead to concurrent requests, race conditions, or unhandled UI states.
 **Action:** Always ensure all interactive elements on an authentication form (including secondary options like OAuth buttons) are disabled and visually indicate a loading state when any form submission is active.
+## 2024-07-07 - Non-blocking UI Feedback in Extensions
+**Learning:** Using native `alert()` in Chrome Extension popups blocks the UI thread and can cause the popup to dismiss entirely, frustrating users. Also, `finally` blocks in mixed promise/callback chains (like `chrome.scripting.executeScript`) can trigger resets prematurely, causing race conditions with the UI state.
+**Action:** Always replace native alerts with inline visual feedback (e.g., temporarily updating button text/state) using `setTimeout`. Handle UI resets explicitly within the async/callback flow rather than relying on `finally` blocks when mixing paradigms. Ensure `originalText` is declared at the top of the shared scope to be accessible across all paths.
