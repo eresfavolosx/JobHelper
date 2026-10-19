@@ -47,3 +47,6 @@
 ## 2026-04-10 - Optimize Object iteration with Object.keys and standard for loop
 **Learning:** Iterating over object properties using `Object.entries` inside a `for...of` loop is significantly slower and creates more memory overhead (from creating intermediate arrays `[key, value]`) compared to using `Object.keys` with a standard `for` loop. Benchmarks showed it's ~5x slower.
 **Action:** When creating new objects based on the values of another object (like stripping undefined values before saving to Firestore), prefer using a standard `for` loop over `Object.keys(obj)` instead of `Object.entries(obj)`. Use the `cleanObject` utility in `src/lib/utils.js`.
+## 2026-04-10 - Avoid Destructuring Entire Zustand Stores
+**Learning:** Destructuring an entire Zustand store in a component (e.g. `const { openNewJobModal } = useUIStore();`) forces the component to re-render whenever *any* state in that store changes, even if the used variable didn't. This creates unnecessary renders.
+**Action:** Always use specific state selectors with Zustand (e.g. `const openNewJobModal = useUIStore(s => s.openNewJobModal);`) to ensure components only re-render when the exact piece of state they depend on changes.
