@@ -43,7 +43,16 @@ export default function RecommendationsPage() {
 
             const rawJobs = await fetchJobsFromRSS(body.keywords);
             const scoredJobs = await scoreJobsWithGemini(rawJobs, body.resumeData);
-            setJobs(scoredJobs);
+
+            // ⚡ Bolt: Pre-calculate date string on data source to avoid calling
+            // new Date() twice per item on every render cycle.
+            const jobsWithParsedDates = scoredJobs.map(job => {
+                const parsedDate = job.pubDate ? new Date(job.pubDate) : null;
+                const formattedDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : 'Recent';
+                return { ...job, formattedDate };
+            });
+
+            setJobs(jobsWithParsedDates);
         } catch (err) {
             setError('An unexpected error occurred while fetching recommendations.');
         } finally {
@@ -154,7 +163,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    <span>{job.formattedDate || 'Recent'}</span>
                                 </div>
 
                                 <div style={{
