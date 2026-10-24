@@ -29,6 +29,12 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
-# Vercel
+# Firebase CLI and credentials
 .vercel
 .firebase/
+.temp_firebase_config/
+*firebase-tools.json
+.env
+.env*.local
+*.key
+*.token
