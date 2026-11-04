@@ -1202,12 +1202,21 @@ function GoogleServicesConfig() {
     const handleTestGemini = async () => {
         setTestingGemini(true);
         setGeminiStatus(null);
-        const keyToTest = geminiKeyDraft.trim()
-            || (hasPersonalGeminiKey ? profile?.geminiApiKey : '')
-            || (isPlatformOwner ? envGemini : '');
-        const res = await testGeminiApiKey(keyToTest);
-        setTestingGemini(false);
-        setGeminiStatus(res);
+        try {
+            const keyToTest = geminiKeyDraft.trim()
+                || (hasPersonalGeminiKey ? profile?.geminiApiKey : '')
+                || (isPlatformOwner ? envGemini : '');
+            if (!keyToTest) {
+                setGeminiStatus({ success: false, message: 'Please enter a Gemini API key first.' });
+                return;
+            }
+            const res = await testGeminiApiKey(keyToTest);
+            setGeminiStatus(res);
+        } catch (err) {
+            setGeminiStatus({ success: false, message: err?.message || 'Connection test failed.' });
+        } finally {
+            setTestingGemini(false);
+        }
     };
 
     const handleSaveMaps = () => {
@@ -1232,12 +1241,21 @@ function GoogleServicesConfig() {
     const handleTestMaps = async () => {
         setTestingMaps(true);
         setMapsStatus(null);
-        const keyToTest = mapsKeyDraft.trim()
-            || (hasPersonalMapsKey ? profile?.googleMapsApiKey : '')
-            || (isPlatformOwner ? envMaps : '');
-        const res = await testGoogleMapsApiKey(keyToTest);
-        setTestingMaps(false);
-        setMapsStatus(res);
+        try {
+            const keyToTest = mapsKeyDraft.trim()
+                || (hasPersonalMapsKey ? profile?.googleMapsApiKey : '')
+                || (isPlatformOwner ? envMaps : '');
+            if (!keyToTest) {
+                setMapsStatus({ success: false, message: 'Please enter a Google Maps API key first.' });
+                return;
+            }
+            const res = await testGoogleMapsApiKey(keyToTest);
+            setMapsStatus(res);
+        } catch (err) {
+            setMapsStatus({ success: false, message: err?.message || 'Connection test failed.' });
+        } finally {
+            setTestingMaps(false);
+        }
     };
 
     return (
