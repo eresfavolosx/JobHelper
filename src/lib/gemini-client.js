@@ -181,7 +181,7 @@ export const getGeminiModel = (options = {}) => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelConfig = {
-        model: options.model || "gemini-2.5-flash",
+        model: options.model || "gemini-3.8-flash",
     };
     if (options.jsonMode) {
         modelConfig.generationConfig = { responseMimeType: "application/json" };
@@ -236,9 +236,9 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
     }
 
     const fallbackModels = [
-        options.model || "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash"
+        options.model || "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-flash-latest"
     ];
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -280,9 +280,9 @@ export const testGeminiApiKey = async (apiKey) => {
     try {
         const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
         const genAI = new GoogleGenerativeAI(cleanKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
         await model.generateContent("Respond with: OK");
-        return { success: true, message: 'Connected successfully to Gemini 2.0 Flash!' };
+        return { success: true, message: 'Connected successfully to Gemini 3.8 Flash!' };
     } catch (err) {
         return { success: false, message: err.message || 'Failed to authenticate with Gemini API.' };
     }
