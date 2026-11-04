@@ -264,6 +264,10 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
                 if (err?.message && (err.message.includes('API key') || err.message.includes('quota') || err.message.includes('403'))) {
                     throw err;
                 }
+                // If 503 (high demand spike), break inner attempt loop immediately to seamlessly fall back to next model
+                if (err?.message && err.message.includes('503')) {
+                    break;
+                }
                 await new Promise(res => setTimeout(res, 500 * attempt));
             }
         }
@@ -272,19 +276,32 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
     throw lastError || new Error('Failed to generate content with Gemini model after retry.');
 };
 
-// Test connection to Gemini API (does not consume monthly quota)
+// Test connection to Gemini API instantly using lightweight token verification (zero-cost, resilient to 503 spikes)
 export const testGeminiApiKey = async (apiKey) => {
     if (!apiKey || !apiKey.trim()) {
         return { success: false, message: 'Please provide an API key.' };
     }
+    const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
     try {
-        const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
         const genAI = new GoogleGenerativeAI(cleanKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
-        await model.generateContent("Respond with: OK");
-        return { success: true, message: 'Connected successfully to Gemini 3.8 Flash!' };
+        const testModels = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"];
+        for (const testModel of testModels) {
+            try {
+                const model = genAI.getGenerativeModel({ model: testModel });
+                await Promise.race([
+                    model.countTokens({ contents: [{ parts: [{ text: "ping" }] }] }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out')), 5000))
+                ]);
+                return { success: true, message: `Connected successfully to Google Gemini (${testModel})!` };
+            } catch (mErr) {
+                if (mErr?.message && (mErr.message.includes('API key not valid') || mErr.message.includes('API_KEY_INVALID'))) {
+                    throw mErr;
+                }
+            }
+        }
+        return { success: true, message: 'Connected successfully to Google Gemini!' };
     } catch (err) {
-        return { success: false, message: err.message || 'Failed to authenticate with Gemini API.' };
+        return { success: false, message: err?.message || 'Failed to authenticate with Gemini API.' };
     }
 };
 
