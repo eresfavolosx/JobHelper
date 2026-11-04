@@ -17,12 +17,22 @@ if (!firebaseConfig.apiKey) {
     console.warn("Firebase configuration is missing. Check your environment variables.");
 }
 
+// Fallback config for headless unit tests where .env.local is not loaded
+const effectiveConfig = firebaseConfig.apiKey ? firebaseConfig : {
+    apiKey: "AIzaSyDummyKeyForTestingPurposesOnly123456",
+    authDomain: "jobhelper-c3cd7.firebaseapp.com",
+    projectId: "jobhelper-c3cd7",
+    storageBucket: "jobhelper-c3cd7.appspot.com",
+    messagingSenderId: "1234567890",
+    appId: "1:1234567890:web:abcdef1234567890"
+};
+
 // Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(effectiveConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export { auth, db, googleProvider, firebaseConfig };
+export { auth, db, googleProvider };

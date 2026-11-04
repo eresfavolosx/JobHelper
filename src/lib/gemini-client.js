@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { useAppStore } from './store';
-import { auth } from './firebase';
-import { isOwner } from './subscription';
-import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety';
+import { useAppStore } from './store.js';
+import { auth } from './firebase.js';
+import { isOwner } from './subscription.js';
+import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety.js';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
 
@@ -117,6 +117,60 @@ export const getMimeType = (file, defaultType = 'application/pdf') => {
 };
 
 /**
+ * Resolves the available AI providers and user keys from state and environment.
+ */
+export function getAvailableAiProviders() {
+    let profile = {};
+    try {
+        profile = useAppStore.getState()?.profile || {};
+    } catch {}
+
+    const currentUser = auth?.currentUser;
+    const currentIsOwner = isOwner(currentUser);
+
+    let envGemini = '';
+    if (typeof process !== 'undefined') {
+        envGemini = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
+    }
+
+    const hasGemini = Boolean(
+        (profile.geminiApiKey && profile.geminiApiKey.trim().length > 5) ||
+        (currentIsOwner && envGemini)
+    );
+    const hasClaude = Boolean(profile.claudeApiKey && profile.claudeApiKey.trim().length > 5);
+    const hasOpenAI = Boolean(profile.openaiApiKey && profile.openaiApiKey.trim().length > 5);
+    const hasCustom = Boolean(profile.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile.customAiBaseUrl);
+
+    let active = profile.activeAiProvider || 'gemini';
+    // If active is unset or unconfigured, default gracefully to the first configured provider
+    if (active === 'gemini' && !hasGemini) {
+        if (hasClaude) active = 'claude';
+        else if (hasOpenAI) active = 'openai';
+        else if (hasCustom) active = 'custom';
+    } else if (active === 'claude' && !hasClaude) {
+        if (hasGemini) active = 'gemini';
+        else if (hasOpenAI) active = 'openai';
+    } else if (active === 'openai' && !hasOpenAI) {
+        if (hasGemini) active = 'gemini';
+        else if (hasClaude) active = 'claude';
+    }
+
+    return {
+        active,
+        hasGemini,
+        hasClaude,
+        hasOpenAI,
+        hasCustom,
+        geminiKey: profile.geminiApiKey?.trim() || (currentIsOwner ? envGemini : ''),
+        claudeKey: profile.claudeApiKey?.trim() || '',
+        openaiKey: profile.openaiApiKey?.trim() || '',
+        customKey: profile.customAiApiKey?.trim() || '',
+        customBaseUrl: profile.customAiBaseUrl?.trim() || '',
+        customModel: profile.customAiModel?.trim() || ''
+    };
+}
+
+/**
  * Resolves the appropriate Gemini API key.
  * - If user entered their own personal key (BYOK), it is always permitted (costs Fabian $0).
  * - Shared platform key is strictly restricted to Fabian (fabian.velez1996@gmail.com).
@@ -189,8 +243,191 @@ export const getGeminiModel = (options = {}) => {
     return genAI.getGenerativeModel(modelConfig);
 };
 
-// Resilient generation with automatic retry and fallback across real Gemini Flash models
-export const generateWithFallback = async (promptOrParts, options = {}) => {
+// Internal runner: Anthropic Claude (claude-3-5-sonnet / claude-3-5-haiku / claude-3-7-sonnet)
+async function generateClaudeContent(safePromptOrParts, options = {}, claudeKey) {
+    if (!claudeKey) {
+        throw new Error('Anthropic Claude API Key is not configured. Please add it in Profile settings.');
+    }
+
+    let contentBlocks = [];
+    if (typeof safePromptOrParts === 'string') {
+        contentBlocks = [{ type: 'text', text: safePromptOrParts }];
+    } else if (Array.isArray(safePromptOrParts)) {
+        for (const part of safePromptOrParts) {
+            if (typeof part === 'string') {
+                contentBlocks.push({ type: 'text', text: part });
+            } else if (part?.inlineData) {
+                const { mimeType, data } = part.inlineData;
+                if (mimeType === 'application/pdf') {
+                    contentBlocks.push({
+                        type: 'document',
+                        source: {
+                            type: 'base64',
+                            media_type: 'application/pdf',
+                            data: data
+                        }
+                    });
+                } else if (mimeType?.startsWith('image/')) {
+                    contentBlocks.push({
+                        type: 'image',
+                        source: {
+                            type: 'base64',
+                            media_type: mimeType,
+                            data: data
+                        }
+                    });
+                } else {
+                    // Plain text / markdown document
+                    try {
+                        const decoded = typeof atob !== 'undefined' ? atob(data) : Buffer.from(data, 'base64').toString('utf8');
+                        contentBlocks.push({ type: 'text', text: decoded });
+                    } catch {
+                        contentBlocks.push({ type: 'text', text: data });
+                    }
+                }
+            }
+        }
+    }
+
+    const systemPrompt = options.jsonMode
+        ? 'You are an expert AI assistant. Output ONLY valid, parseable JSON conforming strictly to the requested schema. Do not enclose the output in Markdown codeblocks (no ```json). Do not include any introduction, conversational text, or explanation.'
+        : undefined;
+
+    const modelsToTry = [
+        options.model || 'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-7-sonnet-20250219'
+    ];
+
+    let lastErr = null;
+    for (const model of modelsToTry) {
+        try {
+            const bodyPayload = {
+                model,
+                max_tokens: options.maxTokens || 4096,
+                messages: [{ role: 'user', content: contentBlocks }]
+            };
+            if (systemPrompt) bodyPayload.system = systemPrompt;
+
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': claudeKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify(bodyPayload)
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                const msg = data.error?.message || `Claude API error HTTP ${res.status}`;
+                throw new Error(msg);
+            }
+
+            const text = data.content?.map(c => c.text).filter(Boolean).join('\n') || '';
+            return text;
+        } catch (err) {
+            lastErr = err;
+            console.warn(`[Claude] Model ${model} failed:`, err?.message || err);
+            if (err?.message && (err.message.includes('credit balance') || err.message.includes('invalid x-api-key') || err.message.includes('authentication'))) {
+                throw err;
+            }
+        }
+    }
+    throw lastErr || new Error('Failed to generate response with Anthropic Claude.');
+}
+
+// Internal runner: OpenAI ChatGPT & Custom OpenAI-Compatible (GPT-4o, DeepSeek, Groq, OpenRouter)
+async function generateOpenAIContent(safePromptOrParts, options = {}, apiKey, endpoint = 'https://api.openai.com/v1/chat/completions', defaultModel = 'gpt-4o', isCustom = false) {
+    if (!apiKey) {
+        throw new Error(`${isCustom ? 'Custom Provider' : 'OpenAI'} API Key is not configured. Please add it in Profile settings.`);
+    }
+
+    let userContent = [];
+    if (typeof safePromptOrParts === 'string') {
+        userContent = safePromptOrParts;
+    } else if (Array.isArray(safePromptOrParts)) {
+        userContent = [];
+        for (const part of safePromptOrParts) {
+            if (typeof part === 'string') {
+                userContent.push({ type: 'text', text: part });
+            } else if (part?.inlineData) {
+                const { mimeType, data } = part.inlineData;
+                if (mimeType?.startsWith('image/')) {
+                    userContent.push({
+                        type: 'image_url',
+                        image_url: { url: `data:${mimeType};base64,${data}` }
+                    });
+                } else {
+                    // Documents or plain text base64
+                    try {
+                        const decoded = typeof atob !== 'undefined' ? atob(data) : Buffer.from(data, 'base64').toString('utf8');
+                        userContent.push({ type: 'text', text: `[Attached Document Content (${mimeType})]:\n${decoded}` });
+                    } catch {
+                        userContent.push({ type: 'text', text: `[Attached Document Base64 (${mimeType})]:\n${data}` });
+                    }
+                }
+            }
+        }
+    }
+
+    const messages = [];
+    if (options.jsonMode) {
+        messages.push({
+            role: 'system',
+            content: 'You are an expert AI assistant. Output ONLY valid, parseable JSON conforming strictly to the requested schema. No markdown formatting.'
+        });
+    }
+    messages.push({ role: 'user', content: userContent });
+
+    const modelsToTry = isCustom
+        ? [defaultModel || 'gpt-4o-mini']
+        : [options.model || defaultModel, 'gpt-4o-mini', 'o3-mini'];
+
+    let lastErr = null;
+    for (const model of modelsToTry) {
+        try {
+            const bodyPayload = {
+                model,
+                messages,
+                temperature: options.temperature ?? 0.7
+            };
+            if (options.jsonMode && !isCustom) {
+                bodyPayload.response_format = { type: 'json_object' };
+            }
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(bodyPayload)
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                const msg = data.error?.message || `API error HTTP ${res.status}`;
+                throw new Error(msg);
+            }
+
+            const text = data.choices?.[0]?.message?.content || '';
+            return text;
+        } catch (err) {
+            lastErr = err;
+            console.warn(`[OpenAI/Compatible] Model ${model} failed:`, err?.message || err);
+            if (err?.message && (err.message.includes('Incorrect API key') || err.message.includes('insufficient_quota'))) {
+                throw err;
+            }
+        }
+    }
+    throw lastErr || new Error(`Failed to generate response with ${isCustom ? 'Custom Provider' : 'OpenAI'}.`);
+}
+
+// Internal runner: Google Gemini Flash with fallback models
+async function generateGeminiInternal(safePromptOrParts, options = {}) {
     const { apiKey, isPersonal } = resolveGeminiApiKey();
 
     if (!isPersonal) {
@@ -202,7 +439,48 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
         }
     }
 
-    // AI Safety & Alignment Guardrail Layer
+    const fallbackModels = [
+        options.model || "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-flash-latest"
+    ];
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    let lastError = null;
+
+    for (const modelName of fallbackModels) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const modelConfig = { model: modelName };
+                if (options.jsonMode) {
+                    modelConfig.generationConfig = { responseMimeType: "application/json" };
+                }
+                const model = genAI.getGenerativeModel(modelConfig);
+                const result = await model.generateContent(safePromptOrParts);
+                if (!isPersonal) {
+                    recordGeminiCall();
+                }
+                return result.response.text();
+            } catch (err) {
+                lastError = err;
+                console.warn(`[Gemini] ${modelName} attempt ${attempt} failed:`, err?.message || err);
+                if (err?.message && (err.message.includes('API key') || err.message.includes('quota') || err.message.includes('403'))) {
+                    throw err;
+                }
+                if (err?.message && err.message.includes('503')) {
+                    break;
+                }
+                await new Promise(res => setTimeout(res, 500 * attempt));
+            }
+        }
+    }
+
+    throw lastError || new Error('Failed to generate content with Gemini model after retry.');
+}
+
+// Multi-Provider Resilient AI Generation: Routes to Gemini, Claude, OpenAI, or Custom Provider
+export const generateWithFallback = async (promptOrParts, options = {}) => {
+    // 1. AI Safety & Alignment Guardrail Layer (Constitutional AI across all providers)
     let safePromptOrParts = promptOrParts;
     let piiRedactedCount = 0;
 
@@ -235,45 +513,157 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
         recordSafetyEvent({ piiRedacted: piiRedactedCount, type: 'pii_redacted' });
     }
 
-    const fallbackModels = [
-        options.model || "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-flash-latest"
-    ];
+    // 2. Resolve Active AI Provider & Available Keys
+    const providers = getAvailableAiProviders();
+    const active = providers.active;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    let lastError = null;
-
-    for (const modelName of fallbackModels) {
-        for (let attempt = 1; attempt <= 2; attempt++) {
-            try {
-                const modelConfig = { model: modelName };
-                if (options.jsonMode) {
-                    modelConfig.generationConfig = { responseMimeType: "application/json" };
-                }
-                const model = genAI.getGenerativeModel(modelConfig);
-                const result = await model.generateContent(safePromptOrParts);
-                if (!isPersonal) {
-                    recordGeminiCall();
-                }
-                return result.response.text();
-            } catch (err) {
-                lastError = err;
-                console.warn(`[Gemini] ${modelName} attempt ${attempt} failed:`, err?.message || err);
-                // If it's quota limit or invalid key, don't keep spinning
-                if (err?.message && (err.message.includes('API key') || err.message.includes('quota') || err.message.includes('403'))) {
-                    throw err;
-                }
-                // If 503 (high demand spike), break inner attempt loop immediately to seamlessly fall back to next model
-                if (err?.message && err.message.includes('503')) {
-                    break;
-                }
-                await new Promise(res => setTimeout(res, 500 * attempt));
+    // Dispatch according to active engine, with graceful fallbacks
+    if (active === 'claude' && providers.hasClaude) {
+        try {
+            return await generateClaudeContent(safePromptOrParts, options, providers.claudeKey);
+        } catch (claudeErr) {
+            console.warn('[AI Provider] Primary provider Claude failed, checking fallbacks:', claudeErr?.message || claudeErr);
+            if (providers.hasGemini) {
+                return await generateGeminiInternal(safePromptOrParts, options);
+            } else if (providers.hasOpenAI) {
+                return await generateOpenAIContent(safePromptOrParts, options, providers.openaiKey);
             }
+            throw claudeErr;
         }
     }
 
-    throw lastError || new Error('Failed to generate content with Gemini model after retry.');
+    if (active === 'openai' && providers.hasOpenAI) {
+        try {
+            return await generateOpenAIContent(safePromptOrParts, options, providers.openaiKey);
+        } catch (openAiErr) {
+            console.warn('[AI Provider] Primary provider OpenAI failed, checking fallbacks:', openAiErr?.message || openAiErr);
+            if (providers.hasGemini) {
+                return await generateGeminiInternal(safePromptOrParts, options);
+            } else if (providers.hasClaude) {
+                return await generateClaudeContent(safePromptOrParts, options, providers.claudeKey);
+            }
+            throw openAiErr;
+        }
+    }
+
+    if (active === 'custom' && providers.hasCustom) {
+        try {
+            const endpoint = `${providers.customBaseUrl.replace(/\/+$/, '')}/chat/completions`;
+            return await generateOpenAIContent(safePromptOrParts, options, providers.customKey, endpoint, providers.customModel, true);
+        } catch (customErr) {
+            console.warn('[AI Provider] Primary custom provider failed, checking fallbacks:', customErr?.message || customErr);
+            if (providers.hasGemini) {
+                return await generateGeminiInternal(safePromptOrParts, options);
+            }
+            throw customErr;
+        }
+    }
+
+    // Default: Gemini Flash with fallback models
+    try {
+        return await generateGeminiInternal(safePromptOrParts, options);
+    } catch (geminiErr) {
+        console.warn('[AI Provider] Gemini failed, checking alternative configured providers:', geminiErr?.message || geminiErr);
+        if (providers.hasClaude) {
+            return await generateClaudeContent(safePromptOrParts, options, providers.claudeKey);
+        }
+        if (providers.hasOpenAI) {
+            return await generateOpenAIContent(safePromptOrParts, options, providers.openaiKey);
+        }
+        throw geminiErr;
+    }
+};
+
+// Test connection to Anthropic Claude
+export const testClaudeApiKey = async (apiKey) => {
+    if (!apiKey || !apiKey.trim()) {
+        return { success: false, message: 'Please provide a Claude API key.' };
+    }
+    const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': cleanKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-haiku-20241022',
+                max_tokens: 1,
+                messages: [{ role: 'user', content: 'ping' }]
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const msg = data.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+            return { success: false, message: msg };
+        }
+        return { success: true, message: 'Connected successfully to Anthropic Claude (claude-3-5-haiku)!' };
+    } catch (err) {
+        return { success: false, message: err?.message || 'Failed to connect to Claude API.' };
+    }
+};
+
+// Test connection to OpenAI (ChatGPT)
+export const testOpenAiApiKey = async (apiKey) => {
+    if (!apiKey || !apiKey.trim()) {
+        return { success: false, message: 'Please provide an OpenAI API key.' };
+    }
+    const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
+    try {
+        const res = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${cleanKey}`
+            }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const msg = data.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+            return { success: false, message: msg };
+        }
+        return { success: true, message: 'Connected successfully to OpenAI (ChatGPT)!' };
+    } catch (err) {
+        return { success: false, message: err?.message || 'Failed to connect to OpenAI API.' };
+    }
+};
+
+// Test connection to custom OpenAI-compatible provider
+export const testCustomAiProvider = async (baseUrl, apiKey, model) => {
+    if (!baseUrl || !baseUrl.trim()) {
+        return { success: false, message: 'Please provide a Base URL (e.g. https://api.deepseek.com/v1).' };
+    }
+    if (!apiKey || !apiKey.trim()) {
+        return { success: false, message: 'Please provide an API key.' };
+    }
+    const cleanUrl = baseUrl.trim().replace(/\/+$/, '');
+    const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
+    const cleanModel = (model || '').trim() || 'default';
+
+    try {
+        const res = await fetch(`${cleanUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${cleanKey}`
+            },
+            body: JSON.stringify({
+                model: cleanModel,
+                max_tokens: 5,
+                messages: [{ role: 'user', content: 'ping' }]
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const msg = data.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+            return { success: false, message: msg };
+        }
+        return { success: true, message: `Connected successfully to custom provider (${cleanModel})!` };
+    } catch (err) {
+        return { success: false, message: err?.message || 'Failed to connect to custom provider.' };
+    }
 };
 
 // Test connection to Gemini API instantly using lightweight token verification (zero-cost, resilient to 503 spikes)

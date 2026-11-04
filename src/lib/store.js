@@ -1,10 +1,10 @@
-import { cleanObject } from './utils';
+import { cleanObject } from './utils.js';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db, auth } from './firebase';
-import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription';
-import { resolveAppliedAtForStatusChange, findMiscountedApplications } from './goal-tracker';
+import { db, auth } from './firebase.js';
+import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription.js';
+import { resolveAppliedAtForStatusChange, findMiscountedApplications } from './goal-tracker.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const appliedAtCleanupInFlight = new Set();
@@ -55,6 +55,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
     'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
     'experienceLevel', 'country', 'modality', 'minimumSalary',
     'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
+    'claudeApiKey', 'openaiApiKey', 'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
     'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
     'applicationGoal', 'updatedAt'
 ]);
@@ -83,6 +84,12 @@ const PROFILE_STRING_LIMITS = {
     modality: 250,
     minimumSalary: 50,
     geminiApiKey: 200,
+    claudeApiKey: 200,
+    openaiApiKey: 200,
+    customAiApiKey: 200,
+    customAiBaseUrl: 250,
+    customAiModel: 100,
+    activeAiProvider: 50,
     googleMapsApiKey: 200
 };
 
@@ -216,6 +223,12 @@ export const useAppStore = create(
                         minimumSalary: '',
                         contextDocuments: [],
                         geminiApiKey: '',
+                        claudeApiKey: '',
+                        openaiApiKey: '',
+                        customAiApiKey: '',
+                        customAiBaseUrl: '',
+                        customAiModel: '',
+                        activeAiProvider: 'gemini',
                         googleMapsApiKey: '',
                         subscriptionStatus: 'free', // 'free', 'premium', 'trial'
                         trialStartDate: null,
@@ -243,6 +256,12 @@ export const useAppStore = create(
                         minimumSalary: '',
                         contextDocuments: [],
                         geminiApiKey: '',
+                        claudeApiKey: '',
+                        openaiApiKey: '',
+                        customAiApiKey: '',
+                        customAiBaseUrl: '',
+                        customAiModel: '',
+                        activeAiProvider: 'gemini',
                         googleMapsApiKey: '',
                         subscriptionStatus: 'free',
                         trialStartDate: null,
@@ -451,6 +470,12 @@ export const useAppStore = create(
                 contextDocuments: [], // { name, content, type }
                 resumeAnalysis: null, // { skills, summary, targetRoles, etc }
                 geminiApiKey: '', // User provided API key (overrides env var)
+                claudeApiKey: '', // User provided Anthropic Claude API key
+                openaiApiKey: '', // User provided OpenAI API key
+                customAiApiKey: '', // User provided custom API key (e.g. DeepSeek, Groq, OpenRouter)
+                customAiBaseUrl: '', // e.g. https://api.deepseek.com/v1 or https://api.groq.com/openai/v1
+                customAiModel: '', // e.g. deepseek-chat or llama-3.3-70b-versatile
+                activeAiProvider: 'gemini', // 'gemini' | 'claude' | 'openai' | 'custom'
                 googleMapsApiKey: '', // Google Maps API Key for commute & location intelligence
                 subscriptionStatus: 'free',
                 trialStartDate: null,
@@ -532,7 +557,9 @@ export const useAppStore = create(
                             const userEditableFields = [
                                 'fullName', 'targetRole', 'location', 'keywords',
                                 'experienceLevel', 'country', 'modality', 'minimumSalary',
-                                'geminiApiKey', 'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis'
+                                'geminiApiKey', 'claudeApiKey', 'openaiApiKey',
+                                'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
+                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis'
                             ];
 
                             if (localTime > remoteTime) {
