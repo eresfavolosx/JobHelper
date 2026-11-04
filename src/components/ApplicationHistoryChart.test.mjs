@@ -111,6 +111,19 @@ describe('Application History Chart & Granularity Switcher', () => {
             assert.deepEqual(data, [], 'Should return empty array for no jobs');
         });
 
+        it('calculateChartData uses a custom getDate accessor and skips undated jobs instead of counting them as today', () => {
+            const jobs = [
+                { id: 1, createdAt: today.toISOString(), appliedAt: yesterday.toISOString() },
+                { id: 2 } // no date at all -> must not be counted as "today"
+            ];
+            const data = calculateChartData(jobs, 'daily', { now: refNow, getDate: j => j.appliedAt });
+            const lastPoint = data[data.length - 1];
+            const secondLast = data[data.length - 2];
+            assert.equal(lastPoint.newJobs, 0, 'Nothing applied today');
+            assert.equal(secondLast.newJobs, 1, 'Dated by appliedAt (yesterday)');
+            assert.equal(lastPoint.count, 1, 'Undated job is excluded');
+        });
+
         it('calculateChartData groups by weekly intervals accurately', () => {
             const jobs = [
                 { id: 1, createdAt: '2026-09-15T10:00:00Z' }, // Week of Sep 14

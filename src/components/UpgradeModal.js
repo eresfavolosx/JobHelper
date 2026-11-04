@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Sparkles, CheckCircle2, CreditCard, Key } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { getStripeCheckoutUrl, PRO_MONTHLY_PRICE } from '@/lib/subscription';
@@ -11,28 +12,43 @@ export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature
 
     const checkoutUrl = getStripeCheckoutUrl(user);
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-        }}>
-            <div className="card animate-scale-up" style={{
-                width: '100%',
-                maxWidth: '560px',
-                padding: '32px',
-                position: 'relative',
-                border: '1px solid var(--accent-primary)',
-                boxShadow: '0 25px 50px -12px rgba(56, 189, 248, 0.25)',
-                background: 'var(--bg-app)'
-            }}>
+    const modalContent = (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Upgrade to NovuJobs Pro"
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.8)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                zIndex: 10010,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px'
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="card animate-scale-up"
+                style={{
+                    width: '100%',
+                    maxWidth: '560px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    padding: 'clamp(20px, 5vw, 32px)',
+                    position: 'relative',
+                    border: '1px solid var(--accent-primary)',
+                    boxShadow: '0 25px 50px -12px rgba(107, 126, 103, 0.28)',
+                    background: 'var(--bg-app)'
+                }}
+            >
                 <button
+                    type="button"
+                    aria-label="Close upgrade modal"
                     onClick={onClose}
                     style={{
                         position: 'absolute',
@@ -62,7 +78,7 @@ export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature
                     }}>
                         <Sparkles size={28} color="var(--accent-secondary)" />
                     </div>
-                    <h3 style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>
+                    <h3 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.6rem)', fontWeight: 'bold' }}>
                         Supercharge Your Career with <span style={{ color: 'var(--accent-primary)' }}>NovuJobs Pro</span>
                     </h3>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '6px' }}>
@@ -79,7 +95,7 @@ export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature
                     border: '1px solid var(--border-subtle)',
                     marginBottom: '24px'
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                         <div>
                             <span style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>{PRO_MONTHLY_PRICE}</span>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}> / month</span>
@@ -87,7 +103,7 @@ export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature
                         <span style={{
                             padding: '4px 10px',
                             borderRadius: '12px',
-                            background: 'rgba(56, 189, 248, 0.15)',
+                            background: 'rgba(107, 126, 103, 0.16)',
                             color: 'var(--accent-primary)',
                             fontSize: '0.75rem',
                             fontWeight: 'bold'
@@ -159,4 +175,9 @@ export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature
             </div>
         </div>
     );
+
+    if (typeof document !== 'undefined' && document.body) {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 }

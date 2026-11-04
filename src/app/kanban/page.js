@@ -5,14 +5,14 @@ import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { 
     Download, Mail, FileText, FileSpreadsheet, 
-    Bot, ChevronDown, Target
+    Bot, ChevronDown, Plus
 } from 'lucide-react';
 import { exportBoardToCsv, exportBoardToJson, exportAgentBriefing } from '@/lib/export-utils';
 import GmailJobSyncModal from '@/components/GmailJobSyncModal';
 import NotificationCenter from '@/components/NotificationCenter';
 import AiCareerCoachModal from '@/components/AiCareerCoachModal';
-import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
+import { useUIStore } from '@/lib/uiStore';
 
 const emptySubscribe = () => () => {};
 
@@ -20,6 +20,7 @@ export default function KanbanPage() {
     const { user, loading } = useAuth();
     const jobs = useAppStore(state => state.jobs);
     const profile = useAppStore(state => state.profile);
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
 
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -28,8 +29,6 @@ export default function KanbanPage() {
     const [coachModalOpen, setCoachModalOpen] = useState(false);
     const [goalModalOpen, setGoalModalOpen] = useState(false);
     const exportRef = useRef(null);
-
-    const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
 
     useEffect(() => {
         if (mounted && !loading && !user) {
@@ -60,46 +59,42 @@ export default function KanbanPage() {
 
     return (
         <div className="kanban-board-container">
-            <header style={{ 
-                marginBottom: '16px', 
-                flexShrink: 0,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '12px'
-            }}>
+            <header
+                className="kanban-page-header"
+                style={{ 
+                    marginBottom: '10px', 
+                    flexShrink: 0,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    position: 'relative',
+                    zIndex: 45
+                }}
+            >
                 <div>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>Application Board</h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                        Track your pipeline across stages. Drag cards or use the quick status mover.
+                    <h2 style={{ fontSize: 'clamp(1.25rem, 3vw, 1.7rem)', fontWeight: 'bold', lineHeight: 1.2 }}>Application Board</h2>
+                    <p className="desktop-only" style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginTop: '2px' }}>
+                        Track your pipeline across stages. Drag cards, attach your resume link, or use the Stage selector pill.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {/* Goal Tracker Pill */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <button
                         type="button"
-                        onClick={() => setGoalModalOpen(true)}
-                        className="btn-secondary"
+                        onClick={openNewJobModal}
+                        className="btn-primary"
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '0.85rem',
-                            padding: '8px 12px',
-                            background: goalProgress.percentage >= 100 
-                                ? 'rgba(16, 185, 129, 0.12)' 
-                                : 'rgba(56, 189, 248, 0.1)',
-                            border: goalProgress.percentage >= 100 
-                                ? '1px solid rgba(16, 185, 129, 0.3)' 
-                                : '1px solid rgba(56, 189, 248, 0.3)'
+                            gap: '5px',
+                            fontSize: '0.8rem',
+                            padding: '7px 12px'
                         }}
-                        title={`Application Goal: ${goalProgress.count} of ${goalProgress.target} applied (${goalProgress.cadence}). Click to customize.`}
                     >
-                        <Target size={15} color={goalProgress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)'} />
-                        <span style={{ fontWeight: 'bold' }}>{goalProgress.count}/{goalProgress.target}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>({goalProgress.cadence})</span>
+                        <Plus size={15} />
+                        <span>Log Application</span>
                     </button>
 
                     {/* Notification Center */}
@@ -116,15 +111,15 @@ export default function KanbanPage() {
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '0.85rem',
-                            padding: '8px 14px',
+                            gap: '5px',
+                            fontSize: '0.8rem',
+                            padding: '7px 12px',
                             background: 'linear-gradient(135deg, rgba(208, 90, 71, 0.12), rgba(94, 135, 110, 0.14))',
                             border: '1px solid rgba(94, 135, 110, 0.35)'
                         }}
                         title="Scan recruiter emails with AI to auto-update job statuses"
                     >
-                        <Mail size={16} color="var(--accent-primary)" />
+                        <Mail size={15} color="var(--accent-primary)" />
                         <span>Sync Emails</span>
                     </button>
 
@@ -137,15 +132,15 @@ export default function KanbanPage() {
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '0.85rem',
-                                padding: '8px 14px'
+                                gap: '5px',
+                                fontSize: '0.8rem',
+                                padding: '7px 12px'
                             }}
                             title="Export board data for AI agents or spreadsheets"
                         >
-                            <Download size={16} />
-                            <span>Export Board</span>
-                            <ChevronDown size={14} style={{ opacity: 0.7 }} />
+                            <Download size={15} />
+                            <span>Export</span>
+                            <ChevronDown size={13} style={{ opacity: 0.7 }} />
                         </button>
 
                         {exportMenuOpen && (

@@ -13,7 +13,7 @@ const getThemeSnapshot = () => getStoredTheme();
 const getThemeServerSnapshot = () => 'system';
 const emptySubscribe = () => () => {};
 
-export default function ThemeSwitcher({ compact = false, style = {} }) {
+export default function ThemeSwitcher({ compact = false, collapsed = false, style = {} }) {
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
     const currentTheme = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getThemeServerSnapshot);
 
@@ -26,13 +26,46 @@ export default function ThemeSwitcher({ compact = false, style = {} }) {
         return (
             <div
                 style={{
-                    height: compact ? '32px' : '38px',
+                    height: collapsed ? '40px' : compact ? '32px' : '38px',
+                    width: collapsed ? '44px' : 'auto',
                     borderRadius: '10px',
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--border-subtle)',
                     ...style
                 }}
             />
+        );
+    }
+
+    if (collapsed) {
+        const nextTheme = currentTheme === 'dark' ? 'light' : currentTheme === 'light' ? 'system' : 'dark';
+        const CurrentIcon = currentTheme === 'dark' ? Moon : currentTheme === 'light' ? Sun : Laptop;
+        const themeLabel = currentTheme === 'dark' ? 'Dark Mode' : currentTheme === 'light' ? 'Light Mode' : 'System Theme';
+
+        return (
+            <button
+                type="button"
+                onClick={() => handleSelect(nextTheme)}
+                title={`Theme: ${themeLabel} (Click to toggle)`}
+                aria-label={`Current theme is ${themeLabel}. Click to switch theme.`}
+                style={{
+                    width: '44px',
+                    height: '40px',
+                    borderRadius: '9px',
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                    userSelect: 'none',
+                    ...style
+                }}
+            >
+                <CurrentIcon size={17} color="var(--accent-primary)" />
+            </button>
         );
     }
 
@@ -71,13 +104,15 @@ export default function ThemeSwitcher({ compact = false, style = {} }) {
                         onClick={() => handleSelect(opt.id)}
                         title={opt.title}
                         style={{
+                            flex: compact ? '0 0 auto' : 1,
+                            minWidth: 0,
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: compact ? '0px' : '5px',
-                            padding: compact ? '5px 8px' : '6px 11px',
+                            gap: compact ? '0px' : '4px',
+                            padding: compact ? '5px 8px' : '6px 8px',
                             borderRadius: '8px',
-                            fontSize: '0.78rem',
+                            fontSize: '0.76rem',
                             fontWeight: isSelected ? 600 : 500,
                             color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
                             background: isSelected ? 'var(--bg-card)' : 'transparent',
@@ -85,7 +120,8 @@ export default function ThemeSwitcher({ compact = false, style = {} }) {
                             boxShadow: isSelected ? '0 2px 8px rgba(0, 0, 0, 0.12)' : 'none',
                             cursor: 'pointer',
                             transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                            userSelect: 'none'
+                            userSelect: 'none',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         <IconComponent size={compact ? 13 : 14} color={isSelected ? 'var(--accent-primary)' : 'currentColor'} />

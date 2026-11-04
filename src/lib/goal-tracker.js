@@ -35,13 +35,121 @@ export function getApplicationGoal(profile) {
 
 /**
  * Normalizes date string or timestamp to Date object.
+ * Uses only the application/creation date. `updatedAt` is intentionally excluded because it
+ * changes on every status change (e.g. applied -> screening), which must not count as a new application.
  */
-function parseJobDate(job) {
-    const raw = job.appliedAt || job.createdAt || job.dateAdded || job.updatedAt;
+export function parseJobDate(job) {
+    if (!job) return null;
+    const raw = job.appliedAt || job.createdAt || job.dateAdded;
     if (!raw) return null;
+    if (typeof raw === 'object' && typeof raw.toDate === 'function') {
+        const d = raw.toDate();
+        return isNaN(d.getTime()) ? null : d;
+    }
     const d = new Date(raw);
     return isNaN(d.getTime()) ? null : d;
 }
+
+// Statuses that do not represent a submitted application
+const NON_APPLIED_STATUSES = new Set(['wishlist', 'archived', 'deleted']);
+
+/**
+ * Resolves the `appliedAt` value to persist when a job's status changes.
+ * Only a genuine wishlist -> pipeline transition counts as a new application (stamped "now").
+ * Moving between pipeline stages (e.g. applied -> screening -> interviewing -> offer) must NEVER
+ * re-date the application, otherwise status changes get counted towards the application goal.
+ *
+ * @param {object|undefined} existingJob - Job before the change
+ * @param {string} newStatus - Target status
+ * @param {string} nowIso - Current timestamp (ISO string)
+ * @returns {string|undefined} appliedAt to write, or undefined to leave it untouched
+ */
+export function resolveAppliedAtForStatusChange(existingJob, newStatus, nowIso) {
+    if (!newStatus || NON_APPLIED_STATUSES.has(newStatus)) return undefined;
+
+    // Effective prior stage (archived/deleted jobs remember where they came from)
+    const priorStatus = (existingJob?.status === 'archived' || existingJob?.status === 'deleted')
+        ? (existingJob?.previousStatus || 'wishlist')
+        : (existingJob?.status || 'wishlist');
+
+    if (priorStatus === 'wishlist') {
+        // Genuine new application submitted now
+        return nowIso;
+    }
+
+    // Pipeline stage change: keep the original application date untouched
+    if (existingJob?.appliedAt) return undefined;
+
+    // Legacy job already in the pipeline but missing appliedAt: backfill with its original
+    // creation date instead of "now" so it is not counted as a new application today
+    return existingJob?.createdAt || existingJob?.dateAdded || undefined;
+}
+
+/**
+ * Determines whether a job represents a submitted application that should count
+ * towards goals and application history.
+ * - wishlist / deleted jobs never count
+ * - archived jobs only count if they were archived from a pipeline stage
+ *   (archiving a wishlist bookmark is not an application)
+ */
+export function isSubmittedApplication(job) {
+    if (!job) return false;
+    const status = job.status || 'wishlist';
+    if (status === 'wishlist' || status === 'deleted') return false;
+    if (status === 'archived') {
+        const prior = job.previousStatus || 'wishlist';
+        return prior !== 'wishlist' && prior !== 'archived' && prior !== 'deleted';
+    }
+    return true;
+}
+
+function toMillis(raw) {
+    if (!raw) return NaN;
+    if (typeof raw === 'object' && typeof raw.toDate === 'function') return raw.toDate().getTime();
+    return new Date(raw).getTime();
+}
+
+/**
+ * One-time cleanup: finds jobs whose `appliedAt` was wrongly re-stamped by a status change
+ * (e.g. applied -> rejected) under the old logic, which made them count towards the goal again.
+ *
+ * Signature of the old bug: the stage change wrote `appliedAt` and `updatedAt` with the exact
+ * same timestamp while moving the job into a non-"applied" pipeline stage, even though the job
+ * was created earlier. Such jobs are re-dated to their original creation date.
+ *
+ * Jobs currently in "applied" are left untouched because a genuine wishlist -> applied move
+ * has the same signature and can't be told apart.
+ *
+ * @param {Array} jobs
+ * @param {string|number|Date} [cutoff] - Only repair stamps written before this time
+ *   (i.e. by previously deployed code). Defaults to no cutoff.
+ * @returns {Array<{ id: string, appliedAt: string }>} repairs to apply
+ */
+export function findMiscountedApplications(jobs = [], cutoff) {
+    const cutoffMs = cutoff ? toMillis(cutoff) : Infinity;
+    const repairs = [];
+    for (const job of jobs || []) {
+        if (!job?.id || !isSubmittedApplication(job)) continue;
+        if (job.status === 'applied' || job.status === 'archived') continue;
+
+        const appliedMs = toMillis(job.appliedAt);
+        const updatedMs = toMillis(job.updatedAt);
+        if (isNaN(appliedMs) || isNaN(updatedMs) || appliedMs !== updatedMs) continue;
+        if (!(appliedMs < cutoffMs)) continue;
+
+        const origin = job.createdAt || job.dateAdded;
+        const originMs = toMillis(origin);
+        if (isNaN(originMs) || originMs >= appliedMs) continue;
+
+        const originIso = typeof origin === 'string' ? origin : new Date(originMs).toISOString();
+        repairs.push({ id: job.id, appliedAt: originIso });
+    }
+    return repairs;
+}
+
+// Single-entry memo cache: calculateGoalProgress is called by several components
+// (nav bar, banner, widget, profile, modals) on every render with the same jobs array.
+let goalProgressCache = { jobs: null, target: null, cadence: null, enabled: null, minuteKey: null, result: null };
 
 /**
  * Checks if a date falls within the same day as `now` (using local day boundaries).
@@ -108,33 +216,68 @@ export function getCycleDaysRemaining(cadence, now = new Date()) {
 }
 
 /**
- * Evaluates progress against user goal.
+ * Evaluates progress against user goal and returns both today's applied roles
+ * and the roles contributing to the active goal cycle.
  */
 export function calculateGoalProgress(jobs = [], goal = DEFAULT_GOAL, now = new Date()) {
     const target = Math.max(1, parseInt(goal?.target, 10) || DEFAULT_GOAL.target);
     const cadence = goal?.cadence || DEFAULT_GOAL.cadence;
+    const enabled = goal?.enabled !== false;
 
-    // Filter valid submitted applications (wishlist or deleted do not count towards applied targets)
-    const validJobs = (jobs || []).filter(j => 
-        j && j.status !== 'deleted' && j.status !== 'wishlist'
-    );
+    // Return memoized result when inputs are unchanged within the same minute
+    // (zustand keeps the jobs array reference stable until jobs actually change)
+    const minuteKey = Math.floor(now.getTime() / 60000);
+    const cache = goalProgressCache;
+    if (
+        cache.result &&
+        cache.jobs === jobs &&
+        cache.target === target &&
+        cache.cadence === cadence &&
+        cache.enabled === enabled &&
+        cache.minuteKey === minuteKey
+    ) {
+        return cache.result;
+    }
 
-    let count = 0;
+    // Only submitted applications count (wishlist, deleted, and archived bookmarks do not)
+    const validJobs = (jobs || []).filter(isSubmittedApplication);
+
+    const cycleJobs = [];
+    const todayJobs = [];
+
     validJobs.forEach(job => {
         const d = parseJobDate(job);
         if (!d) return;
 
-        if (cadence === 'daily' && isToday(d, now)) {
-            count++;
+        const appliedToday = isToday(d, now);
+        const enrichedJob = {
+            ...job,
+            parsedDate: d.toISOString(),
+            isAppliedToday: appliedToday
+        };
+
+        if (appliedToday) {
+            todayJobs.push(enrichedJob);
+        }
+
+        if (cadence === 'daily' && appliedToday) {
+            cycleJobs.push(enrichedJob);
         } else if (cadence === 'weekly' && isCurrentWeek(d, now)) {
-            count++;
+            cycleJobs.push(enrichedJob);
         } else if (cadence === 'monthly' && isCurrentMonth(d, now)) {
-            count++;
+            cycleJobs.push(enrichedJob);
         } else if (cadence === 'total') {
-            count++;
+            cycleJobs.push(enrichedJob);
         }
     });
 
+    // Sort newest first so the user sees their most recent applications at the top
+    const sortByNewest = (a, b) => new Date(b.parsedDate).getTime() - new Date(a.parsedDate).getTime();
+    cycleJobs.sort(sortByNewest);
+    todayJobs.sort(sortByNewest);
+
+    const count = cycleJobs.length;
+    const todayCount = todayJobs.length;
     const percentage = Math.min(100, Math.round((count / target) * 100));
     const remaining = Math.max(0, target - count);
     const cycleTimeRemaining = getCycleDaysRemaining(cadence, now);
@@ -174,8 +317,9 @@ export function calculateGoalProgress(jobs = [], goal = DEFAULT_GOAL, now = new 
         }
     }
 
-    return {
+    const result = {
         count,
+        todayCount,
         target,
         cadence,
         percentage,
@@ -183,6 +327,11 @@ export function calculateGoalProgress(jobs = [], goal = DEFAULT_GOAL, now = new 
         pace,
         paceMessage,
         cycleTimeRemaining,
-        enabled: goal?.enabled !== false
+        cycleJobs,
+        todayJobs,
+        enabled
     };
+
+    goalProgressCache = { jobs, target, cadence, enabled, minuteKey, result };
+    return result;
 }

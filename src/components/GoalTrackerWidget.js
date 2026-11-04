@@ -1,14 +1,39 @@
 "use client";
 import React, { useState } from 'react';
-import { Target, Sliders, CheckCircle2, TrendingUp, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import {
+    Target, Sliders, CheckCircle2, TrendingUp, AlertCircle,
+    Calendar, Briefcase, ExternalLink, ChevronDown, ChevronUp, Sparkles, ArrowRight, FileText
+} from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { sanitizeUrl } from '@/lib/utils';
 import GoalCustomizationModal from './GoalCustomizationModal';
+
+const STATUS_BADGE_STYLES = {
+    applied: { label: 'Applied', bg: 'rgba(107, 126, 103, 0.16)', border: 'rgba(107, 126, 103, 0.4)', color: 'var(--accent-primary)' },
+    screening: { label: 'Initial Screening', bg: 'rgba(14, 165, 233, 0.15)', border: 'rgba(14, 165, 233, 0.4)', color: '#0ea5e9' },
+    interviewing: { label: 'Interviewing', bg: 'rgba(209, 138, 60, 0.16)', border: 'rgba(209, 138, 60, 0.4)', color: 'var(--warning)' },
+    offer: { label: 'Offer', bg: 'rgba(78, 135, 82, 0.18)', border: 'rgba(78, 135, 82, 0.45)', color: 'var(--success)' },
+    rejected: { label: 'Rejected', bg: 'rgba(196, 90, 79, 0.14)', border: 'rgba(196, 90, 79, 0.35)', color: 'var(--error)' }
+};
+
+function formatRoleTimestamp(isoString, isAppliedToday) {
+    if (!isoString) return 'Recently';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return 'Recently';
+    if (isAppliedToday) {
+        return `Today • ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
 
 export default function GoalTrackerWidget() {
     const jobs = useAppStore(state => state.jobs);
     const profile = useAppStore(state => state.profile);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showRolesPanel, setShowRolesPanel] = useState(true);
+    const [activeFilter, setActiveFilter] = useState('today'); // 'today' | 'cycle'
 
     const goal = profile?.applicationGoal || DEFAULT_GOAL;
     const progress = calculateGoalProgress(jobs, goal);
@@ -22,34 +47,46 @@ export default function GoalTrackerWidget() {
     const currentPaceStyle = paceColors[progress.pace] || paceColors.on_track;
     const PaceIcon = currentPaceStyle.icon;
 
+    const cycleLabelMap = {
+        daily: 'Today',
+        weekly: 'This Week',
+        monthly: 'This Month',
+        total: 'Milestone Total'
+    };
+    const cycleLabel = cycleLabelMap[progress.cadence] || 'Current Cycle';
+
+    // Determine which list of roles to display based on the selected tab
+    const effectiveFilter = progress.cadence === 'daily' ? 'today' : activeFilter;
+    const displayedJobs = effectiveFilter === 'today' ? (progress.todayJobs || []) : (progress.cycleJobs || []);
+
     return (
         <>
-            <div className="card" style={{
-                padding: '24px',
-                marginTop: '24px',
-                marginBottom: '24px',
+            <div className="card goal-tracker-card" style={{
+                padding: '20px',
+                marginTop: '20px',
+                marginBottom: '20px',
                 position: 'relative',
                 background: 'var(--bg-panel)',
                 border: '1px solid var(--border-subtle)',
                 boxShadow: '0 8px 30px rgba(0, 0, 0, 0.12)'
             }}>
                 {/* Header row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{
                             width: '36px',
                             height: '36px',
                             borderRadius: '10px',
-                            background: 'linear-gradient(135deg, rgba(118, 133, 142, 0.25), rgba(250, 248, 244, 0.06))',
+                            background: 'linear-gradient(135deg, rgba(107, 126, 103, 0.25), rgba(250, 248, 244, 0.06))',
                             border: '1px solid var(--border-subtle)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}>
-                            <Target size={20} color="var(--accent-secondary)" />
+                            <Target size={20} color="var(--accent-primary)" />
                         </div>
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                 <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Application Output Goal</h3>
                                 <span style={{
                                     fontSize: '0.72rem',
@@ -63,6 +100,17 @@ export default function GoalTrackerWidget() {
                                 }}>
                                     {progress.cadence}
                                 </span>
+                                <span style={{
+                                    fontSize: '0.74rem',
+                                    fontWeight: '700',
+                                    padding: '2px 9px',
+                                    borderRadius: '999px',
+                                    background: progress.todayCount > 0 ? 'rgba(78, 135, 82, 0.16)' : 'var(--glass-highlight)',
+                                    border: progress.todayCount > 0 ? '1px solid rgba(78, 135, 82, 0.4)' : '1px solid var(--border-subtle)',
+                                    color: progress.todayCount > 0 ? 'var(--success)' : 'var(--text-secondary)'
+                                }}>
+                                    {progress.todayCount} Applied Today
+                                </span>
                             </div>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                                 {goal.targetRole ? `Focus: ${goal.targetRole} • ` : ''}
@@ -71,7 +119,7 @@ export default function GoalTrackerWidget() {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         {/* Pace Badge */}
                         <div style={{
                             display: 'flex',
@@ -118,10 +166,10 @@ export default function GoalTrackerWidget() {
                                 {progress.count}
                             </span>
                             <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                                / {progress.target} applications
+                                / {progress.target} applications ({cycleLabel.toLowerCase()})
                             </span>
                         </div>
-                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: progress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: progress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)' }}>
                             {progress.percentage}%
                         </span>
                     </div>
@@ -131,7 +179,7 @@ export default function GoalTrackerWidget() {
                         width: '100%',
                         height: '12px',
                         borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.08)',
+                        background: 'rgba(128, 128, 128, 0.14)',
                         overflow: 'hidden',
                         position: 'relative'
                     }}>
@@ -156,17 +204,335 @@ export default function GoalTrackerWidget() {
                     fontSize: '0.82rem',
                     color: 'var(--text-secondary)',
                     flexWrap: 'wrap',
-                    gap: '6px'
+                    gap: '6px',
+                    marginBottom: '14px'
                 }}>
                     <span>{progress.paceMessage}</span>
                     {progress.remaining > 0 ? (
                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                            {progress.remaining} application{progress.remaining > 1 ? 's' : ''} to reach {progress.target}
+                            {progress.remaining} application{progress.remaining > 1 ? 's' : ''} left to reach {progress.target}
                         </span>
                     ) : (
-                        <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '0.78rem' }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.78rem' }}>
                             Target achieved for this cycle! Keep going!
                         </span>
+                    )}
+                </div>
+
+                {/* Applied Today & Goal Breakdown Section */}
+                <div style={{
+                    borderTop: '1px solid var(--border-subtle)',
+                    paddingTop: '14px'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px',
+                        marginBottom: showRolesPanel ? '12px' : 0
+                    }}>
+                        {/* Segmented Switcher: Applied Today vs Goal Cycle Roles */}
+                        <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px',
+                            borderRadius: '10px',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-subtle)',
+                            maxWidth: '100%',
+                            overflowX: 'auto'
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setActiveFilter('today');
+                                    setShowRolesPanel(true);
+                                }}
+                                style={{
+                                    padding: '5px 11px',
+                                    borderRadius: '7px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '0.78rem',
+                                    fontWeight: effectiveFilter === 'today' ? 700 : 500,
+                                    background: effectiveFilter === 'today' ? 'var(--accent-primary)' : 'transparent',
+                                    color: effectiveFilter === 'today' ? '#ffffff' : 'var(--text-secondary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    whiteSpace: 'nowrap',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <Calendar size={13} />
+                                Applied Today ({progress.todayCount})
+                            </button>
+
+                            {progress.cadence !== 'daily' && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveFilter('cycle');
+                                        setShowRolesPanel(true);
+                                    }}
+                                    style={{
+                                        padding: '5px 11px',
+                                        borderRadius: '7px',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.78rem',
+                                        fontWeight: effectiveFilter === 'cycle' ? 700 : 500,
+                                        background: effectiveFilter === 'cycle' ? 'var(--accent-primary)' : 'transparent',
+                                        color: effectiveFilter === 'cycle' ? '#ffffff' : 'var(--text-secondary)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        whiteSpace: 'nowrap',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    <Briefcase size={13} />
+                                    {cycleLabel} Goal Roles ({progress.count}/{progress.target})
+                                </button>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <Link
+                                href="/kanban"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    color: 'var(--accent-primary)',
+                                    textDecoration: 'none',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                Open Board <ArrowRight size={13} />
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={() => setShowRolesPanel(prev => !prev)}
+                                style={{
+                                    background: 'var(--glass-highlight)',
+                                    border: '1px solid var(--border-subtle)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-secondary)',
+                                    padding: '4px 9px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                                aria-expanded={showRolesPanel}
+                            >
+                                {showRolesPanel ? (
+                                    <>Hide Roles <ChevronUp size={14} /></>
+                                ) : (
+                                    <>Show Roles <ChevronDown size={14} /></>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {showRolesPanel && (
+                        <div>
+                            {displayedJobs.length === 0 ? (
+                                <div style={{
+                                    padding: '16px',
+                                    borderRadius: '10px',
+                                    background: 'var(--bg-card)',
+                                    border: '1px dashed var(--border-subtle)',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap',
+                                    gap: '12px'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <Sparkles size={18} color="var(--accent-primary)" />
+                                        <div>
+                                            <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                {effectiveFilter === 'today'
+                                                    ? 'No applications logged today yet'
+                                                    : `No applications logged for ${cycleLabel.toLowerCase()} yet`}
+                                            </div>
+                                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                {effectiveFilter === 'today' && progress.count > 0 && progress.cadence !== 'daily'
+                                                    ? `You have ${progress.count} of ${progress.target} applications logged ${cycleLabel.toLowerCase()}. Add a role today to keep your momentum!`
+                                                    : `Add a role on your Kanban board or from AI Recommendations to advance toward your ${progress.target} ${progress.cadence} goal.`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        {effectiveFilter === 'today' && progress.count > 0 && progress.cadence !== 'daily' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveFilter('cycle')}
+                                                className="btn-secondary"
+                                                style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                                            >
+                                                View {progress.count} {cycleLabel} Role{progress.count > 1 ? 's' : ''}
+                                            </button>
+                                        )}
+                                        <Link
+                                            href="/kanban"
+                                            className="btn-primary"
+                                            style={{ fontSize: '0.78rem', padding: '6px 12px', textDecoration: 'none' }}
+                                        >
+                                            + Log Application
+                                        </Link>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 270px), 1fr))',
+                                    gap: '10px',
+                                    maxHeight: '260px',
+                                    overflowY: 'auto',
+                                    paddingRight: '2px'
+                                }}>
+                                    {displayedJobs.map((job, idx) => {
+                                        const roleTitle = job.role || job.title || 'Untitled Role';
+                                        const companyName = job.company || 'Unknown Company';
+                                        const statusInfo = STATUS_BADGE_STYLES[job.status] || STATUS_BADGE_STYLES.applied;
+                                        const safeHref = sanitizeUrl(job.url || job.link);
+                                        const safeResumeHref = sanitizeUrl(job.resumeUrl);
+                                        // Reverse index so newest shows its chronological contribution number toward the goal
+                                        const contributionNum = displayedJobs.length - idx;
+
+                                        return (
+                                            <div
+                                                key={job.id || `${companyName}-${idx}`}
+                                                style={{
+                                                    padding: '11px 13px',
+                                                    borderRadius: '10px',
+                                                    background: 'var(--bg-card)',
+                                                    border: job.isAppliedToday
+                                                        ? '1px solid rgba(107, 126, 103, 0.45)'
+                                                        : '1px solid var(--border-subtle)',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'space-between',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                                        <div style={{
+                                                            fontSize: '0.88rem',
+                                                            fontWeight: 700,
+                                                            color: 'var(--text-primary)',
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis'
+                                                        }} title={roleTitle}>
+                                                            {roleTitle}
+                                                        </div>
+                                                        <div style={{
+                                                            fontSize: '0.78rem',
+                                                            color: 'var(--text-secondary)',
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            marginTop: '1px'
+                                                        }} title={companyName}>
+                                                            {companyName}
+                                                        </div>
+                                                    </div>
+
+                                                    <span style={{
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 700,
+                                                        padding: '2px 7px',
+                                                        borderRadius: '999px',
+                                                        background: statusInfo.bg,
+                                                        border: `1px solid ${statusInfo.border}`,
+                                                        color: statusInfo.color,
+                                                        whiteSpace: 'nowrap',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {statusInfo.label}
+                                                    </span>
+                                                </div>
+
+                                                <div style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    fontSize: '0.72rem',
+                                                    color: 'var(--text-secondary)',
+                                                    borderTop: '1px solid var(--border-subtle)',
+                                                    paddingTop: '6px',
+                                                    gap: '6px',
+                                                    flexWrap: 'wrap'
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{
+                                                            fontWeight: 700,
+                                                            color: 'var(--accent-primary)',
+                                                            background: 'rgba(107, 126, 103, 0.14)',
+                                                            padding: '1px 6px',
+                                                            borderRadius: '4px'
+                                                        }}>
+                                                            #{contributionNum} of {progress.target}
+                                                        </span>
+                                                        <span>{formatRoleTimestamp(job.parsedDate, job.isAppliedToday)}</span>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {safeResumeHref && (
+                                                            <a
+                                                                href={safeResumeHref}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{
+                                                                    color: 'var(--accent-primary)',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px',
+                                                                    textDecoration: 'none',
+                                                                    fontWeight: 600
+                                                                }}
+                                                                title={job.resumeName ? `Resume: ${job.resumeName}` : 'Open resume used'}
+                                                            >
+                                                                <FileText size={11} /> Resume
+                                                            </a>
+                                                        )}
+                                                        {safeHref && (
+                                                            <a
+                                                                href={safeHref}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{
+                                                                    color: 'var(--accent-primary)',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px',
+                                                                    textDecoration: 'none',
+                                                                    fontWeight: 600
+                                                                }}
+                                                                title="Open job posting"
+                                                            >
+                                                                Job <ExternalLink size={11} />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -178,3 +544,4 @@ export default function GoalTrackerWidget() {
         </>
     );
 }
+

@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     X, Mail, Sparkles, CheckCircle2, ArrowRight, AlertTriangle, 
     Loader, Check, Plus, Inbox, Clipboard, ExternalLink
@@ -12,9 +13,12 @@ import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
 
 export default function GmailJobSyncModal({ isOpen, onClose }) {
     const jobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
     const moveJob = useAppStore(state => state.moveJob);
     const updateJob = useAppStore(state => state.updateJob);
     const addJob = useAppStore(state => state.addJob);
+
+    const firstName = (profile?.fullName || '').trim().split(' ')[0] || 'Candidate';
 
     const [emailText, setEmailText] = useState('');
     const [fetchingGmail, setFetchingGmail] = useState(false);
@@ -23,6 +27,15 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     const [appliedUpdates, setAppliedUpdates] = useState(new Set());
     const [error, setError] = useState('');
     const [apiDisabledInfo, setApiDisabledInfo] = useState(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -44,7 +57,7 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
 
             const emails = await fetchRecentJobEmails(token, 30, targetCompanies);
             if (emails.length === 0) {
-                setError(`No recent recruiter emails found in your Gmail inbox over the past 30 days matching your applications. If you received an email recently (like an Atlassian update), click "Paste from Clipboard" or paste the email text below to sync immediately.`);
+                setError(`No recent recruiter emails found in your Gmail inbox over the past 30 days matching your applications. If you received an email recently, click "Paste from Clipboard" or paste the email text below to sync immediately.`);
                 return;
             }
 
@@ -87,7 +100,7 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
 
     const handleInsertAtlassianSample = () => {
         setError('');
-        const atlassianEmail = `From: talent-acquisition@atlassian.com\nSubject: Next steps regarding your application at Atlassian\nDate: Yesterday\n\nHi Fabian,\n\nThank you for your interest in joining Atlassian! Our engineering team reviewed your profile and we were very impressed by your software engineering track record.\n\nWe would love to invite you to schedule a 45-minute technical screen with one of our Engineering Managers next week. Please pick a convenient time using the link below.\n\nBest regards,\nThe Atlassian Recruiting Team`;
+        const atlassianEmail = `From: talent-acquisition@atlassian.com\nSubject: Next steps regarding your application at Atlassian\nDate: Yesterday\n\nHi ${firstName},\n\nThank you for your interest in joining Atlassian! Our engineering team reviewed your profile and we were very impressed by your software engineering track record.\n\nWe would love to invite you to schedule a 45-minute technical screen with one of our Engineering Managers next week. Please pick a convenient time using the link below.\n\nBest regards,\nThe Atlassian Recruiting Team`;
         setEmailText(atlassianEmail);
         handleAnalyze(atlassianEmail);
     };
@@ -263,37 +276,49 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
     };
 
     const handleAddNewJob = (item, index) => {
-        const dateStr = new Date().toLocaleDateString();
-        addJob({
-            company: item.company || 'Unknown Company',
-            role: item.role || 'Role',
-            status: item.suggestedStatus || 'applied',
-            notes: `[Auto-created from Email on ${dateStr}]: ${item.summary} ("${item.keyQuote}")`
-        });
-        setAppliedUpdates(prev => new Set(prev).add(index));
+        setError('');
+        try {
+            const dateStr = new Date().toLocaleDateString();
+            addJob({
+                company: item.company || 'Unknown Company',
+                role: item.role || 'Role',
+                status: item.suggestedStatus || 'applied',
+                notes: `[Auto-created from Email on ${dateStr}]: ${item.summary} ("${item.keyQuote}")`
+            });
+            setAppliedUpdates(prev => new Set(prev).add(index));
+        } catch (err) {
+            setError(err?.message || 'Could not add job to board.');
+        }
     };
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-        }}>
+    const modalContent = (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.78)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                zIndex: 10000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px'
+            }}
+        >
             <div className="card animate-scale-up" style={{
                 width: '100%',
                 maxWidth: '720px',
                 maxHeight: '90vh',
                 overflowY: 'auto',
-                padding: '28px',
+                padding: 'clamp(18px, 4vw, 28px)',
                 position: 'relative',
                 border: '1px solid var(--accent-primary)',
-                boxShadow: '0 25px 50px -12px rgba(56, 189, 248, 0.25)'
+                boxShadow: '0 25px 50px -12px rgba(107, 126, 103, 0.28)',
+                background: 'var(--bg-app)'
             }}>
                 <button
                     onClick={onClose}
@@ -442,7 +467,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                     <textarea
                         value={emailText}
                         onChange={e => setEmailText(e.target.value)}
-                        placeholder={`Paste an email like:\n"Hi Fabian, thank you for your patience. The engineering team reviewed your profile and we would love to schedule a 45-minute technical screen for the Senior Fullstack Engineer role next Tuesday..."`}
+                        placeholder={`Paste an email like:\n"Hi ${firstName}, thank you for your patience. The engineering team reviewed your profile and we would love to schedule a 45-minute technical screen for the Senior Fullstack Engineer role next Tuesday..."`}
                         rows={6}
                         style={{
                             width: '100%',
@@ -478,7 +503,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
 
                     <button
                         onClick={() => {
-                            setEmailText(`Hi Fabian,\n\nThanks for speaking with our team! We were all very impressed with your background and would love to move you forward to the next round: a 45-minute technical interview with our Lead Engineer.\n\nPlease share your availability for next Tuesday or Wednesday.\n\nBest regards,\nSarah Jenkins\nSenior Technical Recruiter`);
+                            setEmailText(`Hi ${firstName},\n\nThanks for speaking with our team! We were all very impressed with your background and would love to move you forward to the next round: a 45-minute technical interview with our Lead Engineer.\n\nPlease share your availability for next Tuesday or Wednesday.\n\nBest regards,\nSarah Jenkins\nSenior Technical Recruiter`);
                         }}
                         className="btn-secondary"
                         style={{ fontSize: '0.8rem', padding: '6px 12px' }}
@@ -521,7 +546,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                                     display: 'grid',
                                     gap: '10px'
                                 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                                         <div>
                                             <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
                                                 {item.company}
@@ -535,7 +560,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                                             fontSize: '0.75rem',
                                             padding: '4px 8px',
                                             borderRadius: '6px',
-                                            background: 'rgba(56, 189, 248, 0.15)',
+                                            background: 'rgba(107, 126, 103, 0.16)',
                                             color: 'var(--accent-primary)',
                                             fontWeight: 'bold'
                                         }}>
@@ -606,4 +631,7 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
             </div>
         </div>
     );
+
+    if (typeof document === 'undefined') return modalContent;
+    return createPortal(modalContent, document.body);
 }

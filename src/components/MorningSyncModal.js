@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Sunrise, Clock, Mail, X, ChevronRight, Send, Target
 } from 'lucide-react';
@@ -29,6 +30,21 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
 
     useEffect(() => {
         if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        // Mark today's sync immediately when opened so dismissing early never re-triggers it on refresh
+        try {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            localStorage.setItem('novujobs_last_morning_sync', todayStr);
+        } catch {}
 
         let isCancelled = false;
 
@@ -44,7 +60,7 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
             const followUps = [];
 
             activeJobs.forEach(job => {
-                if (job.status === 'applied' || job.status === 'interviewing') {
+                if (job.status === 'applied' || job.status === 'screening' || job.status === 'interviewing') {
                     const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
                     if (!refDate) return;
                     const diff = Date.now() - new Date(refDate).getTime();
@@ -189,27 +205,33 @@ Return ONLY a JSON array of status changes:
         }));
     };
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.82)',
-            backdropFilter: 'blur(10px)',
-            zIndex: 10001,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-        }}>
+    const modalContent = (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.82)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                zIndex: 10001,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px'
+            }}
+        >
             <div className="card animate-scale-up" style={{
                 width: '100%',
                 maxWidth: '680px',
                 maxHeight: '88vh',
                 overflowY: 'auto',
-                padding: '28px',
+                padding: 'clamp(18px, 4vw, 28px)',
                 position: 'relative',
                 border: '1px solid var(--accent-primary)',
-                boxShadow: '0 25px 60px -15px rgba(56, 189, 248, 0.3)',
+                boxShadow: '0 25px 60px -15px rgba(107, 126, 103, 0.3)',
                 background: 'var(--bg-app)'
             }}>
                 <button
@@ -270,7 +292,7 @@ Return ONLY a JSON array of status changes:
                         width: '100%',
                         height: '8px',
                         borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.08)',
+                        background: 'rgba(107, 126, 103, 0.14)',
                         overflow: 'hidden'
                     }}>
                         <div style={{
@@ -296,7 +318,7 @@ Return ONLY a JSON array of status changes:
                                 <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 'bold' }}>FOLLOW-UPS</div>
                                 <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#f59e0b' }}>{briefing.followUpAlerts.length}</div>
                             </div>
-                            <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                            <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(107, 126, 103, 0.12)', border: '1px solid rgba(107, 126, 103, 0.3)' }}>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>EMAIL UPDATES</div>
                                 <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>{briefing.emailUpdates.length}</div>
                             </div>
@@ -312,8 +334,8 @@ Return ONLY a JSON array of status changes:
                         <div style={{
                             padding: '10px 14px',
                             borderRadius: '10px',
-                            background: goalProgress.percentage >= 100 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(56, 189, 248, 0.08)',
-                            border: goalProgress.percentage >= 100 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(56, 189, 248, 0.25)',
+                            background: goalProgress.percentage >= 100 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(107, 126, 103, 0.1)',
+                            border: goalProgress.percentage >= 100 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(107, 126, 103, 0.28)',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -336,8 +358,8 @@ Return ONLY a JSON array of status changes:
                             <div style={{
                                 padding: '14px',
                                 borderRadius: '12px',
-                                background: 'rgba(56, 189, 248, 0.08)',
-                                border: '1px solid rgba(56, 189, 248, 0.25)'
+                                background: 'rgba(107, 126, 103, 0.1)',
+                                border: '1px solid rgba(107, 126, 103, 0.28)'
                             }}>
                                 <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Mail size={16} /> Recruiter Updates Detected from Inbox:
@@ -436,4 +458,7 @@ Return ONLY a JSON array of status changes:
             </div>
         </div>
     );
+
+    if (typeof document === 'undefined') return modalContent;
+    return createPortal(modalContent, document.body);
 }

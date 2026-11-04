@@ -1,13 +1,44 @@
 "use client";
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle } from 'lucide-react';
+import { Loader, AlertCircle, Plus, Sparkles, ExternalLink, RefreshCw, CheckCircle, Search, X } from 'lucide-react';
 import { fetchJobsFromRSS, scoreJobsWithGemini } from '@/lib/job-service';
 import { sanitizeUrl } from '@/lib/utils';
 import UpgradeModal from '@/components/UpgradeModal';
+import JobSettingsBanner from '@/components/JobSettingsBanner';
+
+function parseRecommendedJobTitle(rawTitle = '', rawSource = '') {
+    const title = String(rawTitle || '').trim();
+    if (!title) return { company: rawSource || 'Company', role: 'Software Engineer' };
+
+    // Pattern 1: "Company: Role Title" (standard WeWorkRemotely RSS format)
+    if (title.includes(': ')) {
+        const [comp, ...rest] = title.split(': ');
+        if (comp && rest.length > 0) {
+            return { company: comp.trim(), role: rest.join(': ').trim() };
+        }
+    }
+    // Pattern 2: "Role Title at Company"
+    if (title.includes(' at ')) {
+        const parts = title.split(' at ');
+        if (parts.length >= 2) {
+            return { role: parts[0].trim(), company: parts.slice(1).join(' at ').trim() };
+        }
+    }
+    // Pattern 3: "Company - Role Title"
+    if (title.includes(' - ')) {
+        const [first, ...rest] = title.split(' - ');
+        if (first && rest.length > 0) {
+            return { company: first.trim(), role: rest.join(' - ').trim() };
+        }
+    }
+    return { company: rawSource || 'Tech Company', role: title };
+}
+
 export default function RecommendationsPage() {
     const profile = useAppStore(state => state.profile);
+    const trackedJobs = useAppStore(state => state.jobs);
     const isPremium = useAppStore(state => state.isPremium);
     const addJob = useAppStore((state) => state.addJob);
     const [jobs, setJobs] = useState([]);
@@ -15,10 +46,35 @@ export default function RecommendationsPage() {
     const [error, setError] = useState(null);
     const [addedJobs, setAddedJobs] = useState(new Set());
     const [upgradeOpen, setUpgradeOpen] = useState(false);
+    const [recSearchQuery, setRecSearchQuery] = useState('');
+    const [minScoreFilter, setMinScoreFilter] = useState(0);
     const CACHE_KEY = 'jobhelper_recommendations_cache';
     const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+    const trackedUrls = new Set(
+        (trackedJobs || [])
+            .filter(j => j && j.status !== 'deleted' && j.url)
+            .map(j => sanitizeUrl(j.url))
+            .filter(Boolean)
+    );
+
     const isCurrentlyPremium = isPremium();
+    const hasAccess = isCurrentlyPremium || Boolean(profile?.geminiApiKey);
+
+    const filteredRecommendations = useMemo(() => {
+        if (!Array.isArray(jobs)) return [];
+        const tokens = recSearchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return jobs.filter(job => {
+            if (!job) return false;
+            if (minScoreFilter > 0 && (job.relevanceScore || 0) < minScoreFilter) {
+                return false;
+            }
+            if (tokens.length === 0) return true;
+            const parsed = parseRecommendedJobTitle(job.title, job.source);
+            const haystack = `${job.title || ''} ${parsed.company || ''} ${parsed.role || ''} ${job.source || ''} ${job.matchReason || ''} ${job.description || ''}`.toLowerCase();
+            return tokens.every(t => haystack.includes(t));
+        });
+    }, [jobs, recSearchQuery, minScoreFilter]);
 
     const findJobs = async (forceRefresh = false) => {
         // Check cache first if not explicitly refreshing
@@ -49,17 +105,18 @@ export default function RecommendationsPage() {
                 body.keywords = [...(profile.resumeAnalysis.keywords || []), ...(profile.resumeAnalysis.skills || [])].slice(0, 5);
                 body.resumeData = profile.resumeAnalysis;
             } else {
-                // Fallback to profile manual fields
-                body.keywords = profile.keywords ? profile.keywords.split(',').map(k => k.trim()) : [];
-                if (profile.modality === 'Remote' || profile.isRemote) body.keywords.push('remote');
+                // Fallback to profile manual fields with safe optional chaining
+                body.keywords = profile?.keywords ? profile.keywords.split(',').map(k => k.trim()) : [];
+                const modalityStr = Array.isArray(profile?.modality) ? profile.modality.join(', ') : String(profile?.modality || '');
+                if (modalityStr.toLowerCase().includes('remote') || profile?.isRemote) body.keywords.push('remote');
 
                 body.resumeData = {
-                    targetRole: profile.targetRole,
-                    experienceLevel: profile.experienceLevel,
-                    skills: profile.keywords ? profile.keywords.split(',') : [],
-                    country: profile.country,
-                    modality: profile.modality,
-                    minimumSalary: profile.minimumSalary
+                    targetRole: profile?.targetRole || 'Software Engineer',
+                    experienceLevel: Array.isArray(profile?.experienceLevel) ? profile.experienceLevel.join(', ') : (profile?.experienceLevel || 'Mid-Senior'),
+                    skills: profile?.keywords ? profile.keywords.split(',').map(s => s.trim()) : ['React', 'Node.js', 'JavaScript'],
+                    country: profile?.country || 'Global',
+                    modality: modalityStr || 'Remote',
+                    minimumSalary: profile?.minimumSalary || ''
                 };
             }
 
@@ -101,9 +158,9 @@ export default function RecommendationsPage() {
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <h1 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <Sparkles className="text-accent-primary" /> Job Recommendations
                     </h1>
                     <p style={{ color: 'var(--text-secondary)' }}>
@@ -121,15 +178,17 @@ export default function RecommendationsPage() {
                 </button>
             </header>
 
+            <JobSettingsBanner onSettingsSaved={() => findJobs(true)} />
+
             {loading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', gap: '24px' }}>
                     <Loader size={48} className="spin" color="var(--accent-primary)" />
                     <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Scouring the web for your perfect role...</p>
                 </div>
-            ) : !isCurrentlyPremium ? (
+            ) : !hasAccess ? (
                 <div className="card" style={{ 
                     textAlign: 'center', 
-                    padding: '80px 40px', 
+                    padding: 'clamp(40px, 6vw, 80px) clamp(20px, 4vw, 40px)', 
                     background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.06) 0%, rgba(212, 163, 115, 0.05) 100%)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: '24px',
@@ -146,7 +205,7 @@ export default function RecommendationsPage() {
                             alignItems: 'center', 
                             justifyContent: 'center', 
                             margin: '0 auto 24px',
-                            boxShadow: '0 8px 32px rgba(56, 189, 248, 0.3)'
+                            boxShadow: '0 8px 32px rgba(107, 126, 103, 0.35)'
                         }}>
                             <Sparkles size={40} color="white" />
                         </div>
@@ -168,8 +227,113 @@ export default function RecommendationsPage() {
                     <p style={{ fontSize: '1.1rem' }}>No matches found yet. Try adjusting your profile keywords or uploading a new resume.</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
-                    {jobs.map((job, i) => {
+                <>
+                <search
+                    className="card"
+                    style={{
+                        padding: '12px 16px',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}
+                >
+                    <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '460px' }}>
+                        <label htmlFor="recommendations-search-input" className="sr-only">
+                            Search recommended roles by company, title, source, or keyword
+                        </label>
+                        <Search
+                            size={15}
+                            color="var(--text-secondary)"
+                            aria-hidden="true"
+                            style={{
+                                position: 'absolute',
+                                left: '12px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                pointerEvents: 'none'
+                            }}
+                        />
+                        <input
+                            id="recommendations-search-input"
+                            type="search"
+                            value={recSearchQuery}
+                            onChange={e => setRecSearchQuery(e.target.value)}
+                            autocorrect="off"
+                            autocapitalize="off"
+                            spellCheck={false}
+                            placeholder="Filter recommendations by company, role, source, or skill..."
+                            style={{
+                                width: '100%',
+                                padding: '8px 32px 8px 34px',
+                                fontSize: '0.84rem',
+                                borderRadius: '999px',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-subtle)',
+                                color: 'var(--text-primary)'
+                            }}
+                        />
+                        {recSearchQuery && (
+                            <button
+                                type="button"
+                                aria-label="Clear recommendation search"
+                                onClick={() => setRecSearchQuery('')}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    display: 'inline-flex'
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {[
+                            { score: 0, label: 'All Scores' },
+                            { score: 80, label: '80%+ Match' },
+                            { score: 60, label: '60%+ Match' }
+                        ].map(opt => {
+                            const active = minScoreFilter === opt.score;
+                            return (
+                                <button
+                                    key={opt.score}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => setMinScoreFilter(opt.score)}
+                                    style={{
+                                        padding: '5px 11px',
+                                        borderRadius: '999px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: active ? 700 : 500,
+                                        background: active ? 'rgba(107, 126, 103, 0.2)' : 'var(--bg-card)',
+                                        border: active ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {opt.label}
+                                </button>
+                            );
+                        })}
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginLeft: '4px' }}>
+                            {filteredRecommendations.length} of {jobs.length} shown
+                        </span>
+                    </div>
+                </search>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '24px' }}>
+                    {filteredRecommendations.map((job, i) => {
                         const sanitizedLink = sanitizeUrl(job.link);
                         return (
                         <div key={i} className="card animate-scale-in" style={{
@@ -200,7 +364,7 @@ export default function RecommendationsPage() {
                                 <div style={{
                                     fontSize: '0.9rem',
                                     color: 'var(--accent-primary)',
-                                    background: 'rgba(56, 189, 248, 0.05)',
+                                    background: 'rgba(107, 126, 103, 0.1)',
                                     padding: '12px',
                                     borderRadius: '8px',
                                     marginBottom: '16px',
@@ -232,7 +396,7 @@ export default function RecommendationsPage() {
                                 >
                                     View <ExternalLink size={14} />
                                 </a>
-                                {addedJobs.has(job.link) ? (
+                                {(addedJobs.has(job.link) || (sanitizedLink && trackedUrls.has(sanitizedLink))) ? (
                                     <button
                                         disabled
                                         className="btn-secondary"
@@ -246,16 +410,17 @@ export default function RecommendationsPage() {
                                             color: 'var(--success)'
                                         }}
                                     >
-                                        <CheckCircle size={16} /> Added!
+                                        <CheckCircle size={16} /> On Board
                                     </button>
                                 ) : (
                                     <button
                                         onClick={() => {
                                             try {
+                                                const parsed = parseRecommendedJobTitle(job.title, job.source);
                                                 addJob({
-                                                    company: 'Unknown',
-                                                    role: job.title,
-                                                    url: sanitizeUrl(job.link),
+                                                    company: parsed.company,
+                                                    role: parsed.role,
+                                                    url: sanitizedLink,
                                                     status: 'wishlist',
                                                     notes: `Matched via AI. Score: ${job.relevanceScore}%. Reason: ${job.matchReason}`
                                                 });
@@ -265,14 +430,6 @@ export default function RecommendationsPage() {
                                                     newSet.add(job.link);
                                                     return newSet;
                                                 });
-
-                                                setTimeout(() => {
-                                                    setAddedJobs(prev => {
-                                                        const newSet = new Set(prev);
-                                                        newSet.delete(job.link);
-                                                        return newSet;
-                                                    });
-                                                }, 2000);
                                             } catch (err) {
                                                 if (err?.code === 'LIMIT_REACHED') {
                                                     setUpgradeOpen(true);
@@ -297,6 +454,7 @@ export default function RecommendationsPage() {
                         </div>
                     )})}
                 </div>
+                </>
             )}
 
             <UpgradeModal

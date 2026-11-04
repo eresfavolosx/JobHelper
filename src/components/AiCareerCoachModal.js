@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     X, Sparkles, Clock, AlertTriangle, Copy, Mail, 
     Send, Briefcase, FileText, Lightbulb, Check, Loader, Lock
@@ -77,20 +78,23 @@ export default function AiCareerCoachModal({ job, isOpen, onClose, onOpenUpgrade
             setLoading(true);
             setError(null);
 
+            const jobTitle = job.role || job.title || 'Software Engineer';
+            const jobNotes = job.notes || job.description || '';
+
             const prompt = `You are the world's most elite executive career coach and recruiter.
 Analyze this job application and candidate profile to generate a tactical career coaching strategy:
 
 <job>
-Title: ${job.title || 'Software Engineer'}
+Title: ${jobTitle}
 Company: ${job.company || 'Tech Company'}
 Status: ${job.status || 'applied'}
 Days Since Update: ${daysElapsed} days
-Description: ${(job.description || '').slice(0, 1500)}
+Description: ${jobNotes.slice(0, 1500)}
 </job>
 
 <candidate>
 Name: ${profile?.fullName || 'Candidate'}
-Target Role: ${profile?.targetRole || job.title}
+Target Role: ${profile?.targetRole || jobTitle}
 Experience: ${profile?.experienceLevel || 'Mid-Senior'}
 Keywords/Skills: ${profile?.keywords || ''}
 Resume Summary: ${profile?.resumeAnalysis?.summary || 'Experienced software professional.'}
@@ -184,30 +188,44 @@ Return ONLY valid JSON matching this schema:
         setTimeout(() => setCopiedIndex(null), 2500);
     };
 
-    return (
-        <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-        }}>
-            <div className="card animate-scale-up" style={{
-                width: '100%',
-                maxWidth: '820px',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                padding: '24px',
-                position: 'relative',
-                border: '1px solid var(--border-subtle)',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}>
+    const modalContent = (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="NovuJobs AI Career Agent"
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                zIndex: 10005,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px'
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="card animate-scale-up"
+                style={{
+                    width: '100%',
+                    maxWidth: '820px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    padding: 'clamp(16px, 4vw, 24px)',
+                    position: 'relative',
+                    border: '1px solid var(--border-subtle)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                    background: 'var(--bg-app)'
+                }}
+            >
                 {/* Close Button */}
                 <button
+                    type="button"
+                    aria-label="Close AI Career Agent"
                     onClick={onClose}
                     style={{
                         position: 'absolute',
@@ -238,7 +256,7 @@ Return ONLY valid JSON matching this schema:
                             NovuJobs AI Career Agent
                         </h3>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            {job.title} at <strong>{job.company}</strong>
+                            {job.role || job.title || 'Application'} at <strong>{job.company}</strong>
                         </p>
                     </div>
                 </div>
@@ -275,7 +293,8 @@ Return ONLY valid JSON matching this schema:
                     gap: '8px',
                     borderBottom: '1px solid var(--border-subtle)',
                     marginBottom: '20px',
-                    paddingBottom: '4px'
+                    paddingBottom: '4px',
+                    overflowX: 'auto'
                 }}>
                     <button
                         onClick={() => setActiveTab('ghosting')}
@@ -290,7 +309,8 @@ Return ONLY valid JSON matching this schema:
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         <Send size={16} /> Ghosting Buster & Follow-Ups
@@ -308,7 +328,8 @@ Return ONLY valid JSON matching this schema:
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         <Lightbulb size={16} /> Interview Power Coach
@@ -326,7 +347,8 @@ Return ONLY valid JSON matching this schema:
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         <FileText size={16} /> ATS Gap & Resume Tailor
@@ -338,8 +360,8 @@ Return ONLY valid JSON matching this schema:
                     <div style={{
                         padding: '32px 24px',
                         textAlign: 'center',
-                        background: 'rgba(56, 189, 248, 0.05)',
-                        border: '1px solid rgba(56, 189, 248, 0.2)',
+                        background: 'rgba(107, 126, 103, 0.08)',
+                        border: '1px solid rgba(107, 126, 103, 0.25)',
                         borderRadius: '16px',
                         margin: '12px 0'
                     }}>
@@ -363,7 +385,7 @@ Return ONLY valid JSON matching this schema:
                                 <Sparkles size={16} /> Upgrade to NovuJobs Pro ($9.99/mo)
                             </button>
                             <a
-                                href="/profile"
+                                href="/profile#api-keys-section"
                                 className="btn-secondary"
                                 style={{ padding: '10px 20px', fontSize: '0.95rem' }}
                             >
@@ -401,12 +423,12 @@ Return ONLY valid JSON matching this schema:
                                         background: 'var(--bg-panel)',
                                         border: '1px solid var(--border-subtle)'
                                     }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                                             <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '0.95rem' }}>
                                                 {item.type}
                                             </div>
                                             {item.bestTimeToDay && (
-                                                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-primary)' }}>
+                                                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '12px', background: 'rgba(107, 126, 103, 0.16)', color: 'var(--accent-primary)' }}>
                                                     ⚡ Best send time: {item.bestTimeToDay}
                                                 </span>
                                             )}
@@ -426,7 +448,7 @@ Return ONLY valid JSON matching this schema:
                                         }}>
                                             {item.body}
                                         </div>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                             <button
                                                 onClick={() => copyToClipboard(`Subject: ${item.subject}\n\n${item.body}`, `f-${idx}`)}
                                                 className="btn-secondary"
@@ -502,8 +524,8 @@ Return ONLY valid JSON matching this schema:
                                             <div key={idx} style={{
                                                 padding: '10px 14px',
                                                 borderRadius: '8px',
-                                                background: 'rgba(56, 189, 248, 0.05)',
-                                                border: '1px solid rgba(56, 189, 248, 0.2)',
+                                                background: 'rgba(107, 126, 103, 0.08)',
+                                                border: '1px solid rgba(107, 126, 103, 0.25)',
                                                 fontSize: '0.9rem',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
@@ -610,4 +632,9 @@ Return ONLY valid JSON matching this schema:
             </div>
         </div>
     );
+
+    if (typeof document !== 'undefined' && document.body) {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 }

@@ -9,18 +9,24 @@ export default function UndoToast() {
     const restoreJob = useAppStore(s => s.restoreJob);
     const jobs = useAppStore(s => s.jobs);
 
-    // Watch for newly deleted jobs
+    // Watch for newly deleted or archived jobs
     useEffect(() => {
         const now = Date.now();
-        const recentlyDeleted = jobs?.find(j => {
-            if (j.status !== 'deleted' || !j.deletedAt) return false;
-            const deletedTime = typeof j.deletedAt === 'number' ? j.deletedAt : new Date(j.deletedAt).getTime();
-            return now - deletedTime < 1000;
+        const recentlyChanged = jobs?.find(j => {
+            if (j.status === 'deleted' && j.deletedAt) {
+                const deletedTime = typeof j.deletedAt === 'number' ? j.deletedAt : new Date(j.deletedAt).getTime();
+                return now - deletedTime < 1000;
+            }
+            if (j.status === 'archived' && j.archivedAt) {
+                const archivedTime = typeof j.archivedAt === 'number' ? j.archivedAt : new Date(j.archivedAt).getTime();
+                return now - archivedTime < 1000;
+            }
+            return false;
         });
 
-        if (recentlyDeleted && (!deletedJob || deletedJob.id !== recentlyDeleted.id)) {
+        if (recentlyChanged && (!deletedJob || deletedJob.id !== recentlyChanged.id)) {
             const timer = setTimeout(() => {
-                setDeletedJob(recentlyDeleted);
+                setDeletedJob(recentlyChanged);
                 setTimeLeft(10); // 10 second undo window
             }, 0);
             return () => clearTimeout(timer);
@@ -84,7 +90,7 @@ export default function UndoToast() {
 
             <div style={{ flex: 1 }}>
                 <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: '500' }}>
-                    &ldquo;{deletedJob.role}&rdquo; moved to trash
+                    &ldquo;{deletedJob.role}&rdquo; {deletedJob.status === 'archived' ? 'archived' : 'moved to trash'}
                 </p>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
                     Undo in {timeLeft}s

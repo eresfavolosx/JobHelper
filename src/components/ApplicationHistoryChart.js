@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
-import { getApplicationGoal } from '@/lib/goal-tracker';
+import { getApplicationGoal, isSubmittedApplication, parseJobDate } from '@/lib/goal-tracker';
 import {
     calculateChartData,
     resolveGranularity,
@@ -133,10 +133,16 @@ export default function ApplicationHistoryChart({ jobs }) {
 
     const isAuto = mode === 'auto';
 
-    // Aggregated time-series data with range filter applied
+    // Aggregated time-series data with range filter applied.
+    // Uses the same rules as the goal tracker: only submitted applications, dated by
+    // their application date (status changes never count as new applications).
+    const submittedJobs = useMemo(
+        () => (Array.isArray(jobs) ? jobs.filter(isSubmittedApplication) : []),
+        [jobs]
+    );
     const data = useMemo(() => {
-        return calculateChartData(jobs, effectiveGranularity, { range });
-    }, [jobs, effectiveGranularity, range]);
+        return calculateChartData(submittedJobs, effectiveGranularity, { range, getDate: parseJobDate });
+    }, [submittedJobs, effectiveGranularity, range]);
 
     // Track scroll container width with ResizeObserver
     useEffect(() => {
@@ -267,7 +273,7 @@ export default function ApplicationHistoryChart({ jobs }) {
                     </div>
 
                     {/* Filter Controls: Range & Granularity */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', maxWidth: '100%' }}>
                         {/* Time Horizon Range Filter */}
                         <div
                             role="tablist"
@@ -279,7 +285,9 @@ export default function ApplicationHistoryChart({ jobs }) {
                                 borderRadius: '10px',
                                 backgroundColor: 'var(--bg-subtle, rgba(255, 255, 255, 0.04))',
                                 border: '1px solid var(--border-subtle)',
-                                gap: '2px'
+                                gap: '2px',
+                                overflowX: 'auto',
+                                maxWidth: '100%'
                             }}
                         >
                             <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)', padding: '0 6px', textTransform: 'uppercase' }}>
@@ -304,7 +312,8 @@ export default function ApplicationHistoryChart({ jobs }) {
                                             borderRadius: '7px',
                                             border: 'none',
                                             cursor: 'pointer',
-                                            transition: 'all 0.15s ease'
+                                            transition: 'all 0.15s ease',
+                                            whiteSpace: 'nowrap'
                                         }}
                                     >
                                         {rng.label}
@@ -324,7 +333,9 @@ export default function ApplicationHistoryChart({ jobs }) {
                                 borderRadius: '10px',
                                 backgroundColor: 'var(--bg-subtle, rgba(255, 255, 255, 0.04))',
                                 border: '1px solid var(--border-subtle)',
-                                gap: '2px'
+                                gap: '2px',
+                                overflowX: 'auto',
+                                maxWidth: '100%'
                             }}
                         >
                             <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)', padding: '0 6px', textTransform: 'uppercase' }}>

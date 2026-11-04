@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
@@ -22,8 +22,30 @@ import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
+import GlobalJobSearchModal from '@/components/GlobalJobSearchModal';
 
 
+
+function cleanIncomingText(raw) {
+    if (!raw) return '';
+    return String(raw)
+        .replace(/â€”/g, ' - ')
+        .replace(/â€“/g, '-')
+        .replace(/â€™/g, "'")
+        .replace(/â€œ|â€\u009d/g, '"')
+        .replace(/Â·|â€¢/g, ' ')
+        .replace(/Â/g, '')
+        .replace(/ðŸš€/g, '')
+        .replace(/&(amp|lt|gt|quot|#39|#x27|apos|nbsp|ndash|mdash|bull|middot);/gi, (m) => {
+            const map = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&#x27;': "'", '&apos;': "'", '&nbsp;': ' ', '&ndash;': '-', '&mdash;': ' - ', '&bull;': ' ', '&middot;': ' ' };
+            return map[m.toLowerCase()] ?? m;
+        })
+        .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u00AD\uFFFD\uE000-\uF8FF]/g, '')
+        .replace(/^\(\d+\+?\)\s*/, '')
+        .replace(/^[\s•·|‣⁃\-–—]+|[\s•·|‣⁃\-–—]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
 
 // Separate component to use useSearchParams safely inside Suspense
 function UrlListener() {
@@ -33,16 +55,21 @@ function UrlListener() {
     useEffect(() => {
         const action = searchParams.get('action');
         if (action === 'auto-open') {
-            const role = searchParams.get('role');
-            const company = searchParams.get('company');
+            const role = cleanIncomingText(searchParams.get('role'));
+            const company = cleanIncomingText(searchParams.get('company'));
             const rawUrl = searchParams.get('url');
-            const status = searchParams.get('status') || 'wishlist';
-            const salary = searchParams.get('salary');
-            const location = searchParams.get('location');
-            const description = searchParams.get('description');
+            const rawStatus = searchParams.get('status') || 'wishlist';
+            const validStatuses = ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected'];
+            const status = validStatuses.includes(rawStatus) ? rawStatus : 'wishlist';
+            const salary = cleanIncomingText(searchParams.get('salary'));
+            const location = cleanIncomingText(searchParams.get('location'));
+            const description = cleanIncomingText(searchParams.get('description'));
+            const rawResumeUrl = searchParams.get('resumeUrl');
+            const resumeName = cleanIncomingText(searchParams.get('resumeName'));
 
-            // Sanitize the URL to prevent XSS
+            // Sanitize URLs to prevent XSS
             const url = rawUrl ? sanitizeUrl(rawUrl) : '';
+            const resumeUrl = rawResumeUrl ? sanitizeUrl(rawResumeUrl) : '';
 
             // Clean URL
             window.history.replaceState({}, '', '/');
@@ -55,7 +82,9 @@ function UrlListener() {
                 status,
                 salary,
                 location,
-                notes: description
+                notes: description,
+                resumeUrl,
+                resumeName
             });
         }
     }, [searchParams, openEditJobModal]);
@@ -64,17 +93,55 @@ function UrlListener() {
 }
 
 import { AuthProvider } from '@/lib/auth-context';
+import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 
 /* ... imports ... */
 
 function AuthenticatedLayout({ children }) {
     const { user } = useAuth();
-    const { isJobModalOpen, closeJobModal, editingJob } = useUIStore();
+    const jobs = useAppStore(state => state.jobs);
+    const { isJobModalOpen, closeJobModal, editingJob, openNewJobModal, openGlobalSearch, toggleSidebarCollapse } = useUIStore();
     const [morningSyncOpen, setMorningSyncOpen] = useState(false);
+    const [coachJob, setCoachJob] = useState(null);
 
-    // Auto-launch Morning Career Radar on the first login of each day
+    const activeJobsCount = Array.isArray(jobs)
+        ? jobs.filter(j => j && j.status !== 'deleted').length
+        : 0;
+
+    // Global keyboard shortcuts:
+    // - Cmd+K / Ctrl+K from anywhere opens Global Role Search
+    // - Cmd+B / Ctrl+B toggles desktop sidebar collapse into icons
+    // - 'N' (when not typing in a form field) quickly logs a new job
     useEffect(() => {
         if (!user) return;
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+                e.preventDefault();
+                openGlobalSearch();
+                return;
+            }
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+                e.preventDefault();
+                toggleSidebarCollapse();
+                return;
+            }
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const tag = document.activeElement?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+            if ((e.key === 'n' || e.key === 'N') && !isJobModalOpen) {
+                e.preventDefault();
+                openNewJobModal();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [user, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse]);
+
+    // Auto-launch Morning Career Radar on the first login of each day
+    // Only auto-launch when the user already has tracked jobs and is not mid-save from the Chrome Extension
+    useEffect(() => {
+        if (!user || activeJobsCount === 0 || isJobModalOpen) return;
+        if (typeof window !== 'undefined' && window.location.search.includes('action=auto-open')) return;
         const todayStr = new Date().toISOString().slice(0, 10);
         const lastSync = localStorage.getItem('novujobs_last_morning_sync');
         if (lastSync !== todayStr) {
@@ -83,7 +150,7 @@ function AuthenticatedLayout({ children }) {
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [user]);
+    }, [user, activeJobsCount, isJobModalOpen]);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -108,6 +175,7 @@ function AuthenticatedLayout({ children }) {
             </Suspense>
             <DailyReminder />
             <UndoToast />
+            <GlobalJobSearchModal />
             <AddJobModal
                 isOpen={isJobModalOpen}
                 onClose={closeJobModal}
@@ -116,8 +184,16 @@ function AuthenticatedLayout({ children }) {
             <MorningSyncModal
                 isOpen={morningSyncOpen}
                 onClose={() => setMorningSyncOpen(false)}
+                onOpenCoach={(job) => setCoachJob(job)}
                 autoLaunched={true}
             />
+            {coachJob && (
+                <AiCareerCoachModal
+                    isOpen={!!coachJob}
+                    onClose={() => setCoachJob(null)}
+                    job={coachJob}
+                />
+            )}
         </>
     );
 }
@@ -153,13 +229,20 @@ export default function RootLayout({ children }) {
                         {children}
                     </AuthenticatedLayout>
                 </AuthProvider>
+                <div id="portal-root" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 0, zIndex: 99999, pointerEvents: 'none' }} />
             </body>
         </html>
     );
 }
 
 function NavContent({ onOpenMorningSync }) {
-    const { openNewJobModal } = useUIStore();
+    const { 
+        openNewJobModal, 
+        openGlobalSearch, 
+        isSidebarCollapsed, 
+        toggleSidebarCollapse, 
+        setSidebarCollapsed 
+    } = useUIStore();
     const { user } = useAuth();
     const profile = useAppStore((state) => state.profile);
     const jobs = useAppStore((state) => state.jobs);
@@ -173,6 +256,18 @@ function NavContent({ onOpenMorningSync }) {
     const [goalModalOpen, setGoalModalOpen] = useState(false);
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
+    // Sync sidebar collapsed preference from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('novujobs_sidebar_collapsed');
+            if (saved !== null) {
+                setSidebarCollapsed(saved === 'true');
+            }
+        } catch {
+            // Ignore storage access errors
+        }
+    }, [setSidebarCollapsed]);
+
     const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -180,26 +275,12 @@ function NavContent({ onOpenMorningSync }) {
 
     const handleSignOut = async () => {
         try {
+            useAppStore.getState().clearUserData();
             await signOut(auth);
             router.push('/login');
         } catch (error) {
             console.error('Sign out error:', error);
         }
-    };
-
-    // Helper for link styling - only apply after client mount
-    const linkStyle = (href) => {
-        const isActive = mounted && pathname === href;
-        return {
-            padding: '10px',
-            borderRadius: '6px',
-            background: isActive ? 'var(--bg-card)' : 'transparent',
-            color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-            fontWeight: isActive ? 'bold' : 'normal',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-        };
     };
 
     return (
@@ -230,219 +311,484 @@ function NavContent({ onOpenMorningSync }) {
                 <Plus size={24} />
             </button>
 
-            <nav className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h1 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+            <nav className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'open' : ''}`}>
+                {/* Header: Expanded State */}
+                <div className="sidebar-expanded-only" style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <h1 className="sidebar-brand-text" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
                         Novu<span style={{ color: 'var(--accent-primary)' }}>Jobs</span>
                     </h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <NotificationCenter onOpenMorningSync={onOpenMorningSync} />
+                        <button
+                            type="button"
+                            onClick={toggleSidebarCollapse}
+                            aria-label="Collapse sidebar"
+                            title="Collapse sidebar into icons (⌘B)"
+                            className="sidebar-toggle-btn"
+                        >
+                            <PanelLeftClose size={18} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Header: Collapsed State */}
+                <div className="sidebar-collapsed-only" style={{ flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' }}>
+                    <button
+                        type="button"
+                        onClick={toggleSidebarCollapse}
+                        aria-label="Expand sidebar"
+                        title="Expand sidebar (⌘B)"
+                        className="sidebar-toggle-btn sidebar-expand-btn"
+                    >
+                        <PanelLeftOpen size={18} />
+                    </button>
                     <NotificationCenter onOpenMorningSync={onOpenMorningSync} />
                 </div>
 
+                {/* Add New Job Action Button */}
                 <button
+                    type="button"
                     onClick={() => {
                         openNewJobModal();
                         closeMobileMenu();
                     }}
-                    aria-label="Add New Job"
-                    title="Add New Job"
-                    className="btn-primary"
+                    aria-label="Add New Job (N)"
+                    title="Add New Job (N)"
+                    className="btn-primary sidebar-action-btn sidebar-new-job-btn"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
-                    <Plus size={18} /> New Job
+                    <Plus size={18} />
+                    <span className="sidebar-label">New Job</span>
                 </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <Link href="/" onClick={closeMobileMenu} style={linkStyle('/')}>
-                        <LayoutDashboard size={18} /> Dashboard
-                    </Link>
-                    <Link href="/kanban" onClick={closeMobileMenu} style={linkStyle('/kanban')}>
-                        <Columns size={18} /> Board
-                    </Link>
-                    <Link href="/recommendations" onClick={closeMobileMenu} style={linkStyle('/recommendations')}>
-                        <Sparkles size={18} /> Recommendations
+                {/* Global Role Search Action Button */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        closeMobileMenu();
+                        openGlobalSearch();
+                    }}
+                    aria-label="Find Roles Across System (Command+K)"
+                    title="Search roles by company, title, location, salary, or notes (⌘K)"
+                    className="btn-secondary sidebar-action-btn sidebar-search-btn"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        padding: '9px 12px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600
+                    }}
+                >
+                    <span className="sidebar-search-inner">
+                        <Search size={15} color="var(--accent-primary)" />
+                        <span className="sidebar-label">Find Roles...</span>
+                    </span>
+                    <kbd className="sidebar-kbd sidebar-label" style={{
+                        fontSize: '0.68rem',
+                        padding: '2px 6px',
+                        borderRadius: '5px',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-secondary)',
+                        fontFamily: 'inherit'
+                    }}>
+                        ⌘K
+                    </kbd>
+                </button>
+
+                {/* Nav Links */}
+                <div className="sidebar-nav-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                    <Link
+                        href="/"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/' ? 'active' : ''}`}
+                        title={`Dashboard — Goal: ${goalProgress.count}/${goalProgress.target}`}
+                        aria-label="Dashboard"
+                    >
+                        <span className="sidebar-nav-left">
+                            <LayoutDashboard size={18} />
+                            <span className="sidebar-label">Dashboard</span>
+                        </span>
+                        <span
+                            className="sidebar-label sidebar-goal-pill"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setGoalModalOpen(true);
+                            }}
+                            title={`Application Goal (${goalProgress.cadence}): ${goalProgress.count}/${goalProgress.target}. Click to customize.`}
+                            style={{
+                                background: goalProgress.percentage >= 100 ? 'rgba(16, 185, 129, 0.16)' : 'rgba(107, 126, 103, 0.15)',
+                                color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)'
+                            }}
+                        >
+                            {goalProgress.count}/{goalProgress.target}
+                        </span>
                     </Link>
 
-                    {/* Mini Application Goal Tracker Card */}
-                    <div 
-                        onClick={() => setGoalModalOpen(true)}
-                        style={{
-                            padding: '10px 12px',
-                            borderRadius: '10px',
-                            background: 'var(--glass-highlight)',
-                            border: '1px solid var(--border-subtle)',
-                            cursor: 'pointer',
-                            marginTop: '4px',
-                            transition: 'all 0.2s ease'
-                        }}
-                        className="interactive-card"
-                        title="Click to customize application target and cadence"
+                    <Link
+                        href="/kanban"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/kanban' ? 'active' : ''}`}
+                        title={`Kanban Board (${jobs?.length || 0} applications)`}
+                        aria-label="Kanban Board"
                     >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 'bold' }}>
-                                <Target size={13} color="var(--accent-primary)" />
-                                <span>Goal ({goalProgress.cadence})</span>
+                        <span className="sidebar-nav-left">
+                            <Columns size={18} />
+                            {jobs?.length > 0 && <span className="sidebar-collapsed-dot" />}
+                            <span className="sidebar-label">Board</span>
+                        </span>
+                        {jobs?.length > 0 && (
+                            <span className="sidebar-label sidebar-count-pill">
+                                {jobs.length}
+                            </span>
+                        )}
+                    </Link>
+
+                    <Link
+                        href="/recommendations"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/recommendations' ? 'active' : ''}`}
+                        title="AI Job Recommendations"
+                        aria-label="Job Recommendations"
+                    >
+                        <span className="sidebar-nav-left">
+                            <Sparkles size={18} />
+                            <span className="sidebar-label">Recommendations</span>
+                        </span>
+                    </Link>
+
+                    <Link
+                        href="/profile"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/profile' ? 'active' : ''}`}
+                        title="Job & Profile Settings"
+                        aria-label="Job & Profile Settings"
+                    >
+                        <span className="sidebar-nav-left">
+                            <User size={18} />
+                            <span className="sidebar-label">Job & Profile Settings</span>
+                        </span>
+                    </Link>
+
+                    {/* Dedicated Sidebar Application Goal Section */}
+                    {/* Expanded Goal Card */}
+                    <div className="sidebar-expanded-only sidebar-goal-card">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Target size={15} color={goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)'} />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                                    {goalProgress.cadence} Goal
+                                </span>
                             </div>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: goalProgress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)' }}>
+                            <span style={{
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                padding: '2px 7px',
+                                borderRadius: '999px',
+                                background: goalProgress.percentage >= 100 ? 'rgba(78, 135, 82, 0.18)' : 'rgba(107, 126, 103, 0.15)',
+                                color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)'
+                            }}>
                                 {goalProgress.count}/{goalProgress.target}
                             </span>
                         </div>
-                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+
+                        {/* Progress Bar */}
+                        <div style={{
+                            width: '100%',
+                            height: '6px',
+                            borderRadius: '999px',
+                            background: 'var(--bg-panel)',
+                            overflow: 'hidden'
+                        }}>
                             <div style={{
-                                width: `${goalProgress.percentage}%`,
+                                width: `${Math.min(100, goalProgress.percentage)}%`,
                                 height: '100%',
-                                background: goalProgress.percentage >= 100 ? '#10b981' : 'var(--accent-primary)',
-                                borderRadius: '3px'
+                                borderRadius: '999px',
+                                background: goalProgress.percentage >= 100
+                                    ? 'linear-gradient(90deg, #4E8752, #6BA368)'
+                                    : 'var(--accent-gradient)',
+                                transition: 'width 0.3s ease'
                             }} />
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                            <span>{goalProgress.percentage}% reached</span>
-                            <span>{goalProgress.pace === 'completed' ? 'Crushed! 🎉' : goalProgress.pace === 'on_track' ? 'On track 🚀' : 'Behind pace'}</span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            <span>{goalProgress.todayCount} applied today</span>
+                            <span>{goalProgress.percentage}%</span>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setGoalModalOpen(true);
+                                closeMobileMenu();
+                            }}
+                            className="btn-secondary"
+                            style={{
+                                width: '100%',
+                                padding: '6px 10px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                borderRadius: '7px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '5px'
+                            }}
+                        >
+                            <Target size={12} color="var(--accent-primary)" />
+                            Customize Goal
+                        </button>
                     </div>
 
-                    <div style={{ margin: '4px 0' }}>
-                        <AiSafetyBadge variant="navbar" />
+                    {/* Collapsed Goal Button */}
+                    <div className="sidebar-collapsed-only" style={{ justifyContent: 'center', width: '100%' }}>
+                        <button
+                            type="button"
+                            onClick={() => setGoalModalOpen(true)}
+                            title={`Application Goal (${goalProgress.cadence}): ${goalProgress.count}/${goalProgress.target} (${goalProgress.percentage}%). Click to customize.`}
+                            aria-label={`Application Goal: ${goalProgress.count} of ${goalProgress.target}. Click to customize.`}
+                            className="sidebar-collapsed-goal-btn"
+                        >
+                            <Target size={16} color={goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)'} />
+                            <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                lineHeight: 1,
+                                color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--text-secondary)'
+                            }}>
+                                {goalProgress.count}/{goalProgress.target}
+                            </span>
+                        </button>
                     </div>
 
-                    <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)', margin: '8px 0' }} />
-                    <Link href="/profile" onClick={closeMobileMenu} style={linkStyle('/profile')}>
-                        <User size={18} /> My Profile
+                    {isPlatformOwner && (
+                        <div style={{ margin: '4px 0', width: '100%' }}>
+                            <div className="sidebar-expanded-only">
+                                <AiSafetyBadge variant="navbar" />
+                            </div>
+                            <div className="sidebar-collapsed-only" style={{ justifyContent: 'center', width: '100%' }}>
+                                <AiSafetyBadge variant="compact" />
+                            </div>
+                        </div>
+                    )}
+
+                    <hr className="sidebar-divider" />
+
+                    <Link
+                        href="/install"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link desktop-only ${mounted && pathname === '/install' ? 'active' : ''}`}
+                        title="Install Extension"
+                        aria-label="Install Extension"
+                    >
+                        <span className="sidebar-nav-left">
+                            <Download size={18} />
+                            <span className="sidebar-label">Install Extension</span>
+                        </span>
                     </Link>
-                    <Link href="/install" onClick={closeMobileMenu} style={linkStyle('/install')} className="desktop-only">
-                        <Download size={18} /> Install Extension
+                    <Link
+                        href="/privacy"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/privacy' ? 'active' : ''}`}
+                        title="Privacy Policy"
+                        aria-label="Privacy Policy"
+                    >
+                        <span className="sidebar-nav-left">
+                            <Shield size={18} />
+                            <span className="sidebar-label">Privacy Policy</span>
+                        </span>
                     </Link>
-                    <Link href="/privacy" onClick={closeMobileMenu} style={linkStyle('/privacy')}>
-                        <Shield size={18} /> Privacy Policy
-                    </Link>
-                    <Link href="/terms" onClick={closeMobileMenu} style={linkStyle('/terms')}>
-                        <Shield size={18} /> Terms of Service
+                    <Link
+                        href="/terms"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/terms' ? 'active' : ''}`}
+                        title="Terms of Service"
+                        aria-label="Terms of Service"
+                    >
+                        <span className="sidebar-nav-left">
+                            <Shield size={18} />
+                            <span className="sidebar-label">Terms of Service</span>
+                        </span>
                     </Link>
                 </div>
 
                 {/* Appearance / Theme Switcher */}
-                <div style={{ marginTop: 'auto', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Appearance
-                        </span>
+                <div className="sidebar-appearance-section">
+                    <div className="sidebar-expanded-only" style={{ flexDirection: 'column', gap: '8px', width: '100%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Appearance
+                            </span>
+                        </div>
+                        <ThemeSwitcher style={{ width: '100%', justifyContent: 'space-between' }} />
                     </div>
-                    <ThemeSwitcher style={{ width: '100%', justifyContent: 'space-between' }} />
+                    <div className="sidebar-collapsed-only" style={{ justifyContent: 'center', width: '100%' }}>
+                        <ThemeSwitcher collapsed={true} />
+                    </div>
                 </div>
 
                 {/* User Profile & Sign Out Section */}
                 {user && (
-                    <div style={{
-                        marginTop: '12px',
-                        borderTop: '1px solid var(--border-subtle)',
-                        paddingTop: '16px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '8px',
-                            borderRadius: '8px',
-                            background: 'var(--bg-card)'
-                        }}>
-                            {user.photoURL ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={user.photoURL}
-                                    alt="Profile"
-                                    style={{
+                    <div className="sidebar-user-section">
+                        {/* Expanded Profile Info */}
+                        <div className="sidebar-expanded-only" style={{ flexDirection: 'column', gap: '12px', width: '100%' }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '8px',
+                                borderRadius: '8px',
+                                background: 'var(--bg-card)'
+                            }}>
+                                {user.photoURL ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={user.photoURL}
+                                        alt="Profile"
+                                        style={{
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '50%',
+                                            objectFit: 'cover'
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{
                                         width: '36px',
                                         height: '36px',
                                         borderRadius: '50%',
-                                        objectFit: 'cover'
-                                    }}
-                                />
-                            ) : (
-                                <div style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    borderRadius: '50%',
-                                    background: 'var(--accent-primary)',
+                                        background: 'var(--accent-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        {user.email?.charAt(0).toUpperCase() || 'U'}
+                                    </div>
+                                )}
+                                <div style={{ overflow: 'hidden' }}>
+                                    <p style={{
+                                        fontSize: '0.85rem',
+                                        fontWeight: 'bold',
+                                        color: 'var(--text-primary)',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        margin: 0
+                                    }}>
+                                        {user.displayName || 'User'}
+                                    </p>
+                                    <p style={{
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-secondary)',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        margin: 0
+                                    }}>
+                                        {user.email}
+                                    </p>
+                                    <div style={{ marginTop: '4px' }}>
+                                        {isPlatformOwner ? (
+                                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'linear-gradient(135deg, #eab308, #ca8a04)', color: 'black', fontWeight: 'bold' }}>
+                                                👑 OWNER
+                                            </span>
+                                        ) : isPro ? (
+                                            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-primary)', color: 'white', fontWeight: 'bold' }}>
+                                                ⭐ PRO
+                                            </span>
+                                        ) : (
+                                            <Link 
+                                                href="/profile#subscription-section" 
+                                                onClick={closeMobileMenu} 
+                                                style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(107, 126, 103, 0.16)', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 'bold' }}
+                                            >
+                                                Free (25 Cap) · Upgrade
+                                            </Link>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleSignOut}
+                                aria-label="Sign Out"
+                                title="Sign Out"
+                                className="sidebar-signout-btn"
+                            >
+                                <LogOut size={16} /> Sign Out
+                            </button>
+                        </div>
+
+                        {/* Collapsed Profile & Sign Out */}
+                        <div className="sidebar-collapsed-only" style={{ flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' }}>
+                            <Link
+                                href="/profile"
+                                onClick={closeMobileMenu}
+                                title={`${user.displayName || 'User'} (${user.email}) - Profile`}
+                                aria-label="User profile settings"
+                                style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    color: 'white',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {user.email?.charAt(0).toUpperCase() || 'U'}
-                                </div>
-                            )}
-                            <div style={{ overflow: 'hidden' }}>
-                                <p style={{
-                                    fontSize: '0.85rem',
-                                    fontWeight: 'bold',
-                                    color: 'var(--text-primary)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                }}>
-                                    {user.displayName || 'User'}
-                                </p>
-                                <p style={{
-                                    fontSize: '0.75rem',
-                                    color: 'var(--text-secondary)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                }}>
-                                    {user.email}
-                                </p>
-                                <div style={{ marginTop: '4px' }}>
-                                    {isPlatformOwner ? (
-                                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'linear-gradient(135deg, #eab308, #ca8a04)', color: 'black', fontWeight: 'bold' }}>
-                                            👑 OWNER
-                                        </span>
-                                    ) : isPro ? (
-                                        <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-primary)', color: 'white', fontWeight: 'bold' }}>
-                                            ⭐ PRO
-                                        </span>
-                                    ) : (
-                                        <Link 
-                                            href="/profile#subscription-section" 
-                                            onClick={closeMobileMenu} 
-                                            style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 'bold' }}
-                                        >
-                                            Free (25 Cap) · Upgrade
-                                        </Link>
-                                    )}
-                                </div>
-                            </div>
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                {user.photoURL ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={user.photoURL}
+                                        alt="Profile"
+                                        style={{
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '50%',
+                                            objectFit: 'cover',
+                                            border: isPlatformOwner 
+                                                ? '2px solid #eab308' 
+                                                : isPro 
+                                                    ? '2px solid var(--accent-primary)' 
+                                                    : '1px solid var(--border-subtle)'
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '50%',
+                                        background: 'var(--accent-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.9rem',
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                                    }}>
+                                        {user.email?.charAt(0).toUpperCase() || 'U'}
+                                    </div>
+                                )}
+                            </Link>
+                            <button
+                                onClick={handleSignOut}
+                                aria-label="Sign Out"
+                                title="Sign Out"
+                                className="sidebar-signout-btn-collapsed"
+                            >
+                                <LogOut size={17} />
+                            </button>
                         </div>
-                        <button
-                            onClick={handleSignOut}
-                            aria-label="Sign Out"
-                            title="Sign Out"
-                            style={{
-                                padding: '10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-subtle)',
-                                background: 'transparent',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <LogOut size={16} /> Sign Out
-                        </button>
                     </div>
                 )}
-
-                <GoalCustomizationModal
-                    isOpen={goalModalOpen}
-                    onClose={() => setGoalModalOpen(false)}
-                />
             </nav>
+
+            <GoalCustomizationModal
+                isOpen={goalModalOpen}
+                onClose={() => setGoalModalOpen(false)}
+            />
         </>
     );
 }

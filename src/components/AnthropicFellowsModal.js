@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     X, Shield, Sparkles, CheckCircle2, 
     ExternalLink, BookOpen, Terminal, Copy, Check, ArrowRight,
@@ -13,8 +14,11 @@ import {
     ANTHROPIC_INTERVIEW_QUESTIONS 
 } from '@/lib/anthropic-fellows';
 import { getSafetyTelemetry } from '@/lib/ai-safety';
+import { useAuth } from '@/lib/auth-context';
+import { isOwner } from '@/lib/subscription';
 
 export default function AnthropicFellowsModal({ isOpen, onClose }) {
+    const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
     const jobs = useAppStore(state => state.jobs);
     const addJob = useAppStore(state => state.addJob);
@@ -42,7 +46,7 @@ export default function AnthropicFellowsModal({ isOpen, onClose }) {
         );
     }, [jobs]);
 
-    if (!isOpen) return null;
+    if (!isOpen || !isOwner(user) || typeof document === 'undefined') return null;
 
     const handleTrackRole = () => {
         if (existingAnthropicJob) {
@@ -95,7 +99,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
         setTimeout(() => setCopiedProof(false), 2500);
     };
 
-    return (
+    return createPortal(
         <div 
             className="modal-overlay" 
             role="dialog" 
@@ -109,7 +113,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                zIndex: 9999,
+                zIndex: 99999,
                 padding: '20px'
             }}
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -120,34 +124,35 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                     width: '100%',
                     maxWidth: '880px',
                     maxHeight: '90vh',
+                    padding: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    backgroundColor: 'var(--bg-primary, #ffffff)',
-                    color: 'var(--text-primary, #1e293b)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
                     borderRadius: '16px',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                    border: '1px solid var(--border-color, #e2e8f0)',
+                    border: '1px solid var(--border-subtle)',
                     overflow: 'hidden'
                 }}
             >
                 {/* Header */}
                 <div style={{
                     padding: '24px 28px 18px',
-                    borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                    borderBottom: '1px solid var(--border-subtle)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'flex-start',
-                    background: 'linear-gradient(to right, rgba(46, 125, 50, 0.08), rgba(244, 241, 234, 0.8))'
+                    background: 'linear-gradient(135deg, rgba(107, 126, 103, 0.14) 0%, var(--bg-panel) 100%)'
                 }}>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                             <span style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
                                 padding: '4px 10px',
                                 borderRadius: '9999px',
-                                backgroundColor: '#2e7d32',
+                                background: 'var(--accent-gradient)',
                                 color: '#ffffff',
                                 fontSize: '0.78rem',
                                 fontWeight: '700',
@@ -158,8 +163,9 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                             <span style={{
                                 padding: '4px 10px',
                                 borderRadius: '9999px',
-                                backgroundColor: '#fef3c7',
-                                color: '#92400e',
+                                backgroundColor: 'rgba(209, 138, 60, 0.15)',
+                                border: '1px solid rgba(209, 138, 60, 0.3)',
+                                color: 'var(--warning)',
                                 fontSize: '0.78rem',
                                 fontWeight: '600'
                             }}>
@@ -169,7 +175,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                         <h2 id="anthropic-modal-title" style={{ fontSize: '1.45rem', fontWeight: '800', margin: 0 }}>
                             Anthropic Fellows Qualification & Research Hub
                         </h2>
-                        <p style={{ margin: '4px 0 0', fontSize: '0.9rem', color: 'var(--text-secondary, #64748b)' }}>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             Prepare your candidacy for the premier 4-month empirical AI safety and security research fellowship ($3,850/wk + $15k/mo compute).
                         </p>
                     </div>
@@ -180,7 +186,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
-                            color: 'var(--text-secondary, #64748b)',
+                            color: 'var(--text-secondary)',
                             padding: '6px',
                             borderRadius: '8px'
                         }}
@@ -193,10 +199,10 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                 {/* Navigation Tabs */}
                 <div style={{
                     display: 'flex',
-                    borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                    borderBottom: '1px solid var(--border-subtle)',
                     padding: '0 28px',
                     gap: '24px',
-                    backgroundColor: 'var(--bg-secondary, #f8fafc)',
+                    backgroundColor: 'var(--bg-panel)',
                     overflowX: 'auto'
                 }}>
                     {[
@@ -219,8 +225,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                     padding: '14px 4px',
                                     border: 'none',
                                     background: 'none',
-                                    borderBottom: isCurrent ? '3px solid #2e7d32' : '3px solid transparent',
-                                    color: isCurrent ? '#2e7d32' : 'var(--text-secondary, #64748b)',
+                                    borderBottom: isCurrent ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                                    color: isCurrent ? 'var(--accent-primary)' : 'var(--text-secondary)',
                                     fontWeight: isCurrent ? '700' : '500',
                                     fontSize: '0.92rem',
                                     cursor: 'pointer',
@@ -246,17 +252,17 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                 gap: '16px',
                                 marginBottom: '24px'
                             }}>
-                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)', fontWeight: '600', marginBottom: '4px' }}>WEEKLY STIPEND</div>
                                     <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#2e7d32' }}>$3,850 / week</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)' }}>$15,400/mo + local benefits</div>
                                 </div>
-                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)', fontWeight: '600', marginBottom: '4px' }}>COMPUTE FUNDING</div>
                                     <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0284c7' }}>~$15k / month</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)' }}>Dedicated research GPU cluster</div>
                                 </div>
-                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)', fontWeight: '600', marginBottom: '4px' }}>WORK LOCATIONS</div>
                                     <div style={{ fontSize: '1.05rem', fontWeight: '700' }}>SF / London / Remote</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)' }}>Berkeley or London workspaces</div>
@@ -268,7 +274,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                 <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '12px' }}>
                                     Select Fellows Workstream
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
                                     {ANTHROPIC_FELLOWS_ROLE.workstreams.map(track => {
                                         const isSelected = selectedTrack === track.id;
                                         return (
@@ -279,16 +285,16 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                                     padding: '16px',
                                                     borderRadius: '12px',
                                                     cursor: 'pointer',
-                                                    border: isSelected ? '2px solid #2e7d32' : '1px solid var(--border-color, #e2e8f0)',
-                                                    backgroundColor: isSelected ? 'rgba(46, 125, 50, 0.05)' : 'var(--bg-primary, #ffffff)',
+                                                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                                    backgroundColor: isSelected ? 'rgba(107, 126, 103, 0.1)' : 'var(--bg-card)',
                                                     transition: 'all 0.2s'
                                                 }}
                                             >
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                    <span style={{ fontWeight: '700', fontSize: '1rem', color: isSelected ? '#2e7d32' : 'inherit' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '1rem', color: isSelected ? 'var(--accent-primary)' : 'inherit' }}>
                                                         {track.name}
                                                     </span>
-                                                    {isSelected && <CheckCircle2 size={18} color="#2e7d32" />}
+                                                    {isSelected && <CheckCircle2 size={18} color="var(--accent-primary)" />}
                                                 </div>
                                                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #64748b)', margin: 0, lineHeight: 1.4 }}>
                                                     {track.description}
@@ -309,17 +315,17 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 paddingTop: '16px',
-                                borderTop: '1px solid var(--border-color, #e2e8f0)',
+                                borderTop: '1px solid var(--border-subtle)',
                                 flexWrap: 'wrap',
                                 gap: '12px'
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                     <button
                                         onClick={handleTrackRole}
                                         style={{
                                             padding: '10px 18px',
                                             borderRadius: '8px',
-                                            backgroundColor: addedToPipeline || existingAnthropicJob ? '#10b981' : '#2e7d32',
+                                            backgroundColor: addedToPipeline || existingAnthropicJob ? 'var(--success)' : 'var(--accent-primary)',
                                             color: '#ffffff',
                                             fontWeight: '700',
                                             border: 'none',
@@ -338,10 +344,10 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                         style={{
                                             padding: '10px 18px',
                                             borderRadius: '8px',
-                                            backgroundColor: 'var(--bg-secondary, #f1f5f9)',
+                                            backgroundColor: 'var(--bg-panel)',
                                             color: 'var(--text-primary)',
                                             fontWeight: '600',
-                                            border: '1px solid var(--border-color, #e2e8f0)',
+                                            border: '1px solid var(--border-subtle)',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -360,7 +366,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '6px',
-                                        color: '#2e7d32',
+                                        color: 'var(--accent-primary)',
                                         fontWeight: '700',
                                         textDecoration: 'none',
                                         fontSize: '0.92rem'
@@ -379,15 +385,17 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                             <div style={{
                                 padding: '20px',
                                 borderRadius: '12px',
-                                backgroundColor: 'rgba(46, 125, 50, 0.08)',
-                                border: '1px solid rgba(46, 125, 50, 0.25)',
+                                backgroundColor: 'rgba(107, 126, 103, 0.1)',
+                                border: '1px solid rgba(107, 126, 103, 0.28)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '16px',
                                 marginBottom: '24px'
                             }}>
                                 <div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#2e7d32', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         Anthropic Fellows Readiness Assessment
                                     </div>
                                     <h3 style={{ fontSize: '1.4rem', fontWeight: '800', margin: '4px 0 2px' }}>
@@ -405,11 +413,12 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                     width: '76px',
                                     height: '76px',
                                     borderRadius: '50%',
-                                    backgroundColor: '#2e7d32',
+                                    backgroundColor: 'var(--accent-primary)',
                                     color: '#ffffff',
                                     fontWeight: '900',
                                     fontSize: '1.5rem',
-                                    boxShadow: '0 4px 12px rgba(46, 125, 50, 0.3)'
+                                    boxShadow: '0 4px 12px rgba(107, 126, 103, 0.35)',
+                                    flexShrink: 0
                                 }}>
                                     {qualificationData.overallScore}%
                                 </div>
@@ -429,11 +438,11 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                                 style={{
                                                     padding: '14px 16px',
                                                     borderRadius: '10px',
-                                                    backgroundColor: 'var(--bg-secondary, #f8fafc)',
-                                                    border: '1px solid var(--border-color, #e2e8f0)'
+                                                    backgroundColor: 'var(--bg-panel)',
+                                                    border: '1px solid var(--border-subtle)'
                                                 }}
                                             >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                                                     <div>
                                                         <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{pillar.name}</span>
                                                         <span style={{
@@ -442,8 +451,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                                             fontWeight: '600',
                                                             padding: '2px 8px',
                                                             borderRadius: '9999px',
-                                                            backgroundColor: isStrong ? '#dcfce7' : '#fef3c7',
-                                                            color: isStrong ? '#166534' : '#92400e'
+                                                            backgroundColor: isStrong ? 'rgba(78, 135, 82, 0.16)' : 'rgba(209, 138, 60, 0.16)',
+                                                            color: isStrong ? 'var(--success)' : 'var(--warning)'
                                                         }}>
                                                             {isStrong ? 'Strong Match' : 'High-Leverage Growth'}
                                                         </span>
@@ -533,8 +542,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                         style={{
                                             padding: '8px 14px',
                                             borderRadius: '8px',
-                                            border: selectedBlueprint.id === bp.id ? '2px solid #2e7d32' : '1px solid var(--border-color, #e2e8f0)',
-                                            backgroundColor: selectedBlueprint.id === bp.id ? 'rgba(46, 125, 50, 0.08)' : 'var(--bg-secondary, #f8fafc)',
+                                            border: selectedBlueprint.id === bp.id ? '2px solid #2e7d32' : '1px solid var(--border-subtle)',
+                                            backgroundColor: selectedBlueprint.id === bp.id ? 'rgba(46, 125, 50, 0.08)' : 'var(--bg-panel)',
                                             color: selectedBlueprint.id === bp.id ? '#2e7d32' : 'inherit',
                                             fontWeight: '600',
                                             fontSize: '0.85rem',
@@ -550,8 +559,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                 <div style={{
                                     padding: '20px',
                                     borderRadius: '12px',
-                                    border: '1px solid var(--border-color, #e2e8f0)',
-                                    backgroundColor: 'var(--bg-secondary, #f8fafc)'
+                                    border: '1px solid var(--border-subtle)',
+                                    backgroundColor: 'var(--bg-panel)'
                                 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
                                         <div>
@@ -640,8 +649,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                             key={idx}
                                             style={{
                                                 borderRadius: '12px',
-                                                border: '1px solid var(--border-color, #e2e8f0)',
-                                                backgroundColor: 'var(--bg-secondary, #f8fafc)',
+                                                border: '1px solid var(--border-subtle)',
+                                                backgroundColor: 'var(--bg-panel)',
                                                 overflow: 'hidden'
                                             }}
                                         >
@@ -675,8 +684,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                             {isExpanded && (
                                                 <div style={{
                                                     padding: '0 20px 18px',
-                                                    borderTop: '1px solid var(--border-color, #e2e8f0)',
-                                                    backgroundColor: 'var(--bg-primary, #ffffff)'
+                                                    borderTop: '1px solid var(--border-subtle)',
+                                                    backgroundColor: 'var(--bg-card)'
                                                 }}>
                                                     <h5 style={{ fontSize: '0.85rem', fontWeight: '700', margin: '14px 0 8px', color: '#2e7d32' }}>
                                                         Key Talking Points for Research Discussion:
@@ -714,17 +723,17 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                 gap: '14px',
                                 marginBottom: '24px'
                             }}>
-                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>CONSTITUTIONAL STATUS</div>
                                     <div style={{ fontSize: '1.15rem', fontWeight: '800', color: '#2e7d32', marginTop: '4px' }}>Active & Enforced</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{safetyTelemetry.totalScans || 12} inputs audited • 100% compliant</div>
                                 </div>
-                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>PROMPT INJECTION SHIELD</div>
                                     <div style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0284c7', marginTop: '4px' }}>{safetyTelemetry.injectionsBlocked || 0} Blocked</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{safetyTelemetry.piiRedacted || 0} PII elements redacted</div>
                                 </div>
-                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-secondary, #f8fafc)', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                                <div style={{ padding: '16px', borderRadius: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-subtle)' }}>
                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>AUTOMATED RED TEAM SUITE</div>
                                     <div style={{ fontSize: '1.15rem', fontWeight: '800', color: '#10b981', marginTop: '4px' }}>78 / 78 Passing</div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Adversarial & extraction robustness verified</div>
@@ -735,8 +744,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                             <div style={{
                                 padding: '20px',
                                 borderRadius: '12px',
-                                backgroundColor: 'var(--bg-secondary, #f8fafc)',
-                                border: '1px solid var(--border-color, #e2e8f0)'
+                                backgroundColor: 'var(--bg-panel)',
+                                border: '1px solid var(--border-subtle)'
                             }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                                     <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>
@@ -766,8 +775,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                                     margin: 0,
                                     padding: '14px',
                                     borderRadius: '8px',
-                                    backgroundColor: 'var(--bg-primary, #ffffff)',
-                                    border: '1px solid var(--border-color, #e2e8f0)',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-subtle)',
                                     fontSize: '0.85rem',
                                     lineHeight: 1.5,
                                     whiteSpace: 'pre-wrap',
@@ -782,6 +791,7 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

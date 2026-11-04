@@ -88,6 +88,8 @@ export const CHART_TIME_RANGES = [
  * @param {object} [options] - Optional overrides:
  *   - range: '7d' | '14d' | '30d' | '90d' | 'all' (default: 'all')
  *   - now: Date override for deterministic testing
+ *   - getDate: (job) => Date|string|null accessor for the job's timestamp
+ *     (default: job.dateAdded || job.createdAt)
  * @returns {Array<{ date: string, count: number, newJobs: number, periodLabel: string }>}
  */
 export function calculateChartData(jobs, granularity = 'daily', options = {}) {
@@ -95,10 +97,16 @@ export function calculateChartData(jobs, granularity = 'daily', options = {}) {
 
     const now = options.now instanceof Date ? options.now : new Date();
     const range = options.range || 'all';
+    const getDate = typeof options.getDate === 'function'
+        ? options.getDate
+        : (job => job.dateAdded || job.createdAt);
 
     // 1. Sort timestamps O(N log N) once
     const sortedTimestamps = jobs
-        .map(job => safeDate(job.dateAdded || job.createdAt).getTime())
+        .map(job => {
+            const raw = getDate(job);
+            return raw ? safeDate(raw).getTime() : NaN;
+        })
         .filter(t => !isNaN(t))
         .sort((a, b) => a - b);
 
