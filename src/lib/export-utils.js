@@ -41,6 +41,8 @@ export function exportBoardToCsv(jobs = []) {
         'Relevance Score',
         'Match Reason',
         'Job URL',
+        'Resume Used',
+        'Resume URL',
         'Created At',
         'Notes'
     ];
@@ -56,6 +58,8 @@ export function exportBoardToCsv(jobs = []) {
         escapeCsvField(job.relevanceScore ? `${job.relevanceScore}%` : ''),
         escapeCsvField(job.matchReason),
         escapeCsvField(job.url || job.link),
+        escapeCsvField(job.resumeName),
+        escapeCsvField(job.resumeUrl),
         escapeCsvField(job.createdAt || job.dateAdded),
         escapeCsvField(job.notes)
     ].join(','));
@@ -69,13 +73,20 @@ export function exportBoardToCsv(jobs = []) {
  * Export jobs array as high-fidelity JSON for AI agents or migration.
  */
 export function exportBoardToJson(jobs = [], profile = null) {
+    const safeJobs = (jobs || []).map(job => {
+        if (!job || typeof job !== 'object') return job;
+        const copy = { ...job };
+        delete copy.geminiApiKey;
+        delete copy.googleMapsApiKey;
+        return copy;
+    });
     const payload = {
         exportedAt: new Date().toISOString(),
         version: '1.0',
         platform: 'NovuJobs',
         user: profile?.fullName || 'Anonymous',
-        totalJobs: jobs.length,
-        jobs: jobs
+        totalJobs: safeJobs.length,
+        jobs: safeJobs
     };
 
     const jsonContent = JSON.stringify(payload, null, 2);
@@ -101,7 +112,7 @@ export function exportAgentBriefing(jobs = []) {
         byStatus[st].push(job);
     });
 
-    const statusOrder = ['offer', 'interviewing', 'applied', 'wishlist', 'rejected'];
+    const statusOrder = ['offer', 'interviewing', 'screening', 'applied', 'wishlist', 'rejected'];
 
     statusOrder.forEach(statusKey => {
         const list = byStatus[statusKey] || [];
@@ -123,6 +134,9 @@ export function exportAgentBriefing(jobs = []) {
             if (job.salary) md += `- **Salary**: ${job.salary}\n`;
             if (job.relevanceScore) md += `- **AI Match**: ${job.relevanceScore}% (${job.matchReason || 'N/A'})\n`;
             if (job.url) md += `- **Listing URL**: ${job.url}\n`;
+            if (job.resumeUrl || job.resumeName) {
+                md += `- **Resume Used**: ${job.resumeName ? `${job.resumeName} ` : ''}${job.resumeUrl ? `(${job.resumeUrl})` : ''}\n`;
+            }
             if (job.notes) md += `- **Notes**: ${job.notes}\n`;
             md += `\n`;
         });

@@ -6,6 +6,9 @@ import {
     isCurrentMonth, 
     isToday, 
     getCycleDaysRemaining,
+    resolveAppliedAtForStatusChange,
+    isSubmittedApplication,
+    findMiscountedApplications,
     DEFAULT_GOAL 
 } from './goal-tracker.js';
 
@@ -108,6 +111,136 @@ describe('Goal Tracker Engine Unit Tests', () => {
 
             const dailyRemaining = getCycleDaysRemaining('daily', fixedNow);
             assert.ok(dailyRemaining.includes('h left today'));
+        });
+
+        it('returns todayJobs, todayCount, and cycleJobs sorted newest-first', () => {
+            const goal = { target: 10, cadence: 'weekly' };
+            const progress = calculateGoalProgress(sampleJobs, goal, fixedNow);
+
+            // 2 jobs applied on fixedNow (2026-06-17): Figma (11:00Z) and Google (09:00Z)
+            assert.equal(progress.todayCount, 2);
+            assert.equal(progress.todayJobs.length, 2);
+            assert.equal(progress.todayJobs[0].company, 'Figma');
+            assert.equal(progress.todayJobs[1].company, 'Google');
+
+            // 3 jobs in current week: Figma, Google, Stripe
+            assert.equal(progress.cycleJobs.length, 3);
+            assert.equal(progress.cycleJobs[0].company, 'Figma');
+            assert.equal(progress.cycleJobs[2].company, 'Stripe');
+        });
+    });
+
+    describe('3. Status changes must not count towards the goal', () => {
+        const nowIso = fixedNow.toISOString();
+        const lastMonth = '2026-05-10T10:00:00Z';
+
+        it('stamps appliedAt only for a genuine wishlist -> pipeline transition', () => {
+            const wishlistJob = { id: 'w', status: 'wishlist', createdAt: lastMonth };
+            assert.equal(resolveAppliedAtForStatusChange(wishlistJob, 'applied', nowIso), nowIso);
+        });
+
+        it('never re-dates an application when moving between pipeline stages', () => {
+            const appliedJob = { id: 'a', status: 'applied', appliedAt: lastMonth, createdAt: lastMonth };
+            for (const stage of ['screening', 'interviewing', 'offer', 'accepted', 'rejected']) {
+                assert.equal(resolveAppliedAtForStatusChange(appliedJob, stage, nowIso), undefined, stage);
+            }
+        });
+
+        it('backfills legacy pipeline jobs missing appliedAt with their creation date, not now', () => {
+            const legacyJob = { id: 'l', status: 'applied', createdAt: lastMonth };
+            assert.equal(resolveAppliedAtForStatusChange(legacyJob, 'screening', nowIso), lastMonth);
+        });
+
+        it('does not stamp appliedAt when restoring an archived pipeline job', () => {
+            const archived = { id: 'r', status: 'archived', previousStatus: 'interviewing', appliedAt: lastMonth };
+            assert.equal(resolveAppliedAtForStatusChange(archived, 'interviewing', nowIso), undefined);
+        });
+
+        it('ignores updatedAt so a stage change today does not count as applied today', () => {
+            const movedToday = {
+                id: 'm',
+                status: 'screening',
+                createdAt: lastMonth,
+                updatedAt: nowIso
+            };
+            const progress = calculateGoalProgress([movedToday], { target: 3, cadence: 'daily' }, fixedNow);
+            assert.equal(progress.count, 0);
+            assert.equal(progress.todayCount, 0);
+        });
+    });
+
+    describe('4. Submitted application rules & memoization', () => {
+        it('excludes wishlist, deleted, and archived wishlist bookmarks', () => {
+            assert.equal(isSubmittedApplication({ status: 'wishlist' }), false);
+            assert.equal(isSubmittedApplication({ status: 'deleted' }), false);
+            assert.equal(isSubmittedApplication({ status: 'archived', previousStatus: 'wishlist' }), false);
+            assert.equal(isSubmittedApplication({ status: 'archived' }), false);
+        });
+
+        it('includes pipeline stages and archived pipeline jobs', () => {
+            for (const s of ['applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected']) {
+                assert.equal(isSubmittedApplication({ status: s }), true, s);
+            }
+            assert.equal(isSubmittedApplication({ status: 'archived', previousStatus: 'screening' }), true);
+        });
+
+        it('does not count archiving a wishlist bookmark created today', () => {
+            const jobs = [{ id: 'b', status: 'archived', previousStatus: 'wishlist', createdAt: fixedNow.toISOString() }];
+            assert.equal(calculateGoalProgress(jobs, { target: 3, cadence: 'daily' }, fixedNow).count, 0);
+        });
+
+        it('returns a cached result for identical inputs and recomputes when jobs change', () => {
+            const jobs = [{ id: '1', status: 'applied', appliedAt: fixedNow.toISOString() }];
+            const goal = { target: 5, cadence: 'weekly' };
+            const first = calculateGoalProgress(jobs, goal, fixedNow);
+            const second = calculateGoalProgress(jobs, { ...goal }, fixedNow);
+            assert.equal(first, second);
+
+            const nextJobs = [...jobs, { id: '2', status: 'screening', appliedAt: fixedNow.toISOString() }];
+            const third = calculateGoalProgress(nextJobs, goal, fixedNow);
+            assert.notEqual(third, first);
+            assert.equal(third.count, 2);
+        });
+    });
+
+    describe('5. One-time cleanup of miscounted applications', () => {
+        const created = '2026-05-01T10:00:00.000Z';
+        const stampedToday = fixedNow.toISOString();
+
+        it('repairs an existing job moved applied -> rejected that was re-stamped today', () => {
+            const jobs = [{ id: 'x', status: 'rejected', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday }];
+            assert.deepEqual(findMiscountedApplications(jobs), [{ id: 'x', appliedAt: created }]);
+
+            const repaired = jobs.map(j => ({ ...j, appliedAt: created }));
+            assert.equal(calculateGoalProgress(repaired, { target: 3, cadence: 'daily' }, fixedNow).count, 0);
+        });
+
+        it('repairs other pipeline stages (screening, interviewing, offer)', () => {
+            const jobs = ['screening', 'interviewing', 'offer'].map((s, i) => ({
+                id: String(i), status: s, createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday
+            }));
+            assert.equal(findMiscountedApplications(jobs).length, 3);
+        });
+
+        it('leaves genuine data untouched', () => {
+            const jobs = [
+                // applied: indistinguishable from a real wishlist -> applied move
+                { id: 'a', status: 'applied', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday },
+                // later stage change kept original appliedAt (updatedAt differs)
+                { id: 'b', status: 'rejected', createdAt: created, appliedAt: created, updatedAt: stampedToday },
+                // created directly in a pipeline stage
+                { id: 'c', status: 'interviewing', createdAt: stampedToday, appliedAt: stampedToday },
+                // wishlist / deleted never touched
+                { id: 'd', status: 'wishlist', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday },
+                { id: 'e', status: 'deleted', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday }
+            ];
+            assert.deepEqual(findMiscountedApplications(jobs), []);
+        });
+
+        it('only repairs stamps written before the cutoff (previous deployment)', () => {
+            const jobs = [{ id: 'x', status: 'rejected', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday }];
+            assert.equal(findMiscountedApplications(jobs, '2026-06-17T11:00:00Z').length, 0);
+            assert.equal(findMiscountedApplications(jobs, '2026-06-17T13:00:00Z').length, 1);
         });
     });
 });

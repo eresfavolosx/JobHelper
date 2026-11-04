@@ -5,8 +5,7 @@
  */
 
 import { auth } from './firebase';
-import { useAppStore } from './store';
-import { isOwner, isProUser } from './subscription';
+import { isOwner } from './subscription';
 
 let mapsScriptLoadingPromise = null;
 
@@ -117,24 +116,29 @@ export function loadGoogleMapsScript(apiKey) {
     }
 
     let resolvedKey = apiKey ? String(apiKey).trim() : '';
-    const isPersonalKey = Boolean(resolvedKey && resolvedKey.length > 5);
+    const sharedMapsKey = typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
+        : '';
+
+    let currentUser = null;
+    try {
+        currentUser = auth?.currentUser;
+    } catch {}
+
+    // If a non-owner passes the platform owner's shared key as their personal key, treat it as empty so authorization is enforced
+    if (resolvedKey && sharedMapsKey && resolvedKey === sharedMapsKey && !isOwner(currentUser)) {
+        resolvedKey = '';
+    }
+
+    const isPersonalKey = Boolean(resolvedKey && resolvedKey.length > 5 && (resolvedKey !== sharedMapsKey || isOwner(currentUser)));
 
     if (!isPersonalKey) {
-        // Enforce Pro or Owner access to shared Google Maps API key
-        let authorized = false;
-        try {
-            const currentUser = auth?.currentUser;
-            const profile = typeof useAppStore !== 'undefined' ? useAppStore.getState?.()?.profile : null;
-            authorized = isOwner(currentUser) || isProUser(currentUser, profile);
-        } catch {}
-
-        if (!authorized) {
-            return Promise.reject(new Error('Google Maps commute calculation requires NovuJobs Pro ($9.99/mo) or your personal Google Maps API key.'));
+        // Shared platform Google Maps API key is strictly restricted to Platform Owner (fabian.velez1996@gmail.com)
+        if (!isOwner(currentUser)) {
+            return Promise.reject(new Error('Add your personal Google Maps API key in Profile settings to calculate commute times.'));
         }
 
-        if (typeof process !== 'undefined') {
-            resolvedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
-        }
+        resolvedKey = sharedMapsKey;
     }
 
     if (!resolvedKey) {
@@ -214,27 +218,32 @@ export async function calculateCommute(origin, destination, apiKey) {
         };
     }
 
+    const sharedMapsKey = typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
+        : '';
+    const currentUser = auth?.currentUser;
+
     let resolvedKey = apiKey ? String(apiKey).trim() : '';
+    if (resolvedKey && sharedMapsKey && resolvedKey === sharedMapsKey && !isOwner(currentUser)) {
+        resolvedKey = '';
+    }
+
     if (!resolvedKey) {
-        // Shared platform key fallback: restricted strictly to Owner or Pro subscribers
-        const currentUser = auth?.currentUser;
-        const profile = typeof useAppStore !== 'undefined' ? useAppStore.getState?.().profile : null;
-        if (!isOwner(currentUser) && !isProUser(currentUser, profile)) {
+        // Shared platform key fallback: restricted strictly to Platform Owner (fabian.velez1996@gmail.com)
+        if (!isOwner(currentUser)) {
             return {
                 success: false,
-                error: 'NovuJobs Pro ($9.99/mo) or your personal Google Maps API key is required to calculate commute intelligence.'
+                error: 'Add your personal Google Maps API key in Profile settings to calculate commute intelligence.'
             };
         }
-        if (typeof process !== 'undefined') {
-            resolvedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
-        }
+        resolvedKey = sharedMapsKey;
     }
 
     if (!resolvedKey) {
         return { success: false, error: 'Google Maps API key not configured. Set it in Profile.' };
     }
 
-    const isPersonalKey = Boolean(apiKey && String(apiKey).trim().length > 5);
+    const isPersonalKey = Boolean(resolvedKey && resolvedKey.length > 5 && (resolvedKey !== sharedMapsKey || isOwner(currentUser)));
 
     // 2. Enforce monthly safety quota cap for shared platform key
     if (!isPersonalKey) {

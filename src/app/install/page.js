@@ -39,7 +39,7 @@ export default function InstallPage() {
                 </p>
             </header>
 
-            <div className="card animate-scale-in delay-100" style={{ padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', background: 'var(--glass-panel)' }}>
+            <div className="card animate-scale-in delay-100" style={{ padding: 'clamp(36px, 6vw, 60px) clamp(20px, 5vw, 40px)', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '40px', background: 'var(--glass-panel)' }}>
                 <a
                     href="/extension.zip"
                     download="novujobs-extension.zip"
@@ -50,13 +50,13 @@ export default function InstallPage() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '12px',
-                        boxShadow: '0 0 30px rgba(14, 165, 233, 0.4)'
+                        boxShadow: '0 8px 28px rgba(107, 126, 103, 0.38)'
                     }}
                 >
                     <Download size={24} />
                     Download Extension
                 </a>
-                <p style={{ marginTop: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <p style={{ marginTop: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center' }}>
                     Version 1.1.0 • .zip format • AI Context Enabled
                 </p>
             </div>

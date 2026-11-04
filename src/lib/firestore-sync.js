@@ -1,4 +1,5 @@
 import { cleanObject } from './utils';
+import { sanitizeProfileForFirestore, sanitizeJobForFirestore } from './store';
 import { doc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -20,34 +21,48 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
         console.log("No jobs to sync");
     }
 
-    const batch = writeBatch(db);
+    const validJobs = Array.isArray(jobs) ? jobs.filter(j => j && j.id) : [];
+    const CHUNK_SIZE = 450;
 
-    // 1. Sync Profile (only if profile has data)
+    // 1. Sync Profile + first chunk of jobs
+    const firstBatch = writeBatch(db);
+    let firstBatchCount = 0;
+
     if (profile && Object.keys(profile).length > 0) {
         const profileRef = doc(db, "users", userId, "data", "profile");
-        // Filter out undefined values and contextDocuments (can be too large)
-        const cleanProfile = cleanObject(profile, 'contextDocuments');
-        batch.set(profileRef, cleanProfile, { merge: true });
-        console.log("Profile staged for sync");
+        const cleanProfile = sanitizeProfileForFirestore(profile);
+        if (Object.keys(cleanProfile).length > 0) {
+            firstBatch.set(profileRef, cleanProfile, { merge: true });
+            firstBatchCount++;
+        }
     }
 
-    // 2. Sync Jobs
-    // We'll store jobs in a subcollection: users/{uid}/jobs/{jobId}
-    if (jobs && jobs.length > 0) {
-        jobs.forEach(job => {
-            if (job.id) {
-                const jobRef = doc(db, "users", userId, "jobs", job.id);
-                // Clean job data - remove any undefined values
-                const cleanJob = cleanObject(job);
-                batch.set(jobRef, cleanJob, { merge: true });
-            }
+    const firstChunk = validJobs.slice(0, CHUNK_SIZE);
+    firstChunk.forEach(job => {
+        const jobRef = doc(db, "users", userId, "jobs", job.id);
+        const cleanJob = sanitizeJobForFirestore(cleanObject(job));
+        firstBatch.set(jobRef, cleanJob, { merge: true });
+        firstBatchCount++;
+    });
+
+    if (firstBatchCount > 0) {
+        await firstBatch.commit();
+    }
+
+    // 2. Commit any remaining job chunks (>450 jobs)
+    for (let i = CHUNK_SIZE; i < validJobs.length; i += CHUNK_SIZE) {
+        const chunkBatch = writeBatch(db);
+        const slice = validJobs.slice(i, i + CHUNK_SIZE);
+        slice.forEach(job => {
+            const jobRef = doc(db, "users", userId, "jobs", job.id);
+            const cleanJob = sanitizeJobForFirestore(cleanObject(job));
+            chunkBatch.set(jobRef, cleanJob, { merge: true });
         });
-        console.log("Jobs staged for sync:", jobs.length);
+        await chunkBatch.commit();
     }
 
-    await batch.commit();
     console.log("Sync complete!");
-    return { success: true, jobCount: jobs?.length || 0 };
+    return { success: true, jobCount: validJobs.length };
 }
 
 /**

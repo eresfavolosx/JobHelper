@@ -4,6 +4,185 @@ import { persist } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription';
+import { resolveAppliedAtForStatusChange, findMiscountedApplications } from './goal-tracker';
+
+const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
+const appliedAtCleanupInFlight = new Set();
+
+/**
+ * Runs the one-time appliedAt repair for a user (once per device; safe to re-run because
+ * repaired jobs no longer match and only stamps written before this build are touched).
+ */
+function runAppliedAtCleanupOnce(userId, cloudJobs, applyLocal) {
+    if (typeof window === 'undefined' || !userId) return;
+    const flagKey = `${APPLIED_AT_CLEANUP_KEY}_${userId}`;
+    if (appliedAtCleanupInFlight.has(flagKey)) return;
+    try {
+        if (localStorage.getItem(flagKey)) return;
+    } catch {
+        return;
+    }
+    appliedAtCleanupInFlight.add(flagKey);
+
+    const cutoff = process.env.NEXT_PUBLIC_BUILD_TIME || undefined;
+    const repairs = findMiscountedApplications(cloudJobs, cutoff);
+
+    const markDone = () => {
+        try { localStorage.setItem(flagKey, new Date().toISOString()); } catch { /* ignore */ }
+        appliedAtCleanupInFlight.delete(flagKey);
+    };
+
+    if (repairs.length === 0) {
+        markDone();
+        return;
+    }
+
+    console.log(`[Store] Repairing ${repairs.length} job(s) miscounted towards the application goal`);
+    applyLocal(repairs);
+    import('firebase/firestore').then(({ setDoc, doc }) => {
+        Promise.all(repairs.map(({ id, appliedAt }) =>
+            setDoc(doc(db, "users", userId, "jobs", id), { appliedAt }, { merge: true })
+        ))
+            .then(markDone)
+            .catch(e => {
+                appliedAtCleanupInFlight.delete(flagKey);
+                console.error("[Store] appliedAt cleanup failed (will retry next load):", e);
+            });
+    });
+}
+
+const ALLOWED_PROFILE_KEYS = new Set([
+    'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
+    'experienceLevel', 'country', 'modality', 'minimumSalary',
+    'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
+    'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
+    'applicationGoal', 'updatedAt'
+]);
+
+const ALLOWED_GOAL_KEYS = new Set([
+    'target', 'cadence', 'targetRole', 'hoursPerWeek',
+    'reminderEnabled', 'enabled', 'startDate', 'updatedAt'
+]);
+
+const ALLOWED_JOB_KEYS = new Set([
+    'id', 'role', 'title', 'company', 'location', 'salary',
+    'url', 'link', 'description', 'notes', 'commuteTime',
+    'relevanceScore', 'matchReason', 'status', 'createdAt',
+    'updatedAt', 'appliedAt', 'dateAdded', 'deletedAt', 'archivedAt',
+    'previousStatus', 'source', 'pubDate', 'tags',
+    'resumeUrl', 'resumeName'
+]);
+
+const PROFILE_STRING_LIMITS = {
+    fullName: 100,
+    targetRole: 100,
+    location: 200,
+    keywords: 1000,
+    experienceLevel: 250,
+    country: 100,
+    modality: 250,
+    minimumSalary: 50,
+    geminiApiKey: 200,
+    googleMapsApiKey: 200
+};
+
+const JOB_STRING_LIMITS = {
+    role: 200,
+    title: 200,
+    company: 200,
+    location: 200,
+    salary: 100,
+    url: 2048,
+    link: 2048,
+    description: 50000,
+    notes: 10000,
+    commuteTime: 200,
+    matchReason: 2000,
+    source: 100,
+    pubDate: 100,
+    resumeUrl: 2048,
+    resumeName: 200
+};
+
+const VALID_JOB_STATUSES = new Set([
+    'wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted'
+]);
+
+const VALID_PREVIOUS_STATUSES = new Set([
+    'wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'
+]);
+
+export function sanitizeProfileForFirestore(rawProfile) {
+    if (!rawProfile || typeof rawProfile !== 'object') return {};
+    const cleaned = {};
+    const currentIsOwner = isOwner(auth?.currentUser);
+    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim() : '';
+    const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim() : '';
+
+    for (const key of Object.keys(rawProfile)) {
+        if (!ALLOWED_PROFILE_KEYS.has(key) || key === 'contextDocuments') continue;
+        const val = rawProfile[key];
+        if (val === undefined) continue;
+        if (!currentIsOwner && key === 'geminiApiKey' && envGemini && String(val).trim() === envGemini) {
+            cleaned[key] = '';
+            continue;
+        }
+        if (!currentIsOwner && key === 'googleMapsApiKey' && envMaps && String(val).trim() === envMaps) {
+            cleaned[key] = '';
+            continue;
+        }
+        if (key === 'minimumSalary') {
+            cleaned[key] = val === null ? '' : String(val).slice(0, 50);
+        } else if (key === 'applicationGoal' && val && typeof val === 'object') {
+            const goalClean = {};
+            for (const gKey of Object.keys(val)) {
+                if (ALLOWED_GOAL_KEYS.has(gKey) && val[gKey] !== undefined) {
+                    goalClean[gKey] = val[gKey];
+                }
+            }
+            goalClean.target = Math.max(1, Math.min(1000, parseInt(goalClean.target, 10) || 10));
+            goalClean.cadence = ['daily', 'weekly', 'monthly', 'total'].includes(goalClean.cadence)
+                ? goalClean.cadence
+                : 'weekly';
+            if (typeof goalClean.targetRole === 'string') {
+                goalClean.targetRole = goalClean.targetRole.slice(0, 100);
+            }
+            if (goalClean.hoursPerWeek !== undefined) {
+                goalClean.hoursPerWeek = Math.max(0, Math.min(168, Number(goalClean.hoursPerWeek) || 5));
+            }
+            cleaned[key] = goalClean;
+        } else if (typeof val === 'string' && PROFILE_STRING_LIMITS[key]) {
+            cleaned[key] = val.slice(0, PROFILE_STRING_LIMITS[key]);
+        } else {
+            cleaned[key] = val;
+        }
+    }
+    return cleaned;
+}
+
+export function sanitizeJobForFirestore(rawJob) {
+    if (!rawJob || typeof rawJob !== 'object') return {};
+    const cleaned = {};
+    for (const key of Object.keys(rawJob)) {
+        if (!ALLOWED_JOB_KEYS.has(key)) continue;
+        const val = rawJob[key];
+        if (val === undefined) continue;
+        if (key === 'status') {
+            cleaned[key] = VALID_JOB_STATUSES.has(val) ? val : 'wishlist';
+        } else if (key === 'previousStatus') {
+            if (val === null) {
+                cleaned[key] = null;
+            } else if (VALID_PREVIOUS_STATUSES.has(val)) {
+                cleaned[key] = val;
+            }
+        } else if (typeof val === 'string' && JOB_STRING_LIMITS[key]) {
+            cleaned[key] = val.slice(0, JOB_STRING_LIMITS[key]);
+        } else {
+            cleaned[key] = val;
+        }
+    }
+    return cleaned;
+}
 
 export const useAppStore = create(
     persist(
@@ -20,57 +199,30 @@ export const useAppStore = create(
                     return;
                 }
 
-                if (currentUserId && currentUserId !== userId) {
-                    // Different user - clear all data
-                    console.log("User changed, clearing local data");
-                    set({
-                        jobs: [],
-                        profile: {
-                            fullName: '',
-                            targetRole: '',
-                            location: 'Puerto Rico',
-                            keywords: '',
-                            isRemote: false,
-                            experienceLevel: 'Mid-Senior',
-                            country: '',
-                            modality: 'Remote',
-                            minimumSalary: '',
-                            contextDocuments: [],
-                            geminiApiKey: '',
-                            googleMapsApiKey: '',
-                            subscriptionStatus: 'free', // 'free', 'premium', 'trial'
-                            trialStartDate: null,
-                            trialEndDate: null
-                        },
-                        currentUserId: userId
-                    });
-                } else {
-                    // First login - just set the user ID and upload any local jobs/profile to Firestore
-                    console.log("First login, setting user ID and migrating local data");
-                    const localJobs = get().jobs;
-                    const localProfile = get().profile;
-                    
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                        // Migrate Jobs
-                        if (localJobs && localJobs.length > 0) {
-                            localJobs.forEach(job => {
-                                const jobRef = doc(db, "users", userId, "jobs", job.id);
-                                const cleanJob = cleanObject(job);
-                                setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Failed to migrate local job:", e));
-                            });
-                        }
-                        // Migrate Profile
-                        if (localProfile) {
-                            const profileRef = doc(db, "users", userId, "data", "profile");
-                            const cleanProfile = cleanObject(localProfile, 'contextDocuments');
-                            if (Object.keys(cleanProfile).length > 0) {
-                                setDoc(profileRef, cleanProfile, { merge: true }).catch(e => console.error("Failed to migrate local profile:", e));
-                            }
-                        }
-                    });
-                    
-                    set({ currentUserId: userId });
-                }
+                // Different user or fresh login after logout - always start with clean state for this userId
+                // so previous browser session data never leaks across accounts
+                console.log("User changed or initialized, resetting local cache for user:", userId);
+                set({
+                    jobs: [],
+                    profile: {
+                        fullName: '',
+                        targetRole: '',
+                        location: 'Puerto Rico',
+                        keywords: '',
+                        isRemote: false,
+                        experienceLevel: 'Mid-Senior',
+                        country: '',
+                        modality: 'Remote',
+                        minimumSalary: '',
+                        contextDocuments: [],
+                        geminiApiKey: '',
+                        googleMapsApiKey: '',
+                        subscriptionStatus: 'free', // 'free', 'premium', 'trial'
+                        trialStartDate: null,
+                        trialEndDate: null
+                    },
+                    currentUserId: userId
+                });
             },
 
             // Clear all user data on logout
@@ -101,7 +253,7 @@ export const useAppStore = create(
 
             addJob: (job) => {
                 // Enforce Firebase cost protection for free tier (max 25 active jobs)
-                const currentActiveJobs = get().jobs.filter(j => j?.status !== 'deleted');
+                const currentActiveJobs = get().jobs.filter(j => j?.status !== 'deleted' && j?.status !== 'archived');
                 const currentUser = auth?.currentUser;
                 const profile = get().profile;
                 const check = canAddJob(currentUser, profile, currentActiveJobs.length);
@@ -122,46 +274,88 @@ export const useAppStore = create(
                     return Date.now().toString(36) + Math.random().toString(36).substring(2);
                 };
 
+                const nowIso = new Date().toISOString();
+                const initialStatus = job?.status || 'wishlist';
                 const newJob = {
-                    status: 'wishlist',
+                    status: initialStatus,
                     ...job,
                     id: generateId(),
-                    createdAt: new Date().toISOString()
+                    createdAt: nowIso,
+                    ...(initialStatus !== 'wishlist' && initialStatus !== 'deleted' && initialStatus !== 'archived' && !job?.appliedAt
+                        ? { appliedAt: nowIso }
+                        : {})
                 };
                 set((state) => ({ jobs: [...state.jobs, newJob] }));
                 // Persist to Firestore
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", newJob.id);
-                        const cleanJob = cleanObject(newJob);
+                        const cleanJob = sanitizeJobForFirestore(cleanObject(newJob));
                         setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("[Store] Failed to save new job:", e));
                     });
                 }
                 return newJob;
             },
             updateJob: (id, updates) => {
+                const existingJob = get().jobs.find(j => j?.id === id);
+                const nowIso = new Date().toISOString();
+                const resolvedAppliedAt = updates?.status && !updates.appliedAt
+                    ? resolveAppliedAtForStatusChange(existingJob, updates.status, nowIso)
+                    : undefined;
+                const enrichedUpdates = {
+                    ...updates,
+                    ...(resolvedAppliedAt ? { appliedAt: resolvedAppliedAt, updatedAt: nowIso } : {})
+                };
                 set((state) => ({
-                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
+                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...enrichedUpdates } : job))
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
-                    import('firebase/firestore').then(({ updateDoc, doc }) => {
+                    import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", id);
-                        const cleanUpdates = cleanObject(updates);
-                        updateDoc(jobRef, cleanUpdates).catch(e => console.error("[Store] Failed to update job:", e));
+                        const cleanUpdates = sanitizeJobForFirestore(cleanObject(enrichedUpdates));
+                        setDoc(jobRef, cleanUpdates, { merge: true }).catch(e => console.error("[Store] Failed to update job:", e));
                     });
                 }
             },
-            deleteJob: (id) => {
+            archiveJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
-                const updates = { status: 'deleted', deletedAt: new Date().toISOString(), previousStatus: job?.status || 'wishlist' };
+                const previousStatus = (job?.status && job.status !== 'archived' && job.status !== 'deleted')
+                    ? job.status
+                    : (job?.previousStatus || 'wishlist');
+                const nowIso = new Date().toISOString();
+                const updates = {
+                    status: 'archived',
+                    archivedAt: nowIso,
+                    updatedAt: nowIso,
+                    previousStatus
+                };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
                         j.id === id ? { ...j, ...updates } : j
                     )
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                if (userId) {
+                    import('firebase/firestore').then(({ setDoc, doc }) => {
+                        setDoc(doc(db, "users", userId, "jobs", id), updates, { merge: true })
+                            .catch(e => console.error("[Store] Failed to archive job:", e));
+                    });
+                }
+            },
+            deleteJob: (id) => {
+                const job = get().jobs.find(j => j?.id === id);
+                const previousStatus = (job?.status && job.status !== 'deleted')
+                    ? job.status
+                    : (job?.previousStatus || 'wishlist');
+                const updates = { status: 'deleted', deletedAt: new Date().toISOString(), previousStatus };
+                set((state) => ({
+                    jobs: state.jobs.map((j) =>
+                        j.id === id ? { ...j, ...updates } : j
+                    )
+                }));
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ updateDoc, doc }) => {
                         updateDoc(doc(db, "users", userId, "jobs", id), updates)
@@ -171,18 +365,29 @@ export const useAppStore = create(
             },
             restoreJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
-                const updates = { status: job?.previousStatus || 'wishlist', deletedAt: null, previousStatus: null };
+                const targetStatus = (job?.previousStatus && job.previousStatus !== 'deleted' && job.previousStatus !== 'archived')
+                    ? job.previousStatus
+                    : 'wishlist';
+                const updates = {
+                    status: targetStatus,
+                    deletedAt: null,
+                    archivedAt: null,
+                    previousStatus: null,
+                    updatedAt: new Date().toISOString()
+                };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
                         j.id === id ? { ...j, ...updates } : j
                     )
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ updateDoc, doc, deleteField }) => {
                         updateDoc(doc(db, "users", userId, "jobs", id), {
                             status: updates.status,
+                            updatedAt: updates.updatedAt,
                             deletedAt: deleteField(),
+                            archivedAt: deleteField(),
                             previousStatus: deleteField()
                         }).catch(e => console.error("[Store] Failed to restore job:", e));
                     });
@@ -192,7 +397,7 @@ export const useAppStore = create(
                 set((state) => ({
                     jobs: state.jobs.filter((job) => job?.id !== id)
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ deleteDoc, doc }) => {
                         deleteDoc(doc(db, "users", userId, "jobs", id))
@@ -201,13 +406,32 @@ export const useAppStore = create(
                 }
             },
             moveJob: (id, newStatus) => {
+                if (newStatus === 'archived') {
+                    get().archiveJob(id);
+                    return;
+                }
+                if (newStatus === 'deleted') {
+                    get().deleteJob(id);
+                    return;
+                }
+                const existingJob = get().jobs.find(j => j?.id === id);
+                const nowIso = new Date().toISOString();
+                const resolvedAppliedAt = resolveAppliedAtForStatusChange(existingJob, newStatus, nowIso);
+                const updates = {
+                    status: newStatus,
+                    updatedAt: nowIso,
+                    ...(resolvedAppliedAt ? { appliedAt: resolvedAppliedAt } : {}),
+                    ...(existingJob?.status === 'archived' || existingJob?.status === 'deleted'
+                        ? { archivedAt: null, deletedAt: null, previousStatus: null }
+                        : {})
+                };
                 set((state) => ({
-                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, status: newStatus } : job))
+                    jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
-                    import('firebase/firestore').then(({ updateDoc, doc }) => {
-                        updateDoc(doc(db, "users", userId, "jobs", id), { status: newStatus })
+                    import('firebase/firestore').then(({ setDoc, doc }) => {
+                        setDoc(doc(db, "users", userId, "jobs", id), sanitizeJobForFirestore(cleanObject(updates)), { merge: true })
                             .catch(e => console.error("[Store] Failed to move job:", e));
                     });
                 }
@@ -237,21 +461,35 @@ export const useAppStore = create(
                 const profile = get().profile;
                 return isOwner(currentUser) || isProUser(currentUser, profile);
             },
-            updateProfile: (newProfile) => {
+            updateProfile: async (newProfile) => {
+                const nowIso = new Date().toISOString();
+                const payloadWithTimestamp = {
+                    ...newProfile,
+                    updatedAt: nowIso
+                };
                 set((state) => ({
-                    profile: { ...state.profile, ...newProfile }
+                    profile: { ...state.profile, ...payloadWithTimestamp }
                 }));
-                const userId = get().currentUserId;
+                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
+                    try {
+                        const { setDoc, doc } = await import('firebase/firestore');
                         const profileRef = doc(db, "users", userId, "data", "profile");
-                        const cleanProfile = cleanObject(newProfile, 'contextDocuments');
+                        const fullCurrentProfile = get().profile;
+                        const cleanProfile = sanitizeProfileForFirestore({
+                            ...fullCurrentProfile,
+                            ...payloadWithTimestamp
+                        });
                         if (Object.keys(cleanProfile).length > 0) {
-                            setDoc(profileRef, cleanProfile, { merge: true })
-                                .catch(e => console.error("[Store] Failed to update profile:", e));
+                            await setDoc(profileRef, cleanProfile, { merge: true });
                         }
-                    });
+                        return { success: true, synced: true };
+                    } catch (e) {
+                        console.error("[Store] Failed to update profile:", e);
+                        return { success: true, synced: false, error: e?.message };
+                    }
                 }
+                return { success: true, synced: false };
             },
             addContextDocument: (docData) => set((state) => ({
                 profile: {
@@ -281,20 +519,75 @@ export const useAppStore = create(
                     (docSnap) => {
                         if (docSnap.exists()) {
                             console.log("[Store] Profile data received from Firestore");
-                            set(state => ({ profile: { ...state.profile, ...docSnap.data() } }));
+                            const remoteData = docSnap.data() || {};
+                            const localProfile = get().profile || {};
+
+                            const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
+                            const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
+
+                            // Preserve local non-empty user fields if local state is newer or if remote was missing fields
+                            const mergedProfile = { ...localProfile, ...remoteData };
+                            let needsCloudCatchup = false;
+
+                            const userEditableFields = [
+                                'fullName', 'targetRole', 'location', 'keywords',
+                                'experienceLevel', 'country', 'modality', 'minimumSalary',
+                                'geminiApiKey', 'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis'
+                            ];
+
+                            if (localTime > remoteTime) {
+                                for (const field of userEditableFields) {
+                                    if (localProfile[field] !== undefined && localProfile[field] !== '') {
+                                        mergedProfile[field] = localProfile[field];
+                                    }
+                                }
+                                mergedProfile.updatedAt = localProfile.updatedAt;
+                                needsCloudCatchup = true;
+                            } else {
+                                // Even if timestamps aren't set yet, don't let empty/missing remote fields wipe populated local fields
+                                for (const field of userEditableFields) {
+                                    const localVal = localProfile[field];
+                                    const remoteVal = remoteData[field];
+                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                    const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
+                                    if (hasLocalVal && isRemoteEmpty) {
+                                        mergedProfile[field] = localVal;
+                                        needsCloudCatchup = true;
+                                    }
+                                }
+                            }
+
+                            set({ profile: mergedProfile });
+
+                            if (needsCloudCatchup) {
+                                import('firebase/firestore').then(({ setDoc }) => {
+                                    const cleanMerged = sanitizeProfileForFirestore(mergedProfile);
+                                    if (Object.keys(cleanMerged).length > 0) {
+                                        setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
+                                            console.error("[Store] Failed to sync local profile fields to Firestore:", e)
+                                        );
+                                    }
+                                });
+                            }
                         } else {
                             console.log("[Store] No profile data in Firestore yet - initializing trial");
                             const now = new Date();
                             const endDate = new Date();
                             endDate.setDate(now.getDate() + 14);
+                            const localProfile = get().profile || {};
                             const initialProfile = {
-                                trialStartDate: now.toISOString(),
-                                trialEndDate: endDate.toISOString(),
-                                subscriptionStatus: 'trial'
+                                ...localProfile,
+                                trialStartDate: localProfile.trialStartDate || now.toISOString(),
+                                trialEndDate: localProfile.trialEndDate || endDate.toISOString(),
+                                subscriptionStatus: localProfile.subscriptionStatus && localProfile.subscriptionStatus !== 'free'
+                                    ? localProfile.subscriptionStatus
+                                    : 'trial',
+                                updatedAt: now.toISOString()
                             };
-                            set(state => ({ profile: { ...state.profile, ...initialProfile } }));
+                            set({ profile: initialProfile });
                             import('firebase/firestore').then(({ setDoc }) => {
-                                setDoc(profileRef, initialProfile, { merge: true }).catch(e => console.error("Failed to init trial:", e));
+                                const cleanInitial = sanitizeProfileForFirestore(initialProfile);
+                                setDoc(profileRef, cleanInitial, { merge: true }).catch(e => console.error("Failed to init trial:", e));
                             });
                         }
                     },
@@ -304,31 +597,49 @@ export const useAppStore = create(
                 );
 
                 // 2. Jobs Listener
+                const syncedCloudJobIds = new Set();
                 const jobsRef = collection(db, "users", userId, "jobs");
                 const jobsUnsub = onSnapshot(jobsRef,
                     (snapshot) => {
                         const firestoreJobs = [];
-                        snapshot.forEach(docSnap => firestoreJobs.push({ id: docSnap.id, ...docSnap.data() }));
+                        const currentSnapshotIds = new Set();
+                        snapshot.forEach(docSnap => {
+                            firestoreJobs.push({ id: docSnap.id, ...docSnap.data() });
+                            currentSnapshotIds.add(docSnap.id);
+                        });
                         set(state => {
-                            // Preserve local jobs that are not yet in Firestore
-                            // This prevents local jobs from being wiped out if the snapshot is momentarily empty or delayed
-                            const localOnlyJobs = state.jobs.filter(localJob => 
-                                !firestoreJobs.some(fsJob => fsJob.id === localJob.id)
+                            // Preserve local jobs that have never been synced to Firestore yet
+                            // while allowing remotely deleted jobs (previously in syncedCloudJobIds) to be removed cleanly
+                            const localOnlyJobs = state.jobs.filter(localJob =>
+                                localJob?.id &&
+                                !currentSnapshotIds.has(localJob.id) &&
+                                !syncedCloudJobIds.has(localJob.id)
                             );
-                            
-                            // If we have local jobs that aren't in the cloud, upload them!
-                            // This happens if the user created a job before Firebase Auth finished initializing
+
+                            currentSnapshotIds.forEach(id => syncedCloudJobIds.add(id));
+
+                            // If we have genuinely new local jobs that aren't in the cloud yet, upload them sanitized
                             if (localOnlyJobs.length > 0 && userId) {
                                 console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
                                 import('firebase/firestore').then(({ setDoc, doc }) => {
                                     localOnlyJobs.forEach(job => {
+                                        syncedCloudJobIds.add(job.id);
                                         const jobRef = doc(db, "users", userId, "jobs", job.id);
-                                        setDoc(jobRef, cleanObject(job), { merge: true }).catch(e => console.error("Sync up failed:", e));
+                                        const cleanJob = sanitizeJobForFirestore(cleanObject(job));
+                                        setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
                                     });
                                 });
                             }
-                            
+
                             return { jobs: [...firestoreJobs, ...localOnlyJobs] };
+                        });
+
+                        // One-time cleanup of applications miscounted by status changes (old appliedAt bug)
+                        runAppliedAtCleanupOnce(userId, firestoreJobs, (repairs) => {
+                            const byId = new Map(repairs.map(r => [r.id, r.appliedAt]));
+                            set(state => ({
+                                jobs: state.jobs.map(j => (j?.id && byId.has(j.id) ? { ...j, appliedAt: byId.get(j.id) } : j))
+                            }));
                         });
                     },
                     (error) => {

@@ -1,13 +1,18 @@
 "use client";
 import { useAppStore } from '@/lib/store';
+import { useUIStore } from '@/lib/uiStore';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
-import { Briefcase, Calendar, CheckCircle } from 'lucide-react';
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
+import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2 } from 'lucide-react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import GoalTrackerWidget from '@/components/GoalTrackerWidget';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
+import JobSettingsBanner from '@/components/JobSettingsBanner';
+import { isOwner } from '@/lib/subscription';
+import { extractJobFacets } from '@/lib/job-search';
 
 const emptySubscribe = () => () => {};
 
@@ -15,8 +20,13 @@ export default function Home() {
     // ⚡ Bolt: Use specific selector instead of destructuring the whole store to prevent
     // unnecessary re-renders when other state (like profile) changes
     const jobs = useAppStore(state => state.jobs);
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
+    const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
+    const setBoardFilters = useUIStore(state => state.setBoardFilters);
+    const router = useRouter();
     const { user, loading } = useAuth();
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+    const [showSetupGuide, setShowSetupGuide] = useState(false);
 
     useEffect(() => {
         // Clear any potential legacy auth flags that might conflict
@@ -35,34 +45,206 @@ export default function Home() {
 
     const stats = useMemo(() => {
         if (!jobs) return { total: 0, interviewing: 0, offers: 0 };
-        // ⚡ Bolt: Use a single for-loop to calculate derived stats instead of reduce
-        // This avoids callback allocation overhead per item, improving O(N) performance for large datasets.
+        let activeTotal = 0;
         let interviewing = 0;
         let offers = 0;
         for (let i = 0; i < jobs.length; i++) {
-            if (!jobs[i]) continue;
+            if (!jobs[i] || jobs[i].status === 'deleted') continue;
+            activeTotal++;
             const status = jobs[i].status;
             if (status === 'interviewing') interviewing++;
-            else if (status === 'offer') offers++;
+            else if (status === 'offer' || status === 'accepted') offers++;
         }
-        return { total: jobs.length, interviewing, offers };
+        return { total: activeTotal, interviewing, offers };
     }, [jobs]);
+
+    const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
     if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
-    if (!jobs || jobs.length === 0) {
-        return <Onboarding />;
+    if (!jobs || stats.total === 0) {
+        return (
+            <div className="container">
+                <Onboarding />
+                <JobSettingsBanner showGoalSummary={false} />
+                <GoalTrackerWidget />
+            </div>
+        );
     }
 
     return (
         <div className="container">
-            <header style={{ marginBottom: '32px' }}>
-                <h2 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Dashboard</h2>
-                <p style={{ color: 'var(--text-secondary)' }}>Welcome back. Here is your application progress.</p>
+            <header style={{
+                marginBottom: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: '12px'
+            }}>
+                <div>
+                    <h2 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Dashboard</h2>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        Welcome back. Here is your application progress and active job settings.
+                    </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={() => openGlobalSearch()}
+                        className="btn-secondary"
+                        style={{ padding: '9px 14px', fontSize: '0.84rem', borderRadius: '10px' }}
+                        title="Search tracked roles by company, role title, location, salary, or notes (⌘K)"
+                    >
+                        <Search size={16} color="var(--accent-primary)" />
+                        <span>Find Roles</span>
+                        <kbd style={{
+                            fontSize: '0.68rem',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-secondary)',
+                            fontFamily: 'inherit'
+                        }}>
+                            ⌘K
+                        </kbd>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowSetupGuide(prev => !prev)}
+                        className="btn-secondary"
+                        style={{ padding: '9px 14px', fontSize: '0.84rem', borderRadius: '10px' }}
+                        title="Open interactive setup wizard to update role filters, goals, or add a role"
+                    >
+                        <Compass size={16} color="var(--accent-primary)" />
+                        <span>{showSetupGuide ? 'Hide Setup Guide' : 'Quick Setup & Guide'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={openNewJobModal}
+                        className="btn-primary"
+                        style={{ padding: '9px 16px', fontSize: '0.84rem', borderRadius: '10px' }}
+                    >
+                        <Plus size={16} />
+                        <span>Log Application</span>
+                    </button>
+                </div>
             </header>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+            {showSetupGuide && (
+                <Onboarding
+                    isCollapsible={true}
+                    onDismiss={() => setShowSetupGuide(false)}
+                />
+            )}
+
+            {/* Full-Width Job Search & Target Settings Bar */}
+            <JobSettingsBanner showGoalSummary={false} />
+
+            {/* Quick Company & Role Finder Strip on Dashboard */}
+            {facets.companies.length > 0 && (
+                <div
+                    className="card"
+                    style={{
+                        padding: '12px 16px',
+                        marginBottom: '18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}
+                >
+                    <div
+                        className="hide-scrollbar"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            overflowX: 'auto',
+                            flex: 1,
+                            minWidth: 0
+                        }}
+                    >
+                        <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)',
+                            flexShrink: 0
+                        }}>
+                            <Building2 size={14} color="var(--accent-primary)" />
+                            Companies:
+                        </span>
+                        {facets.companies.slice(0, 8).map(comp => (
+                            <button
+                                key={comp.key}
+                                type="button"
+                                onClick={() => {
+                                    setBoardFilters({
+                                        boardCompanyFilter: comp.name,
+                                        boardSearchQuery: '',
+                                        boardStageFilter: 'all',
+                                        boardLocationFilter: 'all',
+                                        boardQuickFilter: 'all'
+                                    });
+                                    router.push('/kanban');
+                                }}
+                                title={`View ${comp.count} tracked ${comp.count === 1 ? 'role' : 'roles'} at ${comp.name} on the Board`}
+                                style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '999px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-subtle)',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                <span>{comp.name}</span>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
+                                    {comp.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => openGlobalSearch()}
+                        style={{
+                            padding: '5px 11px',
+                            borderRadius: '999px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background: 'rgba(107, 126, 103, 0.16)',
+                            border: '1px solid var(--accent-primary)',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            flexShrink: 0
+                        }}
+                    >
+                        <Search size={12} color="var(--accent-primary)" />
+                        <span>Search All Parameters</span>
+                    </button>
+                </div>
+            )}
+
+            <div className="dashboard-stats-grid">
                 <Link
                     href="/kanban"
                     className="card interactive-card"
@@ -99,7 +281,7 @@ export default function Home() {
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
                 </Link>
 
-                <AiSafetyBadge variant="dashboard-card" />
+                {isOwner(user) && <AiSafetyBadge variant="dashboard-card" />}
             </div>
 
             {/* Application Output Goal & Cadence Command Center */}

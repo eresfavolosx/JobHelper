@@ -3,8 +3,7 @@ import assert from 'node:assert';
 import {
     detectPromptInjection,
     sanitizePII,
-    applyConstitutionalSafetyWrapper,
-    CONSTITUTIONAL_PRINCIPLES
+    applyConstitutionalSafetyWrapper
 } from './ai-safety.js';
 import {
     assessAnthropicQualifications,

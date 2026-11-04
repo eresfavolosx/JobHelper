@@ -15,10 +15,10 @@ service cloud.firestore {
     //   - location: string (optional, 0..200 chars) - User's home location
     //   - keywords: string (optional, 0..1000 chars) - Comma-separated search keywords
     //   - isRemote: bool (optional) - Remote work preference
-    //   - experienceLevel: string (optional, 0..50 chars) - Experience level
+    //   - experienceLevel: string or list (optional, 0..250 chars or max 10 items) - Experience level(s)
     //   - country: string (optional, 0..100 chars) - User country
-    //   - modality: string (optional, 0..50 chars) - Work modality (Remote, Hybrid, On-site)
-    //   - minimumSalary: string (optional, 0..50 chars) - Desired minimum salary
+    //   - modality: string or list (optional, 0..250 chars or max 10 items) - Work modality (Remote, Hybrid, On-site)
+    //   - minimumSalary: string/int/number/null (optional, 0..50 chars if string) - Desired minimum salary
     //   - contextDocuments: list (optional, max 20 items) - Uploaded resume/context documents
     //   - resumeAnalysis: map or null (optional, max 50 keys) - AI-extracted resume analysis
     //   - geminiApiKey: string (optional, 0..200 chars) - User-provided Gemini API key
@@ -26,7 +26,8 @@ service cloud.firestore {
     //   - subscriptionStatus: string (optional, in ['free', 'premium', 'trial']) - Subscription status
     //   - trialStartDate: string/timestamp/null (optional, 0..100 chars) - Trial start date
     //   - trialEndDate: string/timestamp/null (optional, 0..100 chars) - Trial end date
-    //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate)
+    //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
+    //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
     //
     // Collection: /users/{userId}/jobs/{jobId}
     // Document ID: {jobId} (string, 1..100 chars)
@@ -36,7 +37,7 @@ service cloud.firestore {
     //   - role: string (optional, 0..200 chars) - Job title/role
     //   - title: string (optional, 0..200 chars) - Alias for job title
     //   - location: string (optional, 0..200 chars) - Job location
-    //   - status: string (required, in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected', 'deleted'])
+    //   - status: string (required, in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted'])
     //   - url: string (optional, 0..2048 chars) - Job URL
     //   - link: string (optional, 0..2048 chars) - Alias for job URL
     //   - description: string (optional, 0..50000 chars) - Job description text
@@ -47,10 +48,16 @@ service cloud.firestore {
     //   - matchReason: string (optional, 0..2000 chars) - AI match reasoning
     //   - createdAt: string/timestamp (optional, 0..100 chars, immutable) - Creation timestamp
     //   - dateAdded: string/timestamp (optional, 0..100 chars, immutable) - Alias creation timestamp
+    //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
+    //   - appliedAt: string/timestamp/null (optional, 0..100 chars) - Application date/timestamp
     //   - deletedAt: string/timestamp/number/null (optional, 0..100 chars) - Deletion timestamp
-    //   - previousStatus: string (optional, in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected'])
+    //   - archivedAt: string/timestamp/number/null (optional, 0..100 chars) - Archive timestamp
+    //   - previousStatus: string (optional, in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'])
     //   - source: string (optional, 0..100 chars) - Job source (e.g. RSS feed name)
     //   - pubDate: string (optional, 0..100 chars) - Publication date
+    //   - tags: list or null (optional, max 25 items) - Job tags
+    //   - resumeUrl: string (optional, 0..2048 chars) - Resume download URL
+    //   - resumeName: string (optional, 0..200 chars) - Resume file name
     //
     // ===============================================================
 
@@ -79,6 +86,7 @@ service cloud.firestore {
 
     function isValidOptionalString(data, field, minLen, maxLen) {
       return !(field in data) ||
+             data[field] == null ||
              (data[field] is string &&
               data[field].size() >= minLen &&
               data[field].size() <= maxLen);
@@ -109,17 +117,20 @@ service cloud.firestore {
              goal.keys().size() <= 10 &&
              goal.keys().hasOnly([
                'target', 'cadence', 'targetRole', 'hoursPerWeek',
-               'reminderEnabled', 'enabled', 'startDate'
+               'reminderEnabled', 'enabled', 'startDate', 'updatedAt'
              ]) &&
-             ('target' in goal && goal.target is int && goal.target >= 1 && goal.target <= 1000) &&
+             ('target' in goal &&
+              (goal.target is int || goal.target is number) &&
+              goal.target >= 1 && goal.target <= 1000) &&
              ('cadence' in goal && goal.cadence is string && goal.cadence in ['daily', 'weekly', 'monthly', 'total']) &&
              isValidOptionalString(goal, 'targetRole', 0, 100) &&
              (!('hoursPerWeek' in goal) ||
               ((goal.hoursPerWeek is int || goal.hoursPerWeek is number) &&
-               goal.hoursPerWeek >= 0 && goal.hoursPerWeek <= 100)) &&
+               goal.hoursPerWeek >= 0 && goal.hoursPerWeek <= 168)) &&
              (!('reminderEnabled' in goal) || goal.reminderEnabled is bool) &&
              (!('enabled' in goal) || goal.enabled is bool) &&
-             isValidDateOrTimestamp(goal, 'startDate');
+             isValidDateOrTimestamp(goal, 'startDate') &&
+             isValidDateOrTimestamp(goal, 'updatedAt');
     }
 
     // Validator for /users/{userId}/data/profile
@@ -129,23 +140,28 @@ service cloud.firestore {
                'experienceLevel', 'country', 'modality', 'minimumSalary',
                'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
                'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
-               'applicationGoal'
+               'applicationGoal', 'updatedAt'
              ]) &&
              isValidOptionalString(data, 'fullName', 0, 100) &&
              isValidOptionalString(data, 'targetRole', 0, 100) &&
              isValidOptionalString(data, 'location', 0, 200) &&
              isValidOptionalString(data, 'keywords', 0, 1000) &&
              (!('isRemote' in data) || data.isRemote is bool) &&
-             isValidOptionalString(data, 'experienceLevel', 0, 50) &&
+             (isValidOptionalString(data, 'experienceLevel', 0, 250) ||
+              (data.experienceLevel is list && data.experienceLevel.size() <= 10)) &&
              isValidOptionalString(data, 'country', 0, 100) &&
-             isValidOptionalString(data, 'modality', 0, 50) &&
-             isValidOptionalString(data, 'minimumSalary', 0, 50) &&
+             (isValidOptionalString(data, 'modality', 0, 250) ||
+              (data.modality is list && data.modality.size() <= 10)) &&
+             (isValidOptionalString(data, 'minimumSalary', 0, 50) ||
+              data.minimumSalary is int ||
+              data.minimumSalary is number) &&
              isValidOptionalString(data, 'geminiApiKey', 0, 200) &&
              isValidOptionalString(data, 'googleMapsApiKey', 0, 200) &&
              (!('subscriptionStatus' in data) ||
               (data.subscriptionStatus is string && data.subscriptionStatus in ['free', 'premium', 'trial'])) &&
              isValidDateOrTimestamp(data, 'trialStartDate') &&
              isValidDateOrTimestamp(data, 'trialEndDate') &&
+             isValidDateOrTimestamp(data, 'updatedAt') &&
              (!('contextDocuments' in data) ||
               (data.contextDocuments is list && data.contextDocuments.size() <= 20)) &&
              (!('resumeAnalysis' in data) ||
@@ -175,14 +191,17 @@ service cloud.firestore {
                'id', 'role', 'title', 'company', 'location', 'salary',
                'url', 'link', 'description', 'notes', 'commuteTime',
                'relevanceScore', 'matchReason', 'status', 'createdAt',
-               'dateAdded', 'deletedAt', 'previousStatus', 'source', 'pubDate'
+               'dateAdded', 'updatedAt', 'appliedAt', 'deletedAt', 'archivedAt',
+               'previousStatus', 'source', 'pubDate', 'tags',
+               'resumeUrl', 'resumeName'
              ]) &&
              ('status' in data &&
               data.status is string &&
-              data.status in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected', 'deleted']) &&
+              data.status in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted']) &&
              (!('previousStatus' in data) ||
+              data.previousStatus == null ||
               (data.previousStatus is string &&
-               data.previousStatus in ['wishlist', 'applied', 'interviewing', 'offer', 'rejected'])) &&
+               data.previousStatus in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'])) &&
              (!('id' in data) ||
               (data.id is string && data.id.size() >= 1 && data.id.size() <= 100 && data.id == jobId)) &&
              isValidOptionalString(data, 'role', 0, 200) &&
@@ -198,9 +217,17 @@ service cloud.firestore {
              isValidOptionalString(data, 'matchReason', 0, 2000) &&
              isValidOptionalString(data, 'source', 0, 100) &&
              isValidOptionalString(data, 'pubDate', 0, 100) &&
+             isValidOptionalString(data, 'resumeUrl', 0, 2048) &&
+             isValidOptionalString(data, 'resumeName', 0, 200) &&
              isValidDateOrTimestamp(data, 'createdAt') &&
              isValidDateOrTimestamp(data, 'dateAdded') &&
+             isValidDateOrTimestamp(data, 'updatedAt') &&
+             isValidDateOrTimestamp(data, 'appliedAt') &&
              isValidDeletedAt(data) &&
+             (isValidDateOrTimestamp(data, 'archivedAt') || data.archivedAt is number) &&
+             (!('tags' in data) ||
+              data.tags == null ||
+              (data.tags is list && data.tags.size() <= 25)) &&
              (!('relevanceScore' in data) ||
               ((data.relevanceScore is int || data.relevanceScore is float) &&
                data.relevanceScore >= 0 && data.relevanceScore <= 100));

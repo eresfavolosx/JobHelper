@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore } from 'react';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target } from 'lucide-react';
+import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target, ChevronDown, Check } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
@@ -11,6 +12,316 @@ import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 
 const emptySubscribe = () => () => {};
+
+const MODALITY_OPTIONS = ['Remote', 'Hybrid', 'On-site'];
+const EXPERIENCE_LEVEL_OPTIONS = [
+    'Intern / Junior',
+    'Mid-Level',
+    'Mid-Senior',
+    'Senior',
+    'Lead / Manager',
+    'Executive'
+];
+
+function parseMultiSelectValue(value, validOptions, fallbackDefault) {
+    if (Array.isArray(value)) {
+        const filtered = value.map(v => String(v).trim()).filter(v => validOptions.includes(v));
+        return filtered.length > 0 ? filtered : [fallbackDefault];
+    }
+    if (typeof value === 'string' && value.trim()) {
+        const parts = value.split(',').map(v => v.trim()).filter(Boolean);
+        const matched = parts.filter(v => validOptions.includes(v));
+        if (matched.length > 0) return matched;
+    }
+    return [fallbackDefault];
+}
+
+function formatMultiSelectValue(selectedArray, validOptions, fallbackDefault) {
+    const ordered = validOptions.filter(opt => selectedArray.includes(opt));
+    return ordered.length > 0 ? ordered.join(', ') : fallbackDefault;
+}
+
+function MultiSelectDropdown({ id, label, name, options, value, fallbackDefault, onChange }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [coords, setCoords] = useState(null);
+    const containerRef = useRef(null);
+    const triggerRef = useRef(null);
+    const menuRef = useRef(null);
+
+    const selectedValues = useMemo(
+        () => parseMultiSelectValue(value, options, fallbackDefault),
+        [value, options, fallbackDefault]
+    );
+
+    const updateMenuCoords = useCallback(() => {
+        if (!triggerRef.current || typeof window === 'undefined') return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        const estimatedHeight = Math.min(280, options.length * 42 + 48);
+        const spaceBelow = viewportHeight - rect.bottom - 12;
+        const shouldFlipUp = spaceBelow < estimatedHeight && rect.top > estimatedHeight + 16;
+
+        const width = Math.min(Math.max(rect.width, 220), viewportWidth - 24);
+        const left = Math.max(12, Math.min(rect.left, viewportWidth - width - 12));
+        const maxHeight = shouldFlipUp
+            ? Math.min(280, rect.top - 16)
+            : Math.min(280, Math.max(180, spaceBelow));
+        const top = shouldFlipUp ? Math.max(12, rect.top - estimatedHeight - 6) : rect.bottom + 6;
+
+        setCoords({ top, left, width, maxHeight });
+    }, [options.length]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        updateMenuCoords();
+        const handleClickOutside = (e) => {
+            if (
+                containerRef.current && !containerRef.current.contains(e.target) &&
+                (!menuRef.current || !menuRef.current.contains(e.target))
+            ) {
+                setIsOpen(false);
+            }
+        };
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setIsOpen(false);
+            }
+        };
+        window.addEventListener('resize', updateMenuCoords);
+        window.addEventListener('scroll', updateMenuCoords, true);
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('resize', updateMenuCoords);
+            window.removeEventListener('scroll', updateMenuCoords, true);
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, updateMenuCoords]);
+
+    const toggleOption = (opt) => {
+        const exists = selectedValues.includes(opt);
+        let next;
+        if (exists) {
+            // Keep at least 1 selected option so the field is never empty
+            next = selectedValues.length > 1
+                ? selectedValues.filter(item => item !== opt)
+                : selectedValues;
+        } else {
+            next = [...selectedValues, opt];
+        }
+        const formatted = formatMultiSelectValue(next, options, fallbackDefault);
+        onChange({
+            target: {
+                name,
+                value: formatted,
+                type: 'multiselect'
+            }
+        });
+    };
+
+    const selectAll = () => {
+        const formatted = formatMultiSelectValue(options, options, fallbackDefault);
+        onChange({
+            target: {
+                name,
+                value: formatted,
+                type: 'multiselect'
+            }
+        });
+    };
+
+    const portalTarget = (typeof document !== 'undefined' && document.getElementById('portal-root')) || (typeof document !== 'undefined' && document.body);
+
+    return (
+        <fieldset
+            ref={containerRef}
+            style={{
+                border: 'none',
+                margin: 0,
+                padding: 0,
+                minWidth: 0,
+                position: 'relative'
+            }}
+        >
+            <legend style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '1rem', padding: 0 }}>
+                {label}
+                <span style={{ marginLeft: '6px', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    ({selectedValues.length} selected)
+                </span>
+            </legend>
+
+            <button
+                ref={triggerRef}
+                id={id}
+                type="button"
+                aria-expanded={isOpen}
+                onClick={() => {
+                    if (!isOpen) updateMenuCoords();
+                    setIsOpen(prev => !prev);
+                }}
+                style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-panel)',
+                    border: isOpen ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                    boxShadow: isOpen ? '0 0 0 3px var(--accent-glow)' : 'none'
+                }}
+            >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1, minWidth: 0 }}>
+                    {selectedValues.map(item => (
+                        <span
+                            key={item}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                background: 'rgba(107, 126, 103, 0.16)',
+                                color: 'var(--accent-primary)',
+                                border: '1px solid rgba(107, 126, 103, 0.32)',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <Check size={11} />
+                            {item}
+                        </span>
+                    ))}
+                </div>
+                <ChevronDown
+                    size={16}
+                    color="var(--text-secondary)"
+                    style={{
+                        flexShrink: 0,
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease'
+                    }}
+                />
+            </button>
+
+            {isOpen && coords && portalTarget && createPortal(
+                <div
+                    ref={menuRef}
+                    role="group"
+                    aria-label={`${label} options`}
+                    style={{
+                        position: 'fixed',
+                        top: `${coords.top}px`,
+                        left: `${coords.left}px`,
+                        width: `${coords.width}px`,
+                        maxHeight: `${coords.maxHeight}px`,
+                        zIndex: 99999,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '12px',
+                        boxShadow: '0 22px 48px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-subtle)',
+                        padding: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        overflowY: 'auto',
+                        pointerEvents: 'auto',
+                        boxSizing: 'border-box'
+                    }}
+                >
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '4px 8px 6px',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        marginBottom: '2px',
+                        fontSize: '0.74rem',
+                        color: 'var(--text-secondary)'
+                    }}>
+                        <span>Select one or more</span>
+                        <button
+                            type="button"
+                            onClick={selectAll}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--accent-primary)',
+                                fontWeight: 600,
+                                fontSize: '0.74rem',
+                                cursor: 'pointer',
+                                padding: '2px 4px'
+                            }}
+                        >
+                            Select All
+                        </button>
+                    </div>
+
+                    {options.map(opt => {
+                        const isChecked = selectedValues.includes(opt);
+                        return (
+                            <button
+                                key={opt}
+                                type="button"
+                                aria-pressed={isChecked}
+                                onClick={() => toggleOption(opt)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '10px',
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '8px',
+                                    border: isChecked ? '1px solid rgba(107, 126, 103, 0.35)' : '1px solid transparent',
+                                    cursor: 'pointer',
+                                    background: isChecked ? 'rgba(107, 126, 103, 0.14)' : 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.88rem',
+                                    fontWeight: isChecked ? 600 : 500,
+                                    textAlign: 'left',
+                                    transition: 'background 0.15s ease, border-color 0.15s ease'
+                                }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span
+                                        aria-hidden="true"
+                                        style={{
+                                            width: '17px',
+                                            height: '17px',
+                                            borderRadius: '5px',
+                                            background: isChecked ? 'var(--accent-primary)' : 'var(--bg-panel)',
+                                            border: isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                    >
+                                        {isChecked && <Check size={12} color="#ffffff" strokeWidth={2.5} />}
+                                    </span>
+                                    <span>{opt}</span>
+                                </span>
+                                {isChecked && <Check size={14} color="var(--accent-primary)" />}
+                            </button>
+                        );
+                    })}
+                </div>,
+                portalTarget
+            )}
+        </fieldset>
+    );
+}
 
 function ProfileContent() {
     const profile = useAppStore(state => state.profile);
@@ -28,29 +339,55 @@ function ProfileContent() {
         }
     }, [mounted, loading, user]);
 
-    // Local state to handle form inputs before saving to global store
+    // Local state to handle Core Preferences form inputs before saving to global store
     const [formData, setFormData] = useState(() => ({
-        fullName: '',
-        targetRole: '',
-        location: 'Puerto Rico',
-        keywords: '',
-        isRemote: false,
-        experienceLevel: 'Mid-Senior',
-        country: '',
-        modality: 'Remote',
-        minimumSalary: '',
-        ...(profile || {})
+        fullName: profile?.fullName || '',
+        targetRole: profile?.targetRole || '',
+        location: profile?.location ?? 'Puerto Rico',
+        keywords: profile?.keywords || '',
+        isRemote: Boolean(profile?.isRemote),
+        experienceLevel: formatMultiSelectValue(
+            parseMultiSelectValue(profile?.experienceLevel, EXPERIENCE_LEVEL_OPTIONS, 'Mid-Senior'),
+            EXPERIENCE_LEVEL_OPTIONS,
+            'Mid-Senior'
+        ),
+        country: profile?.country || '',
+        modality: formatMultiSelectValue(
+            parseMultiSelectValue(profile?.modality, MODALITY_OPTIONS, 'Remote'),
+            MODALITY_OPTIONS,
+            'Remote'
+        ),
+        minimumSalary: profile?.minimumSalary != null ? String(profile.minimumSalary) : ''
     }));
 
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState('');
+    const isDirtyRef = useRef(false);
 
-    // Load from global store on mount / updates
+    // Load from global store on mount / external updates unless user is actively editing
     useEffect(() => {
-        if (profile) {
-            const timer = setTimeout(() => {
-                setFormData(prev => ({ ...prev, ...profile }));
-            }, 0);
-            return () => clearTimeout(timer);
+        if (profile && !isDirtyRef.current) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setFormData({
+                fullName: profile.fullName || '',
+                targetRole: profile.targetRole || '',
+                location: profile.location ?? 'Puerto Rico',
+                keywords: profile.keywords || '',
+                isRemote: Boolean(profile.isRemote),
+                experienceLevel: formatMultiSelectValue(
+                    parseMultiSelectValue(profile.experienceLevel, EXPERIENCE_LEVEL_OPTIONS, 'Mid-Senior'),
+                    EXPERIENCE_LEVEL_OPTIONS,
+                    'Mid-Senior'
+                ),
+                country: profile.country || '',
+                modality: formatMultiSelectValue(
+                    parseMultiSelectValue(profile.modality, MODALITY_OPTIONS, 'Remote'),
+                    MODALITY_OPTIONS,
+                    'Remote'
+                ),
+                minimumSalary: profile.minimumSalary != null ? String(profile.minimumSalary) : ''
+            });
         }
     }, [profile]);
 
@@ -58,18 +395,57 @@ function ProfileContent() {
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
+        isDirtyRef.current = true;
         setFormData(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        updateProfile(formData);
+        setSaving(true);
+        setSaveMessage('');
 
+        const normalizedModality = formatMultiSelectValue(
+            parseMultiSelectValue(formData.modality, MODALITY_OPTIONS, 'Remote'),
+            MODALITY_OPTIONS,
+            'Remote'
+        );
+        const normalizedExperience = formatMultiSelectValue(
+            parseMultiSelectValue(formData.experienceLevel, EXPERIENCE_LEVEL_OPTIONS, 'Mid-Senior'),
+            EXPERIENCE_LEVEL_OPTIONS,
+            'Mid-Senior'
+        );
+        const includesRemote = parseMultiSelectValue(normalizedModality, MODALITY_OPTIONS, 'Remote').includes('Remote');
+
+        const cleanPreferences = {
+            fullName: (formData.fullName || '').trim(),
+            targetRole: (formData.targetRole || '').trim(),
+            location: (formData.location || '').trim(),
+            keywords: (formData.keywords || '').trim(),
+            isRemote: includesRemote,
+            experienceLevel: normalizedExperience,
+            country: (formData.country || '').trim(),
+            modality: normalizedModality,
+            minimumSalary: formData.minimumSalary != null ? String(formData.minimumSalary).trim() : ''
+        };
+
+        isDirtyRef.current = false;
+        setFormData(cleanPreferences);
+
+        const result = await updateProfile(cleanPreferences);
+        setSaving(false);
         setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        setSaveMessage(
+            result?.synced
+                ? 'Saved to profile & synced to cloud!'
+                : 'Saved to your profile!'
+        );
+        setTimeout(() => {
+            setSaved(false);
+            setSaveMessage('');
+        }, 3500);
     };
 
     return (
@@ -87,12 +463,12 @@ function ProfileContent() {
 
             <div style={{ display: 'grid', gap: '32px' }}>
                 {/* 0. Cloud Sync - ONLY SHOW IF NOT MIGRATED OR FOR MANUAL SYNC */}
-                <div className="card animate-slide-up delay-100" style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="card animate-slide-up delay-100" style={{ background: 'rgba(107, 126, 103, 0.12)', border: '1px solid rgba(107, 126, 103, 0.35)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                         <div>
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Sync Local Data</h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-                                Push your locally saved jobs to the cloud so you can see them on other devices.
+                                Push your locally saved jobs and profile preferences to the cloud so you can see them on other devices.
                             </p>
                         </div>
                         <SyncButton />
@@ -121,7 +497,7 @@ function ProfileContent() {
                 </div>
 
                 {/* 1.5. Google Cloud & Developer Benefits */}
-                <div className="card animate-slide-up delay-175">
+                <div id="api-keys-section" className="card animate-slide-up delay-175">
                     <GoogleServicesConfig />
                 </div>
 
@@ -140,7 +516,7 @@ function ProfileContent() {
                             />
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px' }}>
                             <div>
                                 <label htmlFor="targetRole" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Job Title</label>
                                 <input
@@ -148,6 +524,7 @@ function ProfileContent() {
                                     name="targetRole"
                                     value={formData.targetRole}
                                     onChange={handleChange}
+                                    placeholder="e.g. AI Safety Researcher, Software Engineer"
                                 />
                             </div>
                             <div>
@@ -157,11 +534,12 @@ function ProfileContent() {
                                     name="keywords"
                                     value={formData.keywords}
                                     onChange={handleChange}
+                                    placeholder="e.g. Python, React, Machine Learning"
                                 />
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1fr', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px' }}>
                             <div>
                                 <label htmlFor="location" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Target Location (City/State)</label>
                                 <input
@@ -183,7 +561,7 @@ function ProfileContent() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px', alignItems: 'start' }}>
                             <div>
                                 <label htmlFor="minimumSalary" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Minimum Salary (USD)</label>
                                 <input
@@ -196,39 +574,36 @@ function ProfileContent() {
                                     step="1000"
                                 />
                             </div>
-                            <div>
-                                <label htmlFor="modality" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Working Modality</label>
-                                <select
-                                    id="modality"
-                                    name="modality"
-                                    value={formData.modality || 'Remote'}
-                                    onChange={handleChange}
-                                >
-                                    <option style={{ background: 'var(--bg-panel)' }} value="Remote">Remote</option>
-                                    <option style={{ background: 'var(--bg-panel)' }} value="Hybrid">Hybrid</option>
-                                    <option style={{ background: 'var(--bg-panel)' }} value="On-site">On-site</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label htmlFor="experienceLevel" style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Experience Level</label>
-                                <select
-                                    id="experienceLevel"
-                                    name="experienceLevel"
-                                    value={formData.experienceLevel}
-                                    onChange={handleChange}
-                                >
-                                    <option style={{ background: 'var(--bg-panel)' }}>Intern / Junior</option>
-                                    <option style={{ background: 'var(--bg-panel)' }}>Mid-Level</option>
-                                    <option style={{ background: 'var(--bg-panel)' }}>Senior</option>
-                                    <option style={{ background: 'var(--bg-panel)' }}>Lead / Manager</option>
-                                    <option style={{ background: 'var(--bg-panel)' }}>Executive</option>
-                                </select>
-                            </div>
+                            <MultiSelectDropdown
+                                id="modality"
+                                label="Working Modality"
+                                name="modality"
+                                options={MODALITY_OPTIONS}
+                                value={formData.modality}
+                                fallbackDefault="Remote"
+                                onChange={handleChange}
+                            />
+                            <MultiSelectDropdown
+                                id="experienceLevel"
+                                label="Experience Level"
+                                name="experienceLevel"
+                                options={EXPERIENCE_LEVEL_OPTIONS}
+                                value={formData.experienceLevel}
+                                fallbackDefault="Mid-Senior"
+                                onChange={handleChange}
+                            />
                         </div>
 
-                        <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>
-                            {saved ? 'Changes Saved!' : 'Save Preferences'}
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', marginTop: '8px' }}>
+                            <button type="submit" disabled={saving} className="btn-primary" style={{ alignSelf: 'flex-start' }}>
+                                {saving ? 'Saving...' : saved ? '✓ Changes Saved!' : 'Save Preferences'}
+                            </button>
+                            {saveMessage && (
+                                <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', color: 'var(--success)', fontWeight: 600 }}>
+                                    <CheckCircle size={16} /> {saveMessage}
+                                </span>
+                            )}
+                        </div>
                     </form>
                 </div>
 
@@ -255,36 +630,45 @@ function ProfileContent() {
 
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 135px), 1fr))',
                         gap: '12px',
                         padding: '16px',
                         borderRadius: '12px',
                         background: 'var(--bg-panel)',
                         border: '1px solid var(--border-subtle)'
                     }}>
-                        <div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Current Target
+                        <div style={{ minWidth: 0 }}>
+                            <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Applied Today
                             </span>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', marginTop: '4px', color: 'var(--accent-primary)' }}>
-                                {goalProgress.target} apps <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>/ {goalProgress.cadence}</span>
+                            <div style={{ fontSize: '1.35rem', fontWeight: 'bold', marginTop: '4px', color: goalProgress.todayCount > 0 ? 'var(--success)' : 'var(--text-primary)' }}>
+                                {goalProgress.todayCount} <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', fontWeight: 500 }}>role{goalProgress.todayCount === 1 ? '' : 's'}</span>
                             </div>
                         </div>
 
-                        <div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Progress
+                        <div style={{ minWidth: 0 }}>
+                            <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Current Target
                             </span>
-                            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', marginTop: '4px' }}>
+                            <div style={{ fontSize: '1.35rem', fontWeight: 'bold', marginTop: '4px', color: 'var(--accent-primary)' }}>
+                                {goalProgress.target} apps <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>/ {goalProgress.cadence}</span>
+                            </div>
+                        </div>
+
+                        <div style={{ minWidth: 0 }}>
+                            <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Cycle Progress
+                            </span>
+                            <div style={{ fontSize: '1.35rem', fontWeight: 'bold', marginTop: '4px' }}>
                                 {goalProgress.count} of {goalProgress.target} ({goalProgress.percentage}%)
                             </div>
                         </div>
 
-                        <div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                 Cadence Pacing
                             </span>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginTop: '6px', color: goalProgress.pace === 'completed' ? '#10b981' : goalProgress.pace === 'on_track' ? 'var(--accent-primary)' : '#f59e0b' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginTop: '6px', color: goalProgress.pace === 'completed' ? 'var(--success)' : goalProgress.pace === 'on_track' ? 'var(--accent-primary)' : 'var(--warning)' }}>
                                 {goalProgress.pace === 'completed' ? 'Goal Crushed! 🎉' : goalProgress.pace === 'on_track' ? 'On Track 🚀' : 'Behind Pace ⏳'}
                             </div>
                         </div>
@@ -335,10 +719,14 @@ function ExportDataButton() {
             return;
         }
 
+        const safeProfile = profile ? { ...profile } : {};
+        delete safeProfile.geminiApiKey;
+        delete safeProfile.googleMapsApiKey;
+
         const exportData = {
             exportDate: new Date().toISOString(),
             user: user ? { email: user.email, displayName: user.displayName } : null,
-            profile,
+            profile: safeProfile,
             jobs,
             totalJobs: jobs.length
         };
@@ -404,7 +792,7 @@ function DeleteAccountButton() {
         if (!user) return;
 
         setDeleting(true);
-        setErrorMsg('');
+        setError('');
         try {
             // Delete Firestore data
             const { deleteAllUserData } = await import('@/lib/firestore-sync');
@@ -745,57 +1133,109 @@ export default function ProfilePage() {
 function GoogleServicesConfig() {
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
+    const { user } = useAuth();
+    const isPlatformOwner = isOwner(user);
 
     const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || '') : '';
     const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '') : '';
 
-    // Gemini State
-    const [geminiKey, setGeminiKey] = useState(() => profile?.geminiApiKey || envGemini || '');
-    const [showGemini, setShowGemini] = useState(false);
+    // Never expose environment keys or existing saved keys inside DOM <input value="..."> attributes
+    // (even type="password" exposes the raw value in DOM inspection).
+    // Instead, keep input fields strictly as write-only drafts.
+    const [geminiKeyDraft, setGeminiKeyDraft] = useState('');
     const [geminiSaved, setGeminiSaved] = useState(false);
     const [testingGemini, setTestingGemini] = useState(false);
     const [geminiStatus, setGeminiStatus] = useState(null);
 
-    // Google Maps State
-    const [mapsKey, setMapsKey] = useState(() => profile?.googleMapsApiKey || envMaps || '');
-    const [showMaps, setShowMaps] = useState(false);
+    const [mapsKeyDraft, setMapsKeyDraft] = useState('');
     const [mapsSaved, setMapsSaved] = useState(false);
     const [testingMaps, setTestingMaps] = useState(false);
     const [mapsStatus, setMapsStatus] = useState(null);
 
-    // Sync with store & environment
+    // Check if user has a valid personal BYOK key saved (excluding any accidental copy of the platform env key for non-owners)
+    const hasPersonalGeminiKey = Boolean(
+        profile?.geminiApiKey &&
+        profile.geminiApiKey.trim().length > 5 &&
+        (isPlatformOwner || profile.geminiApiKey.trim() !== envGemini.trim())
+    );
+    const hasPersonalMapsKey = Boolean(
+        profile?.googleMapsApiKey &&
+        profile.googleMapsApiKey.trim().length > 5 &&
+        (isPlatformOwner || profile.googleMapsApiKey.trim() !== envMaps.trim())
+    );
+
+    // Automatically scrub any accidentally persisted platform env key from non-owner profiles
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setGeminiKey(profile?.geminiApiKey || envGemini || '');
-            setMapsKey(profile?.googleMapsApiKey || envMaps || '');
-        }, 0);
-        return () => clearTimeout(timer);
-    }, [profile?.geminiApiKey, profile?.googleMapsApiKey, envGemini, envMaps]);
+        if (!isPlatformOwner && profile) {
+            const updates = {};
+            if (envGemini && profile.geminiApiKey && profile.geminiApiKey.trim() === envGemini.trim()) {
+                updates.geminiApiKey = '';
+            }
+            if (envMaps && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envMaps.trim()) {
+                updates.googleMapsApiKey = '';
+            }
+            if (Object.keys(updates).length > 0) {
+                updateProfile(updates);
+            }
+        }
+    }, [isPlatformOwner, profile, envGemini, envMaps, updateProfile]);
 
     const handleSaveGemini = () => {
-        updateProfile({ geminiApiKey: geminiKey.trim() });
+        const trimmed = geminiKeyDraft.trim();
+        if (!trimmed) return;
+        if (!isPlatformOwner && envGemini && trimmed === envGemini.trim()) {
+            setGeminiStatus({ success: false, message: 'Please enter your own personal Gemini API key.' });
+            return;
+        }
+        updateProfile({ geminiApiKey: trimmed });
+        setGeminiKeyDraft('');
         setGeminiSaved(true);
         setTimeout(() => setGeminiSaved(false), 3000);
+    };
+
+    const handleClearGemini = () => {
+        updateProfile({ geminiApiKey: '' });
+        setGeminiKeyDraft('');
+        setGeminiStatus(null);
     };
 
     const handleTestGemini = async () => {
         setTestingGemini(true);
         setGeminiStatus(null);
-        const res = await testGeminiApiKey(geminiKey || profile?.geminiApiKey);
+        const keyToTest = geminiKeyDraft.trim()
+            || (hasPersonalGeminiKey ? profile?.geminiApiKey : '')
+            || (isPlatformOwner ? envGemini : '');
+        const res = await testGeminiApiKey(keyToTest);
         setTestingGemini(false);
         setGeminiStatus(res);
     };
 
     const handleSaveMaps = () => {
-        updateProfile({ googleMapsApiKey: mapsKey.trim() });
+        const trimmed = mapsKeyDraft.trim();
+        if (!trimmed) return;
+        if (!isPlatformOwner && envMaps && trimmed === envMaps.trim()) {
+            setMapsStatus({ success: false, message: 'Please enter your own personal Google Maps API key.' });
+            return;
+        }
+        updateProfile({ googleMapsApiKey: trimmed });
+        setMapsKeyDraft('');
         setMapsSaved(true);
         setTimeout(() => setMapsSaved(false), 3000);
+    };
+
+    const handleClearMaps = () => {
+        updateProfile({ googleMapsApiKey: '' });
+        setMapsKeyDraft('');
+        setMapsStatus(null);
     };
 
     const handleTestMaps = async () => {
         setTestingMaps(true);
         setMapsStatus(null);
-        const res = await testGoogleMapsApiKey(mapsKey || profile?.googleMapsApiKey);
+        const keyToTest = mapsKeyDraft.trim()
+            || (hasPersonalMapsKey ? profile?.googleMapsApiKey : '')
+            || (isPlatformOwner ? envMaps : '');
+        const res = await testGoogleMapsApiKey(keyToTest);
         setTestingMaps(false);
         setMapsStatus(res);
     };
@@ -804,115 +1244,148 @@ function GoogleServicesConfig() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <Sparkles size={20} color="var(--accent-primary)" /> Google Cloud & Developer Program Integration
+                    <Sparkles size={20} color="var(--accent-primary)" />
+                    {isPlatformOwner ? 'Google Cloud & Developer Program Integration' : 'Personal API Keys (Bring Your Own Key)'}
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                    Power NovuJobs with your Google Developer Program benefits. Your \$190.00 credit pool covers all Google Cloud APIs (Gemini Vertex AI, Firebase Blaze) and Google Maps Platform services through 2027.
+                    {isPlatformOwner
+                        ? 'Power NovuJobs with your Google Developer Program benefits. Your $190.00 credit pool covers all Google Cloud APIs (Gemini Vertex AI, Firebase Blaze) and Google Maps Platform services through 2027.'
+                        : 'Optionally connect your own personal Google Gemini or Google Maps API keys. Keys are write-only and are never displayed in plaintext after saving.'}
                 </p>
             </div>
 
-            {/* Developer Program Credit Badge */}
-            <div style={{
-                background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.16) 0%, rgba(132, 167, 145, 0.14) 100%)',
-                border: '1px solid rgba(94, 135, 110, 0.35)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px'
-            }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <ShieldCheck size={24} color="var(--accent-primary)" />
-                        <div>
-                            <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Active Benefit: \$190.00 Google Cloud & Maps Credits</h4>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
-                                Scope: All Google Cloud Platform APIs + Google Maps Platform (List pricing)
-                            </p>
+            {/* Developer Program Credit Badge - Strictly visible ONLY to Platform Owner (fabian.velez1996@gmail.com) */}
+            {isPlatformOwner && (
+                <div style={{
+                    background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.16) 0%, rgba(132, 167, 145, 0.14) 100%)',
+                    border: '1px solid rgba(94, 135, 110, 0.35)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '16px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <ShieldCheck size={24} color="var(--accent-primary)" />
+                            <div>
+                                <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Active Owner Benefit: $190.00 Google Cloud & Maps Credits</h4>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                                    Restricted exclusively to {user?.email} • Platform keys are hidden from all other users
+                                </p>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <a
+                                href="https://console.cloud.google.com/apis/credentials"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    color: 'var(--accent-primary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'var(--glass-highlight)',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                GCP Credentials <ExternalLink size={12} />
+                            </a>
+                            <a
+                                href="https://console.cloud.google.com/billing"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    color: 'var(--accent-primary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'var(--glass-highlight)',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                Billing & Budgets <ExternalLink size={12} />
+                            </a>
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <a
-                            href="https://console.cloud.google.com/apis/credentials"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                                fontSize: '0.78rem',
-                                color: 'var(--accent-primary)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'var(--glass-highlight)',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            GCP Credentials <ExternalLink size={12} />
-                        </a>
-                        <a
-                            href="https://console.cloud.google.com/billing"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                                fontSize: '0.78rem',
-                                color: 'var(--accent-primary)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: 'var(--glass-highlight)',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            Billing & Budgets <ExternalLink size={12} />
-                        </a>
-                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* 1. Gemini AI API Key */}
+            {/* 1. Gemini AI API Key (Write-Only Input - Never Exposes Key Value in DOM) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Key size={16} color="var(--accent-primary)" /> Google Gemini API Key
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <label htmlFor="gemini-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Key size={16} color="var(--accent-primary)" /> Google Gemini API Key
+                    </label>
+                    {(hasPersonalGeminiKey || (isPlatformOwner && Boolean(envGemini))) && (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(78, 135, 82, 0.16)',
+                            border: '1px solid rgba(78, 135, 82, 0.4)',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={12} />
+                            {hasPersonalGeminiKey ? 'Personal Key Configured (Hidden)' : 'Owner Platform Key Active (Hidden)'}
+                        </span>
+                    )}
+                </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
                     Used for AI resume tailoring, automated interview questions, and job recommendation scoring.
                 </p>
-                <div style={{ position: 'relative' }}>
+                <div>
                     <input
+                        id="gemini-api-key-input"
                         aria-label="Gemini API Key"
-                        type={showGemini ? 'text' : 'password'}
-                        value={geminiKey}
-                        onChange={(e) => setGeminiKey(e.target.value)}
-                        placeholder="AIzaSy... (from AI Studio or Google Cloud Console)"
-                        style={{ width: '100%', paddingRight: '75px' }}
+                        type="password"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={geminiKeyDraft}
+                        onChange={(e) => setGeminiKeyDraft(e.target.value)}
+                        placeholder={
+                            hasPersonalGeminiKey
+                                ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
+                                : isPlatformOwner && envGemini
+                                    ? '•••••••••••••••••••••••• (Owner key active — enter a custom key to override)'
+                                    : 'Paste your personal Gemini API key (from Google AI Studio)'
+                        }
+                        style={{ width: '100%' }}
                     />
-                    <button
-                        type="button"
-                        onClick={() => setShowGemini(!showGemini)}
-                        aria-label={showGemini ? "Hide API key" : "Show API key"}
-                        style={{
-                            position: 'absolute',
-                            right: '10px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontSize: '0.82rem'
-                        }}
-                    >
-                        {showGemini ? 'Hide' : 'Show'}
-                    </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="button" onClick={handleSaveGemini} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                    <button
+                        type="button"
+                        onClick={handleSaveGemini}
+                        disabled={!geminiKeyDraft.trim()}
+                        className="btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.85rem', opacity: geminiKeyDraft.trim() ? 1 : 0.6 }}
+                    >
                         {geminiSaved ? 'Saved!' : 'Save Key'}
                     </button>
+                    {hasPersonalGeminiKey && (
+                        <button
+                            type="button"
+                            onClick={handleClearGemini}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                        >
+                            Remove Personal Key
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleTestGemini}
-                        disabled={testingGemini || (!geminiKey && !profile?.geminiApiKey)}
+                        disabled={testingGemini || (!geminiKeyDraft.trim() && !hasPersonalGeminiKey && !(isPlatformOwner && envGemini))}
                         style={{
                             padding: '6px 14px',
                             fontSize: '0.85rem',
@@ -931,7 +1404,7 @@ function GoogleServicesConfig() {
                         rel="noopener noreferrer"
                         style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
                     >
-                        Get Key in AI Studio
+                        Get Free Key in AI Studio
                     </a>
                 </div>
                 {geminiStatus && (
@@ -949,50 +1422,78 @@ function GoogleServicesConfig() {
                 )}
             </div>
 
-            {/* 2. Google Maps Platform API Key */}
+            {/* 2. Google Maps Platform API Key (Write-Only Input - Never Exposes Key Value in DOM) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--glass-border)' }}>
-                <label style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <MapPin size={16} color="var(--accent-primary)" /> Google Maps Platform API Key
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <label htmlFor="maps-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <MapPin size={16} color="var(--accent-primary)" /> Google Maps Platform API Key
+                    </label>
+                    {(hasPersonalMapsKey || (isPlatformOwner && Boolean(envMaps))) && (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(78, 135, 82, 0.16)',
+                            border: '1px solid rgba(78, 135, 82, 0.4)',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={12} />
+                            {hasPersonalMapsKey ? 'Personal Key Configured (Hidden)' : 'Owner Platform Key Active (Hidden)'}
+                        </span>
+                    )}
+                </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
                     Enables Distance Matrix commute calculations and company office mapping (Distance Matrix & Geocoding APIs).
                 </p>
-                <div style={{ position: 'relative' }}>
+                <div>
                     <input
+                        id="maps-api-key-input"
                         aria-label="Google Maps API Key"
-                        type={showMaps ? 'text' : 'password'}
-                        value={mapsKey}
-                        onChange={(e) => setMapsKey(e.target.value)}
-                        placeholder="AIzaSy... (from Google Cloud Console Credentials)"
-                        style={{ width: '100%', paddingRight: '75px' }}
+                        type="password"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={mapsKeyDraft}
+                        onChange={(e) => setMapsKeyDraft(e.target.value)}
+                        placeholder={
+                            hasPersonalMapsKey
+                                ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
+                                : isPlatformOwner && envMaps
+                                    ? '•••••••••••••••••••••••• (Owner key active — enter a custom key to override)'
+                                    : 'Paste your personal Google Maps API key'
+                        }
+                        style={{ width: '100%' }}
                     />
-                    <button
-                        type="button"
-                        onClick={() => setShowMaps(!showMaps)}
-                        aria-label={showMaps ? "Hide Google Maps key" : "Show Google Maps key"}
-                        style={{
-                            position: 'absolute',
-                            right: '10px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontSize: '0.82rem'
-                        }}
-                    >
-                        {showMaps ? 'Hide' : 'Show'}
-                    </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="button" onClick={handleSaveMaps} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                    <button
+                        type="button"
+                        onClick={handleSaveMaps}
+                        disabled={!mapsKeyDraft.trim()}
+                        className="btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.85rem', opacity: mapsKeyDraft.trim() ? 1 : 0.6 }}
+                    >
                         {mapsSaved ? 'Saved!' : 'Save Key'}
                     </button>
+                    {hasPersonalMapsKey && (
+                        <button
+                            type="button"
+                            onClick={handleClearMaps}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                        >
+                            Remove Personal Key
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleTestMaps}
-                        disabled={testingMaps || (!mapsKey && !profile?.googleMapsApiKey)}
+                        disabled={testingMaps || (!mapsKeyDraft.trim() && !hasPersonalMapsKey && !(isPlatformOwner && envMaps))}
                         style={{
                             padding: '6px 14px',
                             fontSize: '0.85rem',
@@ -1029,109 +1530,111 @@ function GoogleServicesConfig() {
                 )}
             </div>
 
-            {/* 3. Zero-Overflow Budget & Credit Protection */}
-            <div style={{
-                background: 'rgba(234, 179, 8, 0.08)',
-                border: '1px solid rgba(234, 179, 8, 0.3)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertTriangle size={20} color="var(--warning)" />
-                    <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Credit Overflow Protection (\$10/mo Safety Guard)</h4>
-                </div>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
-                    To ensure you never pay beyond your monthly promotional credits, NovuJobs enforces local monthly request caps and persistent route caching.
-                </p>
+            {/* 3. Zero-Overflow Budget & Credit Protection - Strictly visible ONLY to Platform Owner */}
+            {isPlatformOwner && (
+                <div style={{
+                    background: 'rgba(234, 179, 8, 0.08)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={20} color="var(--warning)" />
+                        <h4 style={{ fontWeight: '700', fontSize: '0.95rem' }}>Credit Overflow Protection ($10/mo Safety Guard)</h4>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                        To ensure you never pay beyond your monthly promotional credits, NovuJobs enforces local monthly request caps and persistent route caching.
+                    </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                    {/* Maps Usage Box */}
-                    <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Google Maps Calls</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
-                                {getMapsUsageStats().used} / {getMapsUsageStats().cap}
-                            </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                        {/* Maps Usage Box */}
+                        <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Google Maps Calls</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                                    {getMapsUsageStats().used} / {getMapsUsageStats().cap}
+                                </span>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
+                                Past routes are cached locally to save API calls.
+                            </p>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <input
+                                    aria-label="Monthly Maps API cap"
+                                    type="number"
+                                    min="10"
+                                    max="1000"
+                                    defaultValue={getMapsUsageStats().cap}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value, 10);
+                                        if (!isNaN(val) && val > 0) setMapsMonthlyCap(val);
+                                    }}
+                                    style={{ width: '80px', padding: '4px 8px', fontSize: '0.8rem' }}
+                                    title="Max Maps calls allowed per month"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        clearMapsCache();
+                                        alert('Commute cache cleared.');
+                                    }}
+                                    style={{
+                                        fontSize: '0.75rem',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        background: 'var(--glass-panel)',
+                                        border: '1px solid var(--border-subtle)',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Clear Cache
+                                </button>
+                            </div>
                         </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
-                            Past routes are cached locally to save API calls.
-                        </p>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+
+                        {/* Gemini Usage Box */}
+                        <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Gemini AI Calls</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                                    {getGeminiUsageStats().used} / {getGeminiUsageStats().cap}
+                                </span>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
+                                Covers resume parsing, tailor bullets, and job match.
+                            </p>
                             <input
-                                aria-label="Monthly Maps API cap"
+                                aria-label="Monthly Gemini API cap"
                                 type="number"
                                 min="10"
-                                max="1000"
-                                defaultValue={getMapsUsageStats().cap}
+                                max="2000"
+                                defaultValue={getGeminiUsageStats().cap}
                                 onChange={(e) => {
                                     const val = parseInt(e.target.value, 10);
-                                    if (!isNaN(val) && val > 0) setMapsMonthlyCap(val);
+                                    if (!isNaN(val) && val > 0) setGeminiMonthlyCap(val);
                                 }}
                                 style={{ width: '80px', padding: '4px 8px', fontSize: '0.8rem' }}
-                                title="Max Maps calls allowed per month"
+                                title="Max Gemini AI calls allowed per month"
                             />
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    clearMapsCache();
-                                    alert('Commute cache cleared.');
-                                }}
-                                style={{
-                                    fontSize: '0.75rem',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    background: 'var(--glass-panel)',
-                                    border: '1px solid var(--border-subtle)',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Clear Cache
-                            </button>
                         </div>
                     </div>
 
-                    {/* Gemini Usage Box */}
-                    <div style={{ background: 'var(--glass-highlight)', padding: '12px', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>Gemini AI Calls</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
-                                {getGeminiUsageStats().used} / {getGeminiUsageStats().cap}
-                            </span>
-                        </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
-                            Covers resume parsing, tailor bullets, and job match.
+                    {/* Hard Cap GCP Recommendation */}
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid rgba(234, 179, 8, 0.2)', paddingTop: '10px' }}>
+                        <p style={{ margin: '0 0 6px 0', fontWeight: '600', color: 'var(--text-primary)' }}>
+                            🔒 100% Hard Stop in Google Cloud Console:
                         </p>
-                        <input
-                            aria-label="Monthly Gemini API cap"
-                            type="number"
-                            min="10"
-                            max="2000"
-                            defaultValue={getGeminiUsageStats().cap}
-                            onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (!isNaN(val) && val > 0) setGeminiMonthlyCap(val);
-                            }}
-                            style={{ width: '80px', padding: '4px 8px', fontSize: '0.8rem' }}
-                            title="Max Gemini AI calls allowed per month"
-                        />
+                        <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <li>Set a monthly budget of <strong>$10.00</strong> in <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>GCP Billing & Budgets</a> with email notifications at 50%, 80%, and 100%.</li>
+                            <li>Set daily quota limits under <a href="https://console.cloud.google.com/apis/enabled" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>APIs & Services &rarr; Quotas</a> (e.g. max 50 Distance Matrix requests/day). Google will drop excess calls rather than billing extra.</li>
+                        </ol>
                     </div>
                 </div>
-
-                {/* Hard Cap GCP Recommendation */}
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid rgba(234, 179, 8, 0.2)', paddingTop: '10px' }}>
-                    <p style={{ margin: '0 0 6px 0', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        🔒 100% Hard Stop in Google Cloud Console:
-                    </p>
-                    <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <li>Set a monthly budget of <strong>\$10.00</strong> in <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>GCP Billing & Budgets</a> with email notifications at 50%, 80%, and 100%.</li>
-                        <li>Set daily quota limits under <a href="https://console.cloud.google.com/apis/enabled" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>APIs & Services &rarr; Quotas</a> (e.g. max 50 Distance Matrix requests/day). Google will drop excess calls rather than billing extra.</li>
-                    </ol>
-                </div>
-            </div>
+            )}
         </div>
     );
 }

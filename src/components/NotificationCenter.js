@@ -31,45 +31,86 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
     const buttonRef = useRef(null);
     const dropdownRef = useRef(null);
 
-    // Dynamically compute and clamp coordinates to ensure it NEVER overflows ANY viewport
-    useEffect(() => {
+    // Coordinate calculation that supports desktop sidebar flyout, mobile centering, and header alignment
+    const calculateCoords = (buttonEl) => {
+        if (!buttonEl || typeof window === 'undefined') return null;
+        const rect = buttonEl.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const isMobile = viewportWidth <= 768;
+
+        // Check if the button is located inside the sidebar on desktop
+        const isInSidebar = !!buttonEl.closest('nav.sidebar') || rect.left < 280;
+
+        // Target width: up to 360px, clamped to viewport width minus safety padding
+        const width = Math.min(360, Math.max(280, viewportWidth - 24));
+
+        let top = 0;
+        let left = 0;
+        let maxHeight = 480;
+
+        if (isMobile) {
+            // On mobile: center horizontally with equal side padding, positioned below button
+            left = Math.max(12, Math.round((viewportWidth - width) / 2));
+            top = Math.max(12, rect.bottom + 8);
+            maxHeight = Math.min(480, viewportHeight - top - 16);
+        } else if (isInSidebar) {
+            // On desktop sidebar: fly out cleanly to the right of the sidebar border (x = 280px)
+            const sidebar = buttonEl.closest('nav.sidebar');
+            const sidebarRight = sidebar ? sidebar.getBoundingClientRect().right : 280;
+            left = sidebarRight + 8;
+            top = Math.max(12, rect.top);
+            maxHeight = Math.min(520, viewportHeight - top - 20);
+
+            // If screen is narrow and flyout would spill off the right edge:
+            if (left + width > viewportWidth - 12) {
+                left = Math.max(12, viewportWidth - width - 12);
+            }
+        } else {
+            // Standard header dropdown (e.g. Kanban board):
+            // Align right edge of dropdown with right edge of button
+            top = rect.bottom + 8;
+            maxHeight = Math.min(480, viewportHeight - top - 16);
+            left = rect.right - width;
+
+            if (left < 12) {
+                left = Math.max(12, rect.left);
+            }
+            if (left + width > viewportWidth - 12) {
+                left = Math.max(12, viewportWidth - width - 12);
+            }
+        }
+
+        // Flip above button if not enough vertical room below and room above (only when not in desktop sidebar)
+        if (!isInSidebar && maxHeight < 220 && rect.top > 250) {
+            maxHeight = Math.min(440, rect.top - 24);
+            top = Math.max(12, rect.top - maxHeight - 8);
+        }
+
+        return { top, left, width, maxHeight };
+    };
+
+    const toggleOpen = () => {
+        if (!isOpen) {
+            if (buttonRef.current) {
+                const next = calculateCoords(buttonRef.current);
+                if (next) setCoords(next);
+            }
+            setIsOpen(true);
+        } else {
+            setIsOpen(false);
+        }
+    };
+
+    // Dynamically update coordinates on resize and scroll with layout effect
+    const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+    useIsomorphicLayoutEffect(() => {
         if (!isOpen || !buttonRef.current) return;
 
         const updateCoords = () => {
             if (!buttonRef.current) return;
-            const rect = buttonRef.current.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-
-            // Target width: 360px on desktop, or clamped to viewport width minus safety padding
-            const width = Math.min(360, Math.max(280, viewportWidth - 24));
-
-            // Vertical positioning: default below button
-            let top = rect.bottom + 8;
-            let maxHeight = Math.min(480, viewportHeight - top - 16);
-
-            // Flip above button if not enough vertical room below and room above
-            if (maxHeight < 220 && rect.top > 250) {
-                maxHeight = Math.min(440, rect.top - 24);
-                top = Math.max(12, rect.top - maxHeight - 8);
-            }
-
-            // Horizontal positioning:
-            // Prefer aligning right edge of dropdown with right edge of button
-            let left = rect.right - width;
-
-            // If it spills off the left edge (e.g. when in the sidebar on the left of the screen):
-            if (left < 12) {
-                // Align with left edge of button, or clamp to 12px from viewport left edge
-                left = Math.max(12, rect.left);
-            }
-
-            // If it spills off the right edge:
-            if (left + width > viewportWidth - 12) {
-                left = Math.max(12, viewportWidth - width - 12);
-            }
-
-            setCoords({ top, left, width, maxHeight });
+            const next = calculateCoords(buttonRef.current);
+            if (next) setCoords(next);
         };
 
         updateCoords();
@@ -125,7 +166,7 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
             const diff = now.getTime() - new Date(refDate).getTime();
             const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 
-            if (job.status === 'applied' || job.status === 'interviewing') {
+            if (job.status === 'applied' || job.status === 'screening' || job.status === 'interviewing') {
                 if (days >= 10) {
                     list.push({
                         id: `ghost-${job.id}`,
@@ -196,13 +237,15 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
         }
     };
 
+    const portalTarget = (typeof document !== 'undefined' && document.getElementById('portal-root')) || (typeof document !== 'undefined' && document.body);
+
     return (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
             {/* Bell Trigger Button */}
             <button
                 ref={buttonRef}
                 type="button"
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={toggleOpen}
                 aria-label="Notifications"
                 title="Notifications"
                 style={{
@@ -244,26 +287,40 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                 )}
             </button>
 
-            {/* Dropdown Menu Portaled to document.body for zero-overflow guarantee */}
-            {isOpen && mounted && coords && typeof document !== 'undefined' && createPortal(
-                <div
-                    ref={dropdownRef}
-                    className="card animate-scale-up"
-                    style={{
-                        position: 'fixed',
-                        top: `${coords.top}px`,
-                        left: `${coords.left}px`,
-                        width: `${coords.width}px`,
-                        maxHeight: `${coords.maxHeight}px`,
-                        overflowY: 'auto',
-                        padding: '16px',
-                        zIndex: 99999,
-                        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px var(--border-subtle)',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-app)',
-                        boxSizing: 'border-box'
-                    }}
-                >
+            {/* Dropdown Menu Portaled to portal-root for zero-overflow and layout isolation */}
+            {isOpen && mounted && coords && portalTarget && createPortal(
+                <>
+                    {/* Transparent backdrop for immediate click-outside dismissal without triggering background clicks */}
+                    <div
+                        onClick={() => setIsOpen(false)}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 99998,
+                            background: 'transparent',
+                            pointerEvents: 'auto'
+                        }}
+                        aria-hidden="true"
+                    />
+                    <div
+                        ref={dropdownRef}
+                        className="card animate-scale-in"
+                        style={{
+                            position: 'fixed',
+                            top: `${coords.top}px`,
+                            left: `${coords.left}px`,
+                            width: `${coords.width}px`,
+                            maxHeight: `${coords.maxHeight}px`,
+                            overflowY: 'auto',
+                            padding: '16px',
+                            zIndex: 99999,
+                            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px var(--border-subtle)',
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-app)',
+                            boxSizing: 'border-box',
+                            pointerEvents: 'auto'
+                        }}
+                    >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border-subtle)' }}>
                         <div style={{ fontWeight: 'bold', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Bell size={16} color="var(--accent-primary)" /> Notifications ({unreadCount})
@@ -413,8 +470,8 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '4px',
-                                                        border: '1px solid rgba(56, 189, 248, 0.3)',
-                                                        background: 'rgba(56, 189, 248, 0.08)'
+                                                        border: '1px solid rgba(107, 126, 103, 0.35)',
+                                                        background: 'rgba(107, 126, 103, 0.12)'
                                                     }}
                                                     title={`Scan Gmail for any communications regarding ${item.job.company}`}
                                                 >
@@ -446,8 +503,9 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                             ))}
                         </div>
                     )}
-                </div>,
-                document.body
+                    </div>
+                </>,
+                portalTarget
             )}
         </div>
     );

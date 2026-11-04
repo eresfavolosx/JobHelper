@@ -12,7 +12,7 @@ export default function PrivacyPage() {
             </Link>
 
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(107, 126, 103, 0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
                     <Shield size={32} color="var(--accent-primary)" />
                 </div>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '8px' }}>Privacy Policy</h1>

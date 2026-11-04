@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAppStore } from './store';
 import { auth } from './firebase';
-import { isOwner, isProUser } from './subscription';
+import { isOwner } from './subscription';
 import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
@@ -119,15 +119,14 @@ export const getMimeType = (file, defaultType = 'application/pdf') => {
 /**
  * Resolves the appropriate Gemini API key.
  * - If user entered their own personal key (BYOK), it is always permitted (costs Fabian $0).
- * - Shared platform key is strictly restricted to Fabian (fabian.velez1996@gmail.com) and Pro subscribers ($9.99/mo).
- * - All other users receive a descriptive error prompting them to upgrade or bring their own key.
+ * - Shared platform key is strictly restricted to Fabian (fabian.velez1996@gmail.com).
+ * - All other users receive a descriptive error prompting them to bring their own key.
  */
 export function resolveGeminiApiKey() {
     let personalKey = '';
-    let state = null;
 
     try {
-        state = useAppStore.getState();
+        const state = useAppStore.getState();
         if (state?.profile?.geminiApiKey) {
             personalKey = String(state.profile.geminiApiKey).trim();
         }
@@ -135,28 +134,27 @@ export function resolveGeminiApiKey() {
         console.warn("[Gemini] Failed to read key from store:", e);
     }
 
-    // 1. Personal key (BYOK) - always allowed, $0 cost to platform owner
-    if (personalKey && personalKey.length > 5) {
-        return { apiKey: personalKey, isPersonal: true };
-    }
-
-    // 2. Check authorization for shared platform key
     const currentUser = auth?.currentUser;
-    const profile = state?.profile;
-    const isAuthorized = isOwner(currentUser) || isProUser(currentUser, profile);
+    const currentIsOwner = isOwner(currentUser);
 
-    if (!isAuthorized) {
-        const error = new Error(
-            'NovuJobs Pro ($9.99/mo) or your personal Google Gemini API key is required to use AI features.'
-        );
-        error.code = 'SUBSCRIPTION_REQUIRED';
-        throw error;
-    }
-
-    // 3. Fallback to shared platform key for authorized users
     let sharedKey = '';
     if (typeof process !== 'undefined') {
         sharedKey = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
+    }
+
+    // 1. Personal key (BYOK) - allowed only if it is NOT a leaked copy of the platform shared key for a non-owner
+    if (personalKey && personalKey.length > 5 && (currentIsOwner || !sharedKey || personalKey !== sharedKey)) {
+        return { apiKey: personalKey, isPersonal: true };
+    }
+
+    // 2. Shared platform key is strictly restricted to Platform Owner (fabian.velez1996@gmail.com)
+    // so external users can never incur billing on the owner's account.
+    if (!currentIsOwner) {
+        const error = new Error(
+            'Add your free personal Google Gemini API key in Profile settings to use AI features.'
+        );
+        error.code = 'SUBSCRIPTION_REQUIRED';
+        throw error;
     }
 
     if (!sharedKey) {
