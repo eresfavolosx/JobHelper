@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target, ChevronDown, Check } from 'lucide-react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
-import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
+import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, getAvailableAiProviders, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
 import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
 import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
@@ -721,6 +721,9 @@ function ExportDataButton() {
 
         const safeProfile = profile ? { ...profile } : {};
         delete safeProfile.geminiApiKey;
+        delete safeProfile.claudeApiKey;
+        delete safeProfile.openaiApiKey;
+        delete safeProfile.customAiApiKey;
         delete safeProfile.googleMapsApiKey;
 
         const exportData = {
@@ -1147,22 +1150,164 @@ function GoogleServicesConfig() {
     const [testingGemini, setTestingGemini] = useState(false);
     const [geminiStatus, setGeminiStatus] = useState(null);
 
+    // Claude states
+    const [claudeKeyDraft, setClaudeKeyDraft] = useState('');
+    const [claudeSaved, setClaudeSaved] = useState(false);
+    const [testingClaude, setTestingClaude] = useState(false);
+    const [claudeStatus, setClaudeStatus] = useState(null);
+
+    // OpenAI states
+    const [openAiKeyDraft, setOpenAiKeyDraft] = useState('');
+    const [openAiSaved, setOpenAiSaved] = useState(false);
+    const [testingOpenAi, setTestingOpenAi] = useState(false);
+    const [openAiStatus, setOpenAiStatus] = useState(null);
+
+    // Custom Provider states (e.g. DeepSeek, Groq, OpenRouter)
+    const [customKeyDraft, setCustomKeyDraft] = useState('');
+    const [customBaseUrlDraft, setCustomBaseUrlDraft] = useState(profile?.customAiBaseUrl || '');
+    const [customModelDraft, setCustomModelDraft] = useState(profile?.customAiModel || '');
+    const [customSaved, setCustomSaved] = useState(false);
+    const [testingCustom, setTestingCustom] = useState(false);
+    const [customStatus, setCustomStatus] = useState(null);
+    const [showCustomSettings, setShowCustomSettings] = useState(Boolean(profile?.customAiBaseUrl));
+
     const [mapsKeyDraft, setMapsKeyDraft] = useState('');
     const [mapsSaved, setMapsSaved] = useState(false);
     const [testingMaps, setTestingMaps] = useState(false);
     const [mapsStatus, setMapsStatus] = useState(null);
 
-    // Check if user has a valid personal BYOK key saved (excluding any accidental copy of the platform env key for non-owners)
+    // Check if user has a valid personal BYOK key saved
     const hasPersonalGeminiKey = Boolean(
         profile?.geminiApiKey &&
         profile.geminiApiKey.trim().length > 5 &&
         (isPlatformOwner || profile.geminiApiKey.trim() !== envGemini.trim())
     );
+    const hasPersonalClaudeKey = Boolean(profile?.claudeApiKey && profile.claudeApiKey.trim().length > 5);
+    const hasPersonalOpenAiKey = Boolean(profile?.openaiApiKey && profile.openaiApiKey.trim().length > 5);
+    const hasPersonalCustomAi = Boolean(profile?.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile?.customAiBaseUrl);
+    const activeProvider = profile?.activeAiProvider || 'gemini';
+
     const hasPersonalMapsKey = Boolean(
         profile?.googleMapsApiKey &&
         profile.googleMapsApiKey.trim().length > 5 &&
         (isPlatformOwner || profile.googleMapsApiKey.trim() !== envMaps.trim())
     );
+
+    const handleSelectProvider = (prov) => {
+        updateProfile({ activeAiProvider: prov });
+    };
+
+    const handleSaveClaude = () => {
+        const trimmed = claudeKeyDraft.trim();
+        if (!trimmed) return;
+        updateProfile({ claudeApiKey: trimmed });
+        setClaudeKeyDraft('');
+        setClaudeSaved(true);
+        setTimeout(() => setClaudeSaved(false), 3000);
+    };
+
+    const handleClearClaude = () => {
+        updateProfile({ claudeApiKey: '' });
+        setClaudeKeyDraft('');
+        setClaudeStatus(null);
+    };
+
+    const handleTestClaude = async () => {
+        setTestingClaude(true);
+        setClaudeStatus(null);
+        try {
+            const keyToTest = claudeKeyDraft.trim() || (hasPersonalClaudeKey ? profile?.claudeApiKey : '');
+            if (!keyToTest) {
+                setClaudeStatus({ success: false, message: 'Please enter an Anthropic Claude API key first.' });
+                return;
+            }
+            const res = await testClaudeApiKey(keyToTest);
+            setClaudeStatus(res);
+        } catch (err) {
+            setClaudeStatus({ success: false, message: err?.message || 'Connection test failed.' });
+        } finally {
+            setTestingClaude(false);
+        }
+    };
+
+    const handleSaveOpenAi = () => {
+        const trimmed = openAiKeyDraft.trim();
+        if (!trimmed) return;
+        updateProfile({ openaiApiKey: trimmed });
+        setOpenAiKeyDraft('');
+        setOpenAiSaved(true);
+        setTimeout(() => setOpenAiSaved(false), 3000);
+    };
+
+    const handleClearOpenAi = () => {
+        updateProfile({ openaiApiKey: '' });
+        setOpenAiKeyDraft('');
+        setOpenAiStatus(null);
+    };
+
+    const handleTestOpenAi = async () => {
+        setTestingOpenAi(true);
+        setOpenAiStatus(null);
+        try {
+            const keyToTest = openAiKeyDraft.trim() || (hasPersonalOpenAiKey ? profile?.openaiApiKey : '');
+            if (!keyToTest) {
+                setOpenAiStatus({ success: false, message: 'Please enter an OpenAI API key first.' });
+                return;
+            }
+            const res = await testOpenAiApiKey(keyToTest);
+            setOpenAiStatus(res);
+        } catch (err) {
+            setOpenAiStatus({ success: false, message: err?.message || 'Connection test failed.' });
+        } finally {
+            setTestingOpenAi(false);
+        }
+    };
+
+    const handleSaveCustom = () => {
+        const key = customKeyDraft.trim() || (hasPersonalCustomAi ? profile?.customAiApiKey : '');
+        const baseUrl = customBaseUrlDraft.trim();
+        const model = customModelDraft.trim();
+        if (!baseUrl) {
+            setCustomStatus({ success: false, message: 'Please provide a Base URL (e.g. https://api.deepseek.com/v1).' });
+            return;
+        }
+        updateProfile({
+            customAiApiKey: key,
+            customAiBaseUrl: baseUrl,
+            customAiModel: model
+        });
+        setCustomKeyDraft('');
+        setCustomSaved(true);
+        setTimeout(() => setCustomSaved(false), 3000);
+    };
+
+    const handleClearCustom = () => {
+        updateProfile({
+            customAiApiKey: '',
+            customAiBaseUrl: '',
+            customAiModel: ''
+        });
+        setCustomKeyDraft('');
+        setCustomBaseUrlDraft('');
+        setCustomModelDraft('');
+        setCustomStatus(null);
+    };
+
+    const handleTestCustom = async () => {
+        setTestingCustom(true);
+        setCustomStatus(null);
+        try {
+            const keyToTest = customKeyDraft.trim() || (hasPersonalCustomAi ? profile?.customAiApiKey : '');
+            const urlToTest = customBaseUrlDraft.trim() || profile?.customAiBaseUrl;
+            const modelToTest = customModelDraft.trim() || profile?.customAiModel;
+            const res = await testCustomAiProvider(urlToTest, keyToTest, modelToTest);
+            setCustomStatus(res);
+        } catch (err) {
+            setCustomStatus({ success: false, message: err?.message || 'Connection test failed.' });
+        } finally {
+            setTestingCustom(false);
+        }
+    };
 
     // Automatically scrub any accidentally persisted platform env key from non-owner profiles
     useEffect(() => {
@@ -1332,11 +1477,91 @@ function GoogleServicesConfig() {
                 </div>
             )}
 
-            {/* 1. Gemini AI API Key (Write-Only Input - Never Exposes Key Value in DOM) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Primary AI Provider Selector */}
+            <div style={{
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                            <Cpu size={18} color="var(--accent-primary)" />
+                            Primary AI Engine
+                        </h4>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                            Choose which AI model drives your resume tailoring, career coaching, and job matching.
+                        </p>
+                    </div>
+                    <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '3px 10px',
+                        borderRadius: '999px',
+                        background: 'rgba(94, 135, 110, 0.15)',
+                        border: '1px solid rgba(94, 135, 110, 0.4)',
+                        color: 'var(--accent-primary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                    }}>
+                        Active: {activeProvider === 'gemini' ? 'Google Gemini' : activeProvider === 'claude' ? 'Anthropic Claude' : activeProvider === 'openai' ? 'OpenAI ChatGPT' : 'Custom Provider'}
+                    </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                    {[
+                        { id: 'gemini', label: 'Google Gemini', sub: 'Flash 3.8 / 2.5', icon: Sparkles, configured: hasPersonalGeminiKey || (isPlatformOwner && Boolean(envGemini)) },
+                        { id: 'claude', label: 'Anthropic Claude', sub: 'Sonnet 3.5 / Haiku', icon: Zap, configured: hasPersonalClaudeKey },
+                        { id: 'openai', label: 'OpenAI ChatGPT', sub: 'GPT-4o / 4o-mini', icon: Bot, configured: hasPersonalOpenAiKey },
+                        { id: 'custom', label: 'Custom Provider', sub: 'DeepSeek / Groq / Router', icon: Globe, configured: hasPersonalCustomAi }
+                    ].map(p => {
+                        const IconComponent = p.icon;
+                        const isSelected = activeProvider === p.id;
+                        return (
+                            <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleSelectProvider(p.id)}
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    padding: '10px 12px',
+                                    borderRadius: '8px',
+                                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                    background: isSelected ? 'rgba(94, 135, 110, 0.12)' : 'var(--glass-highlight)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                    <IconComponent size={16} color={isSelected ? 'var(--accent-primary)' : 'var(--text-secondary)'} />
+                                    {p.configured && (
+                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }} title="Configured" />
+                                    )}
+                                </div>
+                                <span style={{ fontSize: '0.85rem', fontWeight: isSelected ? '700' : '600', color: 'var(--text-primary)' }}>
+                                    {p.label}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                    {p.sub}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 1. Gemini AI API Key (Write-Only Input) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--glass-border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <label htmlFor="gemini-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Key size={16} color="var(--accent-primary)" /> Google Gemini API Key
+                        <Sparkles size={16} color="var(--accent-primary)" /> Google Gemini API Key
                     </label>
                     {(hasPersonalGeminiKey || (isPlatformOwner && Boolean(envGemini))) && (
                         <span style={{
@@ -1357,7 +1582,7 @@ function GoogleServicesConfig() {
                     )}
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
-                    Used for AI resume tailoring, automated interview questions, and job recommendation scoring.
+                    Powers multimodal resume analysis and instant job matching with Gemini 3.8 Flash & Gemini 2.5 Flash.
                 </p>
                 <div>
                     <input
@@ -1397,7 +1622,7 @@ function GoogleServicesConfig() {
                             className="btn-secondary"
                             style={{ padding: '6px 12px', fontSize: '0.82rem' }}
                         >
-                            Remove Personal Key
+                            Remove Key
                         </button>
                     )}
                     <button
@@ -1436,6 +1661,363 @@ function GoogleServicesConfig() {
                     }}>
                         {geminiStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
                         {geminiStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* 2. Anthropic Claude API Key (Write-Only Input) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <label htmlFor="claude-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Zap size={16} color="var(--accent-primary)" /> Anthropic Claude API Key
+                    </label>
+                    {hasPersonalClaudeKey && (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(78, 135, 82, 0.16)',
+                            border: '1px solid rgba(78, 135, 82, 0.4)',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={12} />
+                            Claude Key Configured (Hidden)
+                        </span>
+                    )}
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                    Powers deep reasoning and document synthesis with Claude 3.5 Sonnet & Claude 3.5 Haiku.
+                </p>
+                <div>
+                    <input
+                        id="claude-api-key-input"
+                        aria-label="Anthropic Claude API Key"
+                        type="password"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={claudeKeyDraft}
+                        onChange={(e) => setClaudeKeyDraft(e.target.value)}
+                        placeholder={
+                            hasPersonalClaudeKey
+                                ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
+                                : 'Paste your Anthropic API key (sk-ant-...)'
+                        }
+                        style={{ width: '100%' }}
+                    />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={handleSaveClaude}
+                        disabled={!claudeKeyDraft.trim()}
+                        className="btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.85rem', opacity: claudeKeyDraft.trim() ? 1 : 0.6 }}
+                    >
+                        {claudeSaved ? 'Saved!' : 'Save Key'}
+                    </button>
+                    {hasPersonalClaudeKey && (
+                        <button
+                            type="button"
+                            onClick={handleClearClaude}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                        >
+                            Remove Key
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleTestClaude}
+                        disabled={testingClaude || (!claudeKeyDraft.trim() && !hasPersonalClaudeKey)}
+                        style={{
+                            padding: '6px 14px',
+                            fontSize: '0.85rem',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--glass-highlight)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: testingClaude ? 'wait' : 'pointer'
+                        }}
+                    >
+                        {testingClaude ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    <a
+                        href="https://console.anthropic.com/settings/keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                    >
+                        Get Key in Anthropic Console
+                    </a>
+                </div>
+                {claudeStatus && (
+                    <div style={{
+                        fontSize: '0.82rem',
+                        color: claudeStatus.success ? 'var(--success)' : 'var(--error)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '2px'
+                    }}>
+                        {claudeStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                        {claudeStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* 3. OpenAI (ChatGPT) API Key (Write-Only Input) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <label htmlFor="openai-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Bot size={16} color="var(--accent-primary)" /> OpenAI (ChatGPT) API Key
+                    </label>
+                    {hasPersonalOpenAiKey && (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(78, 135, 82, 0.16)',
+                            border: '1px solid rgba(78, 135, 82, 0.4)',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={12} />
+                            OpenAI Key Configured (Hidden)
+                        </span>
+                    )}
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                    Powers intelligent career recommendations and interview practice with GPT-4o & GPT-4o-mini.
+                </p>
+                <div>
+                    <input
+                        id="openai-api-key-input"
+                        aria-label="OpenAI API Key"
+                        type="password"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={openAiKeyDraft}
+                        onChange={(e) => setOpenAiKeyDraft(e.target.value)}
+                        placeholder={
+                            hasPersonalOpenAiKey
+                                ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
+                                : 'Paste your OpenAI API key (sk-...)'
+                        }
+                        style={{ width: '100%' }}
+                    />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={handleSaveOpenAi}
+                        disabled={!openAiKeyDraft.trim()}
+                        className="btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.85rem', opacity: openAiKeyDraft.trim() ? 1 : 0.6 }}
+                    >
+                        {openAiSaved ? 'Saved!' : 'Save Key'}
+                    </button>
+                    {hasPersonalOpenAiKey && (
+                        <button
+                            type="button"
+                            onClick={handleClearOpenAi}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                        >
+                            Remove Key
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleTestOpenAi}
+                        disabled={testingOpenAi || (!openAiKeyDraft.trim() && !hasPersonalOpenAiKey)}
+                        style={{
+                            padding: '6px 14px',
+                            fontSize: '0.85rem',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--glass-highlight)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: testingOpenAi ? 'wait' : 'pointer'
+                        }}
+                    >
+                        {testingOpenAi ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.82rem', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                    >
+                        Get Key in OpenAI Platform
+                    </a>
+                </div>
+                {openAiStatus && (
+                    <div style={{
+                        fontSize: '0.82rem',
+                        color: openAiStatus.success ? 'var(--success)' : 'var(--error)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '2px'
+                    }}>
+                        {openAiStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                        {openAiStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* 4. Custom OpenAI-Compatible Provider (DeepSeek, Groq, OpenRouter) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowCustomSettings(!showCustomSettings)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            fontSize: '0.9rem',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            color: 'var(--text-primary)'
+                        }}
+                    >
+                        <Globe size={16} color="var(--accent-primary)" />
+                        Custom AI Provider (DeepSeek / Groq / OpenRouter / Ollama)
+                        <ChevronDown size={14} style={{ transform: showCustomSettings ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </button>
+                    {hasPersonalCustomAi && (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(78, 135, 82, 0.16)',
+                            border: '1px solid rgba(78, 135, 82, 0.4)',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <CheckCircle size={12} />
+                            Custom Endpoint Configured
+                        </span>
+                    )}
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 4px 0' }}>
+                    Connect any OpenAI-compatible API endpoint (such as DeepSeek-V3, Groq, or OpenRouter).
+                </p>
+
+                {showCustomSettings && (
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        background: 'var(--glass-highlight)',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-subtle)'
+                    }}>
+                        <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                                API Base URL (e.g. https://api.deepseek.com/v1 or https://api.groq.com/openai/v1)
+                            </label>
+                            <input
+                                type="text"
+                                value={customBaseUrlDraft}
+                                onChange={(e) => setCustomBaseUrlDraft(e.target.value)}
+                                placeholder="https://api.deepseek.com/v1"
+                                style={{ width: '100%', fontSize: '0.85rem' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                                Model Identifier (e.g. deepseek-chat or llama-3.3-70b-versatile)
+                            </label>
+                            <input
+                                type="text"
+                                value={customModelDraft}
+                                onChange={(e) => setCustomModelDraft(e.target.value)}
+                                placeholder="deepseek-chat"
+                                style={{ width: '100%', fontSize: '0.85rem' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                                API Key (write-only)
+                            </label>
+                            <input
+                                type="password"
+                                value={customKeyDraft}
+                                onChange={(e) => setCustomKeyDraft(e.target.value)}
+                                placeholder={hasPersonalCustomAi ? '•••••••••••••••• (Key saved — enter new key to replace)' : 'sk-...'}
+                                style={{ width: '100%', fontSize: '0.85rem' }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
+                            <button
+                                type="button"
+                                onClick={handleSaveCustom}
+                                className="btn-primary"
+                                style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                            >
+                                {customSaved ? 'Saved!' : 'Save Custom Provider'}
+                            </button>
+                            {hasPersonalCustomAi && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearCustom}
+                                    className="btn-secondary"
+                                    style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                                >
+                                    Clear Custom Provider
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handleTestCustom}
+                                disabled={testingCustom || (!customBaseUrlDraft.trim() && !profile?.customAiBaseUrl)}
+                                style={{
+                                    padding: '6px 14px',
+                                    fontSize: '0.82rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'var(--glass-bg)',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border-subtle)',
+                                    cursor: testingCustom ? 'wait' : 'pointer'
+                                }}
+                            >
+                                {testingCustom ? 'Testing...' : 'Test Connection'}
+                            </button>
+                        </div>
+                        {customStatus && (
+                            <div style={{
+                                fontSize: '0.82rem',
+                                color: customStatus.success ? 'var(--success)' : 'var(--error)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginTop: '4px'
+                            }}>
+                                {customStatus.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                                {customStatus.message}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
