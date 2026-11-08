@@ -24,6 +24,7 @@ import ThemeSwitcher from '@/components/ThemeSwitcher';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import GlobalJobSearchModal from '@/components/GlobalJobSearchModal';
 import GoalCelebrationOverlay from '@/components/GoalCelebrationOverlay';
+import OfferAcceptedCycleModal from '@/components/OfferAcceptedCycleModal';
 
 
 
@@ -183,6 +184,7 @@ function AuthenticatedLayout({ children }) {
             <UndoToast />
             <GlobalJobSearchModal />
             <GoalCelebrationOverlay />
+            <OfferAcceptedCycleModal />
             <AddJobModal
                 isOpen={isJobModalOpen}
                 onClose={closeJobModal}

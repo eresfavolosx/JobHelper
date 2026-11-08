@@ -16,6 +16,8 @@ import JobSettingsBanner from './JobSettingsBanner';
 import JobSankeyChart from './JobSankeyChart';
 import JobGanttChart from './JobGanttChart';
 import MarketBenchmarkView from './MarketBenchmarkView';
+import CycleFilterBar from './CycleFilterBar';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
 
 const COLUMNS = [
@@ -43,8 +45,14 @@ const QUICK_FILTERS = [
 ];
 
 export default function KanbanBoard() {
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
     const moveJob = useAppStore(state => state.moveJob);
+
+    const jobs = useMemo(() => {
+        return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
+    }, [rawJobs, cycles, selectedCycleId]);
 
     // Cross-system shared search & filter state
     const searchQuery = useUIStore(state => state.boardSearchQuery);
@@ -336,6 +344,9 @@ export default function KanbanBoard() {
                 marginBottom: '10px',
                 flexShrink: 0
             }}>
+                {/* Search Cycles Selector */}
+                <CycleFilterBar />
+
                 {/* Row 1: Instant Board Search Input + Parameter Filters Toggle + View Switcher */}
                 <div style={{
                     display: 'flex',

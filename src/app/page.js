@@ -14,6 +14,8 @@ import JobGanttChart from '@/components/JobGanttChart';
 import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
+import CycleFilterBar from '@/components/CycleFilterBar';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { isOwner } from '@/lib/subscription';
 import { extractJobFacets } from '@/lib/job-search';
 
@@ -22,7 +24,10 @@ const emptySubscribe = () => () => {};
 export default function Home() {
     // ⚡ Bolt: Use specific selector instead of destructuring the whole store to prevent
     // unnecessary re-renders when other state (like profile) changes
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
     const setBoardFilters = useUIStore(state => state.setBoardFilters);
@@ -140,6 +145,9 @@ export default function Home() {
                     onDismiss={() => setShowSetupGuide(false)}
                 />
             )}
+
+            {/* Search Cycles Selector */}
+            <CycleFilterBar style={{ marginBottom: '16px' }} />
 
             {/* Full-Width Job Search & Target Settings Bar */}
             <JobSettingsBanner showGoalSummary={false} />
