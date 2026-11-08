@@ -8,6 +8,18 @@ import { sanitizeUrl } from '@/lib/utils';
 import UpgradeModal from './UpgradeModal';
 
 export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
+    if (!isOpen) return null;
+
+    return (
+        <AddJobModalDialog
+            key={initialData?.id || 'new'}
+            onClose={onClose}
+            initialData={initialData}
+        />
+    );
+}
+
+function AddJobModalDialog({ onClose, initialData = {} }) {
     const addJob = useAppStore((state) => state.addJob);
     const updateJob = useAppStore((state) => state.updateJob);
     const profile = useAppStore((state) => state.profile);
@@ -35,73 +47,36 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
         return list;
     }, [jobs]);
 
-    const [formData, setFormData] = useState({
-        company: '',
-        role: '',
-        salary: '',
-        url: '',
-        resumeUrl: '',
-        resumeName: '',
-        location: '',
-        commuteTime: '',
-        notes: '',
-        status: 'wishlist'
-    });
+    const [formData, setFormData] = useState(() => ({
+        company: initialData?.company || '',
+        role: initialData?.role || initialData?.title || '',
+        salary: initialData?.salary || '',
+        url: initialData?.url || initialData?.link || '',
+        resumeUrl: initialData?.resumeUrl || '',
+        resumeName: initialData?.resumeName || '',
+        location: initialData?.location || '',
+        commuteTime: initialData?.commuteTime || '',
+        notes: initialData?.notes || '',
+        status: initialData?.status || 'applied'
+    }));
     const [calculatingCommute, setCalculatingCommute] = useState(false);
     const [commuteMessage, setCommuteMessage] = useState({ type: '', text: '' });
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
     const [submitError, setSubmitError] = useState('');
 
     useEffect(() => {
-        if (isOpen && initialData) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setFormData(prev => ({
-                company: '',
-                role: '',
-                salary: '',
-                url: '',
-                resumeUrl: '',
-                resumeName: '',
-                location: '',
-                commuteTime: '',
-                notes: '',
-                status: 'wishlist',
-                ...prev,
-                ...initialData
-            }));
-            setCommuteMessage({ type: '', text: '' });
-        } else if (!isOpen) {
-            setFormData({
-                company: '',
-                role: '',
-                salary: '',
-                url: '',
-                resumeUrl: '',
-                resumeName: '',
-                location: '',
-                commuteTime: '',
-                notes: '',
-                status: 'wishlist'
-            });
-            setCommuteMessage({ type: '', text: '' });
-        }
-    }, [isOpen, initialData]);
-
-    useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
+                e.preventDefault();
                 onClose();
             }
         };
 
-        if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
-
+        window.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isOpen, onClose]);
+    }, [onClose]);
 
     if (!isOpen) return null;
 
@@ -166,7 +141,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
                 location: '',
                 commuteTime: '',
                 notes: '',
-                status: 'wishlist'
+                status: 'applied'
             });
         } catch (err) {
             if (err?.code === 'LIMIT_REACHED') {

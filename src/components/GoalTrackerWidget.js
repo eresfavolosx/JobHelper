@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import {
     Target, Sliders, CheckCircle2, TrendingUp, AlertCircle,
-    Calendar, Briefcase, ExternalLink, ChevronDown, ChevronUp, Sparkles, ArrowRight, FileText
+    Calendar, Briefcase, ExternalLink, ChevronDown, ChevronUp, Sparkles, ArrowRight, FileText, PartyPopper
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { useUIStore } from '@/lib/uiStore';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { sanitizeUrl } from '@/lib/utils';
 import GoalCustomizationModal from './GoalCustomizationModal';
@@ -31,6 +32,8 @@ function formatRoleTimestamp(isoString, isAppliedToday) {
 export default function GoalTrackerWidget() {
     const jobs = useAppStore(state => state.jobs);
     const profile = useAppStore(state => state.profile);
+    const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [showRolesPanel, setShowRolesPanel] = useState(true);
     const [activeFilter, setActiveFilter] = useState('today'); // 'today' | 'cycle'
@@ -100,16 +103,27 @@ export default function GoalTrackerWidget() {
                                 }}>
                                     {progress.cadence}
                                 </span>
-                                <span style={{
-                                    fontSize: '0.74rem',
-                                    fontWeight: '700',
-                                    padding: '2px 9px',
-                                    borderRadius: '999px',
-                                    background: progress.todayCount > 0 ? 'rgba(78, 135, 82, 0.16)' : 'var(--glass-highlight)',
-                                    border: progress.todayCount > 0 ? '1px solid rgba(78, 135, 82, 0.4)' : '1px solid var(--border-subtle)',
-                                    color: progress.todayCount > 0 ? 'var(--success)' : 'var(--text-secondary)'
-                                }}>
-                                    {progress.todayCount} Applied Today
+                                <span
+                                    onClick={progress.todayCount >= 5 ? triggerGoalCelebration : undefined}
+                                    style={{
+                                        fontSize: '0.74rem',
+                                        fontWeight: '700',
+                                        padding: '2px 9px',
+                                        borderRadius: '999px',
+                                        background: progress.todayCount >= 5
+                                            ? 'rgba(212, 163, 115, 0.25)'
+                                            : (progress.todayCount > 0 ? 'rgba(78, 135, 82, 0.16)' : 'var(--glass-highlight)'),
+                                        border: progress.todayCount >= 5
+                                            ? '1px solid rgba(212, 163, 115, 0.6)'
+                                            : (progress.todayCount > 0 ? '1px solid rgba(78, 135, 82, 0.4)' : '1px solid var(--border-subtle)'),
+                                        color: progress.todayCount >= 5
+                                            ? 'var(--warning)'
+                                            : (progress.todayCount > 0 ? 'var(--success)' : 'var(--text-secondary)'),
+                                        cursor: progress.todayCount >= 5 ? 'pointer' : 'default'
+                                    }}
+                                    title={progress.todayCount >= 5 ? '5 Applications Daily Goal Achieved! Click to celebrate 🎉' : undefined}
+                                >
+                                    {progress.todayCount >= 5 ? `🎉 ${progress.todayCount} Applied Today (Goal Hit!)` : `${progress.todayCount} Applied Today`}
                                 </span>
                             </div>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -120,24 +134,53 @@ export default function GoalTrackerWidget() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        {/* Pace Badge */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            padding: '4px 10px',
-                            borderRadius: '20px',
-                            background: currentPaceStyle.bg,
-                            border: `1px solid ${currentPaceStyle.border}`,
-                            color: currentPaceStyle.text,
-                            fontSize: '0.78rem',
-                            fontWeight: 'bold'
-                        }}>
+                        {/* Pace Badge / Celebrate Trigger */}
+                        <div
+                            onClick={(progress.percentage >= 100 || progress.todayCount >= 5) ? triggerGoalCelebration : undefined}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '4px 10px',
+                                borderRadius: '20px',
+                                background: (progress.todayCount >= 5 || progress.percentage >= 100) ? 'rgba(212, 163, 115, 0.2)' : currentPaceStyle.bg,
+                                border: (progress.todayCount >= 5 || progress.percentage >= 100) ? '1px solid rgba(212, 163, 115, 0.5)' : `1px solid ${currentPaceStyle.border}`,
+                                color: (progress.todayCount >= 5 || progress.percentage >= 100) ? 'var(--warning)' : currentPaceStyle.text,
+                                fontSize: '0.78rem',
+                                fontWeight: 'bold',
+                                cursor: (progress.percentage >= 100 || progress.todayCount >= 5) ? 'pointer' : 'default',
+                                transition: 'transform 0.15s ease'
+                            }}
+                            title={(progress.percentage >= 100 || progress.todayCount >= 5) ? 'Click to celebrate goal with full-screen confetti!' : undefined}
+                        >
                             <PaceIcon size={14} />
                             <span>
-                                {progress.pace === 'completed' ? 'Goal Reached 🎉' : progress.pace === 'on_track' ? 'On Track 🚀' : 'Behind Pace ⏳'}
+                                {progress.todayCount >= 5
+                                    ? 'Daily Goal Hit 🎉'
+                                    : (progress.pace === 'completed' ? 'Goal Reached 🎉' : progress.pace === 'on_track' ? 'On Track 🚀' : 'Behind Pace ⏳')}
                             </span>
                         </div>
+
+                        {(progress.percentage >= 100 || progress.todayCount >= 5) && (
+                            <button
+                                type="button"
+                                onClick={triggerGoalCelebration}
+                                className="btn-primary"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    padding: '5px 11px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #4A7C55 0%, #D4A373 100%)',
+                                    boxShadow: '0 4px 14px rgba(212, 163, 115, 0.35)'
+                                }}
+                                title="Trigger full-screen confetti and celebration!"
+                            >
+                                <PartyPopper size={13} /> {progress.todayCount >= 5 && progress.percentage < 100 ? 'Celebrate Daily Goal 🎉' : 'Celebrate Goal 🎉'}
+                            </button>
+                        )}
 
                         {/* Customize button */}
                         <button
@@ -209,13 +252,59 @@ export default function GoalTrackerWidget() {
                 }}>
                     <span>{progress.paceMessage}</span>
                     {progress.remaining > 0 ? (
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                            {progress.remaining} application{progress.remaining > 1 ? 's' : ''} left to reach {progress.target}
-                        </span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                                {progress.remaining} application{progress.remaining > 1 ? 's' : ''} left to reach {progress.target}
+                            </span>
+                            {progress.todayCount >= 5 && (
+                                <button
+                                    type="button"
+                                    onClick={triggerGoalCelebration}
+                                    style={{
+                                        background: 'rgba(212, 163, 115, 0.2)',
+                                        border: '1px solid rgba(212, 163, 115, 0.5)',
+                                        borderRadius: '6px',
+                                        color: 'var(--warning)',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        padding: '2px 8px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                    title="5 Applications Daily Goal Achieved! Click to celebrate"
+                                >
+                                    <PartyPopper size={12} /> 5 Today Confetti 🎉
+                                </button>
+                            )}
+                        </div>
                     ) : (
-                        <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.78rem' }}>
-                            Target achieved for this cycle! Keep going!
-                        </span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.78rem' }}>
+                                Target achieved for this cycle! Keep going!
+                            </span>
+                            <button
+                                type="button"
+                                onClick={triggerGoalCelebration}
+                                style={{
+                                    background: 'rgba(95, 130, 99, 0.18)',
+                                    border: '1px solid var(--success)',
+                                    borderRadius: '6px',
+                                    color: 'var(--success)',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                                title="Show confetti and celebration"
+                            >
+                                <PartyPopper size={12} /> Confetti 🎉
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -382,13 +471,14 @@ export default function GoalTrackerWidget() {
                                                 View {progress.count} {cycleLabel} Role{progress.count > 1 ? 's' : ''}
                                             </button>
                                         )}
-                                        <Link
-                                            href="/kanban"
+                                        <button
+                                            type="button"
+                                            onClick={openNewJobModal}
                                             className="btn-primary"
-                                            style={{ fontSize: '0.78rem', padding: '6px 12px', textDecoration: 'none' }}
+                                            style={{ fontSize: '0.78rem', padding: '6px 12px', cursor: 'pointer', border: 'none' }}
                                         >
                                             + Log Application
-                                        </Link>
+                                        </button>
                                     </div>
                                 </div>
                             ) : (

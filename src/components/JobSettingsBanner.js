@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Sliders, Target, Briefcase, MapPin, DollarSign, Sparkles,
-    Check, ChevronDown, ChevronUp, Plus, CheckCircle2, ExternalLink, FileText
+    Check, ChevronDown, ChevronUp, Plus, CheckCircle2, ExternalLink, FileText, PartyPopper
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
@@ -49,6 +49,7 @@ export default function JobSettingsBanner({
     const updateProfile = useAppStore(state => state.updateProfile);
     const jobs = useAppStore(state => state.jobs);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
+    const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
 
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
     const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -208,17 +209,27 @@ export default function JobSettingsBanner({
                             </span>
                         )}
                         {!isExpanded && showGoalSummary && (
-                            <span style={{
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                padding: '2px 7px',
-                                borderRadius: '999px',
-                                background: 'rgba(107, 126, 103, 0.14)',
-                                color: 'var(--accent-primary)',
-                                whiteSpace: 'nowrap',
-                                flexShrink: 0
-                            }}>
-                                Goal: {goalProgress.count}/{goalProgress.target}
+                            <span
+                                onClick={(e) => {
+                                    if (goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) {
+                                        e.stopPropagation();
+                                        triggerGoalCelebration();
+                                    }
+                                }}
+                                style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: '999px',
+                                    background: (goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) ? 'rgba(212, 163, 115, 0.22)' : 'rgba(107, 126, 103, 0.14)',
+                                    color: (goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) ? 'var(--warning)' : 'var(--accent-primary)',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                    cursor: (goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) ? 'pointer' : 'default'
+                                }}
+                                title={(goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) ? 'Goal Completed! Click to view celebration 🎉' : `Goal: ${goalProgress.count}/${goalProgress.target}`}
+                            >
+                                Goal: {goalProgress.count}/{goalProgress.target} {goalProgress.todayCount >= 5 ? '🎯 5 Today!' : (goalProgress.percentage >= 100 ? '🎉' : '')}
                             </span>
                         )}
                     </div>
@@ -474,6 +485,28 @@ export default function JobSettingsBanner({
 
                             {/* Goal Actions: View Today's Roles + Customize Goal */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                {(goalProgress.percentage >= 100 || goalProgress.todayCount >= 5) && (
+                                    <button
+                                        type="button"
+                                        onClick={triggerGoalCelebration}
+                                        className="btn-primary"
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            fontSize: '0.76rem',
+                                            padding: '5px 11px',
+                                            whiteSpace: 'nowrap',
+                                            background: 'linear-gradient(135deg, #4A7C55 0%, #D4A373 100%)',
+                                            boxShadow: '0 4px 14px rgba(212, 163, 115, 0.35)'
+                                        }}
+                                        title="Trigger full-screen celebration confetti!"
+                                    >
+                                        <PartyPopper size={13} />
+                                        <span>{goalProgress.todayCount >= 5 && goalProgress.percentage < 100 ? 'Celebrate 5 Today 🎉' : 'Celebrate 🎉'}</span>
+                                    </button>
+                                )}
+
                                 <button
                                     type="button"
                                     onClick={() => setShowTodayRoles(prev => !prev)}

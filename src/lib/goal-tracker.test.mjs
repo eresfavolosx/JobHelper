@@ -9,6 +9,9 @@ import {
     resolveAppliedAtForStatusChange,
     isSubmittedApplication,
     findMiscountedApplications,
+    getGoalCycleKey,
+    getDailyMilestoneKey,
+    shouldTriggerGoalCelebration,
     DEFAULT_GOAL 
 } from './goal-tracker.js';
 
@@ -241,6 +244,165 @@ describe('Goal Tracker Engine Unit Tests', () => {
             const jobs = [{ id: 'x', status: 'rejected', createdAt: created, appliedAt: stampedToday, updatedAt: stampedToday }];
             assert.equal(findMiscountedApplications(jobs, '2026-06-17T11:00:00Z').length, 0);
             assert.equal(findMiscountedApplications(jobs, '2026-06-17T13:00:00Z').length, 1);
+        });
+    });
+
+    describe('6. Goal Completion & Celebration Trigger Engine', () => {
+        it('generates deterministic cycle keys across cadences', () => {
+            const dailyKey = getGoalCycleKey({ target: 3, cadence: 'daily' }, fixedNow);
+            const weeklyKey = getGoalCycleKey({ target: 10, cadence: 'weekly' }, fixedNow);
+            const monthlyKey = getGoalCycleKey({ target: 40, cadence: 'monthly' }, fixedNow);
+            const totalKey = getGoalCycleKey({ target: 100, cadence: 'total' }, fixedNow);
+
+            assert.equal(dailyKey.startsWith('daily:2026-06-17:target:3'), true);
+            assert.equal(weeklyKey.startsWith('weekly:2026-06-15:target:10'), true);
+            assert.equal(monthlyKey.startsWith('monthly:2026-06:target:40'), true);
+            assert.equal(totalKey, 'total:all:target:100');
+        });
+
+        it('includes cycleKey on calculateGoalProgress output', () => {
+            const progress = calculateGoalProgress([], { target: 5, cadence: 'weekly' }, fixedNow);
+            assert.ok(progress.cycleKey);
+            assert.equal(progress.cycleKey.includes('weekly:'), true);
+            assert.equal(progress.cycleKey.includes('target:5'), true);
+        });
+
+        it('does not trigger celebration if goal is not yet completed', () => {
+            const progress = { count: 4, target: 5, enabled: true, cycleKey: 'weekly:test:5' };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 3,
+                prevCycleKey: 'weekly:test:5',
+                currentProgress: progress,
+                celebratedCycleKey: null
+            });
+            assert.equal(shouldTrigger, false);
+        });
+
+        it('does not trigger celebration if goal tracking is disabled', () => {
+            const progress = { count: 5, target: 5, enabled: false, cycleKey: 'weekly:test:5' };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 4,
+                prevCycleKey: 'weekly:test:5',
+                currentProgress: progress,
+                celebratedCycleKey: null
+            });
+            assert.equal(shouldTrigger, false);
+        });
+
+        it('triggers celebration when user crosses the target threshold in real-time', () => {
+            const progress = { count: 5, target: 5, enabled: true, cycleKey: 'weekly:test:5' };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 4,
+                prevCycleKey: 'weekly:test:5',
+                currentProgress: progress,
+                celebratedCycleKey: 'weekly:test:5'
+            });
+            assert.equal(shouldTrigger, true);
+        });
+
+        it('triggers celebration for a newly completed cycle that has not yet been celebrated', () => {
+            const progress = { count: 5, target: 5, enabled: true, cycleKey: 'weekly:new-cycle:5' };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 5,
+                prevCycleKey: 'weekly:new-cycle:5',
+                currentProgress: progress,
+                celebratedCycleKey: 'weekly:old-cycle:5'
+            });
+            assert.equal(shouldTrigger, true);
+        });
+
+        it('does not re-trigger celebration if already celebrated and count did not cross the threshold', () => {
+            const progress = { count: 5, target: 5, enabled: true, cycleKey: 'weekly:test:5' };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 5,
+                prevCycleKey: 'weekly:test:5',
+                currentProgress: progress,
+                celebratedCycleKey: 'weekly:test:5'
+            });
+            assert.equal(shouldTrigger, false);
+        });
+
+        it('generates deterministic daily milestone key for 5 daily applications', () => {
+            const milestoneKey = getDailyMilestoneKey(fixedNow);
+            assert.equal(milestoneKey, 'daily-milestone:2026-06-17:target:5');
+        });
+
+        it('includes dailyMilestoneKey and isDailyGoalMet in calculateGoalProgress', () => {
+            const jobs5Today = [
+                { id: '1', status: 'applied', appliedAt: '2026-06-17T08:00:00Z' },
+                { id: '2', status: 'applied', appliedAt: '2026-06-17T09:00:00Z' },
+                { id: '3', status: 'interviewing', appliedAt: '2026-06-17T10:00:00Z' },
+                { id: '4', status: 'applied', appliedAt: '2026-06-17T11:00:00Z' },
+                { id: '5', status: 'offer', appliedAt: '2026-06-17T12:00:00Z' }
+            ];
+            const progress = calculateGoalProgress(jobs5Today, { target: 10, cadence: 'weekly' }, fixedNow);
+            assert.equal(progress.todayCount, 5);
+            assert.equal(progress.count, 5);
+            assert.equal(progress.target, 10);
+            assert.equal(progress.percentage, 50); // Weekly target is not 100%
+            assert.equal(progress.isDailyGoalMet, true); // But daily 5 applications is met!
+            assert.equal(progress.dailyMilestoneKey, 'daily-milestone:2026-06-17:target:5');
+        });
+
+        it('triggers celebration when achieving 5 daily applications even if weekly target is 10 (count = 5)', () => {
+            const progress = {
+                count: 5,
+                target: 10,
+                todayCount: 5,
+                enabled: true,
+                cycleKey: 'weekly:2026-06-15:target:10',
+                dailyMilestoneKey: 'daily-milestone:2026-06-17:target:5'
+            };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 4,
+                prevCycleKey: 'weekly:2026-06-15:target:10',
+                prevTodayCount: 4,
+                currentProgress: progress,
+                celebratedCycleKey: null,
+                celebratedDailyMilestoneKey: null
+            });
+            assert.equal(shouldTrigger, true);
+        });
+
+        it('triggers celebration in real-time when crossing from 4 to 5 daily applications', () => {
+            const progress = {
+                count: 5,
+                target: 10,
+                todayCount: 5,
+                enabled: true,
+                cycleKey: 'weekly:2026-06-15:target:10',
+                dailyMilestoneKey: 'daily-milestone:2026-06-17:target:5'
+            };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 5,
+                prevCycleKey: 'weekly:2026-06-15:target:10',
+                prevTodayCount: 4, // transition from 4 to 5 today
+                currentProgress: progress,
+                celebratedCycleKey: null,
+                celebratedDailyMilestoneKey: 'daily-milestone:2026-06-17:target:5' // already marked
+            });
+            // prevTodayCount < 5 ensures real-time crossing triggers celebration
+            assert.equal(shouldTrigger, true);
+        });
+
+        it('does not re-trigger daily celebration if already celebrated today and todayCount is steady at 5', () => {
+            const progress = {
+                count: 5,
+                target: 10,
+                todayCount: 5,
+                enabled: true,
+                cycleKey: 'weekly:2026-06-15:target:10',
+                dailyMilestoneKey: 'daily-milestone:2026-06-17:target:5'
+            };
+            const shouldTrigger = shouldTriggerGoalCelebration({
+                prevCount: 5,
+                prevCycleKey: 'weekly:2026-06-15:target:10',
+                prevTodayCount: 5, // already 5 previously
+                currentProgress: progress,
+                celebratedCycleKey: null,
+                celebratedDailyMilestoneKey: 'daily-milestone:2026-06-17:target:5' // already celebrated today
+            });
+            assert.equal(shouldTrigger, false);
         });
     });
 });

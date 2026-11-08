@@ -1,6 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
+import fs from 'fs';
+import path from 'path';
+import archiver from 'archiver';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const outputDir = path.join(__dirname, '../public');
 const sourceDir = path.join(__dirname, '../src/extension');
