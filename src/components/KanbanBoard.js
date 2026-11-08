@@ -13,6 +13,7 @@ import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 import JobSettingsBanner from './JobSettingsBanner';
 import JobSankeyChart from './JobSankeyChart';
+import JobGanttChart from './JobGanttChart';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
 
 const COLUMNS = [
@@ -62,6 +63,8 @@ export default function KanbanBoard() {
     const [filtersOpen, setFiltersOpen] = useState(false);
     // Toggleable Sankey Flow & Conversion Analytics drawer on the Board
     const [showSankey, setShowSankey] = useState(false);
+    // Toggleable Application Gantt & Pipeline Velocity drawer on the Board
+    const [showGantt, setShowGantt] = useState(false);
     // Board layout mode: 'stacked' (All Sections overview, default on mobile) or 'columns' (Horizontal Kanban, default on desktop)
     const [viewMode, setViewMode] = useState(() => (
         typeof window !== 'undefined' && window.innerWidth <= 768 ? 'stacked' : 'columns'
@@ -484,6 +487,36 @@ export default function KanbanBoard() {
                         >
                             <GitBranch size={13} color="var(--accent-primary)" />
                             <span>{showSankey ? 'Hide Sankey & Stats' : 'Sankey & Stats'}</span>
+                        </button>
+
+                        {/* Gantt Timeline & Pipeline Velocity Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowGantt(prev => !prev)}
+                            aria-pressed={showGantt}
+                            className="btn-secondary"
+                            title="Toggle application Gantt timeline and pipeline velocity insights"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '999px',
+                                fontSize: '0.77rem',
+                                fontWeight: 700,
+                                border: showGantt
+                                    ? '1px solid var(--accent-primary)'
+                                    : '1px solid var(--border-subtle)',
+                                background: showGantt
+                                    ? 'rgba(107, 126, 103, 0.18)'
+                                    : 'var(--bg-card)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <Clock size={13} color="var(--accent-primary)" />
+                            <span>{showGantt ? 'Hide Gantt & Velocity' : 'Gantt & Velocity'}</span>
                         </button>
                     </div>
 
@@ -1116,6 +1149,12 @@ export default function KanbanBoard() {
             {showSankey && (
                 <div style={{ marginBottom: '12px', flexShrink: 0 }}>
                     <JobSankeyChart jobs={matchedJobs} compact={true} />
+                </div>
+            )}
+
+            {showGantt && (
+                <div style={{ marginBottom: '12px', flexShrink: 0 }}>
+                    <JobGanttChart jobs={matchedJobs} compact={true} />
                 </div>
             )}
 
