@@ -686,7 +686,15 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     viewBox={`0 0 ${sankey.width} ${sankey.height}`}
                     role="img"
                     aria-label={`Sankey diagram showing ${stats.totalTracked} tracked job opportunities across ${columns.length} pipeline stages`}
-                    style={{ display: 'block', minWidth: '540px', width: '100%', height: 'auto', userSelect: 'none' }}
+                    style={{
+                        display: 'block',
+                        minWidth: '540px',
+                        width: '100%',
+                        height: 'auto',
+                        aspectRatio: `${sankey.width} / ${sankey.height}`,
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none'
+                    }}
                 >
                     <defs>
                         {links.map((link, idx) => (
