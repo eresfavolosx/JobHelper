@@ -673,6 +673,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                 style={{
                     width: '100%',
                     overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
@@ -689,9 +690,8 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     style={{
                         display: 'block',
                         minWidth: '540px',
-                        width: '100%',
-                        height: 'auto',
-                        aspectRatio: `${sankey.width} / ${sankey.height}`,
+                        width: `${sankey.width}px`,
+                        height: `${sankey.height}px`,
                         userSelect: 'none',
                         WebkitUserSelect: 'none'
                     }}
@@ -701,14 +701,13 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                             <linearGradient
                                 key={`grad-${link.id}-${idx}`}
                                 id={`sankey-grad-${idx}`}
-                                gradientUnits="userSpaceOnUse"
-                                x1={link.sx}
-                                y1="0"
-                                x2={link.tx}
-                                y2="0"
+                                x1="0%"
+                                y1="0%"
+                                x2="100%"
+                                y2="0%"
                             >
-                                <stop offset="0%" stopColor={link.sourceColor} stopOpacity="0.62" />
-                                <stop offset="100%" stopColor={link.targetColor} stopOpacity="0.62" />
+                                <stop offset="0%" stopColor={link.sourceColor} stopOpacity="0.65" />
+                                <stop offset="100%" stopColor={link.targetColor} stopOpacity="0.65" />
                             </linearGradient>
                         ))}
                     </defs>
@@ -723,15 +722,17 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                             <text
                                 key={`col-header-${col.index}`}
                                 x={labelX}
-                                y={15}
+                                y={18}
                                 textAnchor={anchor}
+                                fill="var(--text-secondary, #9DA7AE)"
                                 style={{
                                     fontSize: '10.5px',
                                     fontWeight: 700,
                                     letterSpacing: '0.05em',
                                     textTransform: 'uppercase',
-                                    fill: 'var(--text-secondary)',
-                                    opacity: 0.85
+                                    fill: 'var(--text-secondary, #9DA7AE)',
+                                    opacity: 0.85,
+                                    fontFamily: 'system-ui, -apple-system, sans-serif'
                                 }}
                             >
                                 {col.title}
@@ -856,12 +857,13 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                                         x={labelX}
                                         y={centerY - 2}
                                         textAnchor={textAnchor}
-                                        dominantBaseline="middle"
+                                        fill="var(--text-primary, #FAF8F4)"
                                         style={{
                                             fontSize: '12px',
                                             fontWeight: 700,
-                                            fill: 'var(--text-primary)',
-                                            pointerEvents: 'none'
+                                            fill: 'var(--text-primary, #FAF8F4)',
+                                            pointerEvents: 'none',
+                                            fontFamily: 'system-ui, -apple-system, sans-serif'
                                         }}
                                     >
                                         {node.label}
@@ -870,12 +872,13 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                                         x={labelX}
                                         y={centerY + 12}
                                         textAnchor={textAnchor}
-                                        dominantBaseline="middle"
+                                        fill="var(--text-secondary, #9DA7AE)"
                                         style={{
                                             fontSize: '10.5px',
                                             fontWeight: 600,
-                                            fill: 'var(--text-secondary)',
-                                            pointerEvents: 'none'
+                                            fill: 'var(--text-secondary, #9DA7AE)',
+                                            pointerEvents: 'none',
+                                            fontFamily: 'system-ui, -apple-system, sans-serif'
                                         }}
                                     >
                                         {node.value} ({node.pctOfTotal}%)
