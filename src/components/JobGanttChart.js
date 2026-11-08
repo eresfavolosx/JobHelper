@@ -17,7 +17,10 @@ import {
     BarChart3,
     ArrowUpRight,
     X,
-    Plus
+    Plus,
+    List,
+    ChevronRight,
+    CheckCircle2
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import {
@@ -32,6 +35,7 @@ import {
 const STORAGE_KEY_GANTT_VIEW = 'novujobs_gantt_view';
 const STORAGE_KEY_GANTT_RANGE = 'novujobs_gantt_range';
 const STORAGE_KEY_GANTT_STATUS = 'novujobs_gantt_status';
+const STORAGE_KEY_GANTT_FORMAT = 'novujobs_gantt_format';
 
 function subscribeReducedMotion(callback) {
     if (typeof window === 'undefined' || !window.matchMedia) return () => {};
@@ -73,6 +77,24 @@ export default function JobGanttChart({ jobs, compact = false }) {
     const timelineSvgRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(900);
 
+    const [layoutFormat, setLayoutFormat] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(STORAGE_KEY_GANTT_FORMAT);
+            if (saved === 'cards' || saved === 'swimlanes') return saved;
+        }
+        return 'auto';
+    });
+
+    const isMobile = containerWidth < 700;
+    const activeGanttFormat = layoutFormat === 'auto' ? (isMobile ? 'cards' : 'swimlanes') : layoutFormat;
+
+    const handleFormatChange = (fmt) => {
+        setLayoutFormat(fmt);
+        if (typeof window !== 'undefined') {
+            try { localStorage.setItem(STORAGE_KEY_GANTT_FORMAT, fmt); } catch { /* ignore */ }
+        }
+    };
+
     // View: 'gantt' | 'insights'
     const [activeTab, setActiveTab] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -110,7 +132,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
         const observer = new ResizeObserver(entries => {
             for (const entry of entries) {
                 if (entry.contentRect?.width) {
-                    setContainerWidth(Math.max(480, Math.floor(entry.contentRect.width)));
+                    setContainerWidth(Math.floor(entry.contentRect.width));
                 }
             }
         });
@@ -187,8 +209,245 @@ export default function JobGanttChart({ jobs, compact = false }) {
     const rowHeight = compact ? 38 : 44;
     const headerHeight = 36;
     const timelineSvgHeight = Math.max(160, headerHeight + items.length * rowHeight + 16);
-    const leftColWidth = containerWidth < 680 ? 180 : 260;
-    const timelineWidth = Math.max(500, containerWidth - leftColWidth - 40);
+    const leftColWidth = containerWidth < 680 ? 115 : 260;
+    const timelineWidth = Math.max(480, (containerWidth || 800) - leftColWidth - 32);
+
+    const renderMobileTimelineCards = () => {
+        if (!hasData || items.length === 0) {
+            return (
+                <div style={{
+                    padding: '36px 16px',
+                    textAlign: 'center',
+                    borderRadius: '12px',
+                    border: '1px dashed var(--border-subtle)',
+                    background: 'var(--bg-panel)'
+                }}>
+                    <Clock size={32} color="var(--text-secondary)" style={{ margin: '0 auto 10px auto', opacity: 0.6 }} />
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
+                        No Applications Match Current Filters
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 14px 0' }}>
+                        Try clearing search or choosing &quot;All Roles&quot;.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setRange('all');
+                            setStatusFilter('all');
+                            setSearchQuery('');
+                        }}
+                        className="btn-secondary"
+                        style={{ padding: '6px 14px', fontSize: '0.76rem', borderRadius: '8px' }}
+                    >
+                        Reset Filters
+                    </button>
+                </div>
+            );
+        }
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {items.map(item => {
+                    const isTerminal = item.status === 'rejected' || item.status === 'archived';
+                    const isOffer = item.status === 'offer' || item.status === 'accepted';
+                    const isInterview = item.status === 'interviewing';
+                    const isScreening = item.status === 'screening';
+
+                    const steps = [
+                        { label: 'Applied', state: 'done', color: '#6B7E67' },
+                        {
+                            label: 'Screen',
+                            state: (isScreening || isInterview || isOffer) ? (isScreening ? 'current' : 'done') : 'pending',
+                            color: '#0ea5e9'
+                        },
+                        {
+                            label: 'Interview',
+                            state: (isInterview || isOffer) ? (isInterview ? 'current' : 'done') : 'pending',
+                            color: '#D4A373'
+                        },
+                        {
+                            label: isTerminal ? 'Closed' : 'Offer',
+                            state: isTerminal ? 'closed' : isOffer ? 'current' : 'pending',
+                            color: isTerminal ? '#ef4444' : '#10b981'
+                        }
+                    ];
+
+                    return (
+                        <div
+                            key={item.id}
+                            onClick={() => openEditJobModal && openEditJobModal(item.id)}
+                            role="button"
+                            tabIndex={0}
+                            style={{
+                                padding: '14px 16px',
+                                borderRadius: '12px',
+                                background: 'var(--bg-card)',
+                                border: `1px solid ${item.isAlert ? (item.alertType === 'ghost' ? '#ef4444' : '#f59e0b') : 'var(--border-subtle)'}`,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px',
+                                transition: prefersReducedMotion ? 'none' : 'transform 0.15s ease'
+                            }}
+                        >
+                            {/* Card Header: Company, Role, Stage Badge */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                                <div style={{ overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <strong style={{ fontSize: '0.98rem', color: 'var(--text-primary)' }}>
+                                            {item.company}
+                                        </strong>
+                                        {item.isAlert && (
+                                            <span style={{
+                                                width: '7px',
+                                                height: '7px',
+                                                borderRadius: '50%',
+                                                background: item.alertType === 'ghost' ? '#ef4444' : '#f59e0b',
+                                                flexShrink: 0
+                                            }} />
+                                        )}
+                                    </div>
+                                    <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {item.role}
+                                    </p>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+                                    <span style={{
+                                        color: item.stageColor,
+                                        backgroundColor: item.stageBg,
+                                        border: `1px solid ${item.stageBorder}`,
+                                        padding: '2px 8px',
+                                        borderRadius: '999px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700
+                                    }}>
+                                        {item.shortStageLabel}
+                                    </span>
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                        {item.durationDays}d total
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Urgency / Alert Pill */}
+                            {item.isAlert ? (
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 600,
+                                    background: item.alertType === 'ghost' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                                    color: item.alertType === 'ghost' ? '#ef4444' : '#f59e0b',
+                                    border: `1px solid ${item.alertType === 'ghost' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                                }}>
+                                    {item.alertType === 'ghost' ? <AlertCircle size={12} /> : <Clock size={12} />}
+                                    <span>{item.alertLabel}</span>
+                                </div>
+                            ) : (
+                                <div style={{
+                                    fontSize: '0.72rem',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <span>⏱️ In {item.shortStageLabel}: {item.daysInStage}d</span>
+                                    <span>·</span>
+                                    <span>Started: {new Date(item.startDateMs).toLocaleDateString()}</span>
+                                </div>
+                            )}
+
+                            {/* 4-Step Mini Lifecycle Pacing Stepper */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-panel)',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                position: 'relative'
+                            }}>
+                                {steps.map((st, idx) => (
+                                    <div
+                                        key={st.label}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            flex: idx < steps.length - 1 ? 1 : 'none'
+                                        }}
+                                    >
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: '2px'
+                                        }}>
+                                            <div style={{
+                                                width: '18px',
+                                                height: '18px',
+                                                borderRadius: '50%',
+                                                backgroundColor: st.state === 'done' || st.state === 'current' ? st.color : 'transparent',
+                                                border: `2px solid ${st.state === 'pending' ? 'var(--border-subtle)' : st.color}`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                boxShadow: st.state === 'current' ? `0 0 0 3px rgba(107, 126, 103, 0.25)` : 'none'
+                                            }}>
+                                                {st.state === 'done' && <Check size={10} color="#ffffff" strokeWidth={3} />}
+                                                {st.state === 'current' && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffffff' }} />}
+                                            </div>
+                                            <span style={{
+                                                fontSize: '0.64rem',
+                                                fontWeight: st.state === 'current' ? 700 : 500,
+                                                color: st.state === 'current' ? 'var(--text-primary)' : 'var(--text-secondary)'
+                                            }}>
+                                                {st.label}
+                                            </span>
+                                        </div>
+                                        {idx < steps.length - 1 && (
+                                            <div style={{
+                                                flex: 1,
+                                                height: '2px',
+                                                backgroundColor: steps[idx + 1].state !== 'pending' ? st.color : 'var(--border-subtle)',
+                                                margin: '0 6px 14px 6px'
+                                            }} />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Card Footer: Location/Salary & Tap to View */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-secondary)',
+                                paddingTop: '2px'
+                            }}>
+                                <span>{item.location || (item.salary ? item.salary : 'Tap to inspect')}</span>
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    color: 'var(--accent-primary)',
+                                    fontWeight: 600
+                                }}>
+                                    <span>Milestones</span>
+                                    <ChevronRight size={12} />
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
 
     return (
         <section
@@ -324,6 +583,68 @@ export default function JobGanttChart({ jobs, compact = false }) {
                             )}
                         </button>
                     </div>
+
+                    {/* Format Switcher (Cards vs Swimlanes) when on Gantt tab */}
+                    {activeTab === 'gantt' && (
+                        <div
+                            role="group"
+                            aria-label="Gantt layout format"
+                            style={{
+                                display: 'inline-flex',
+                                padding: '3px',
+                                borderRadius: '10px',
+                                background: 'var(--bg-panel)',
+                                border: '1px solid var(--border-subtle)',
+                                fontSize: '0.74rem',
+                                fontWeight: 600
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => handleFormatChange('cards')}
+                                aria-pressed={activeGanttFormat === 'cards'}
+                                title="Mobile timeline cards view"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '4px 10px',
+                                    borderRadius: '7px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    background: activeGanttFormat === 'cards' ? 'var(--accent-primary)' : 'transparent',
+                                    color: activeGanttFormat === 'cards' ? '#ffffff' : 'var(--text-secondary)',
+                                    fontWeight: activeGanttFormat === 'cards' ? 700 : 500,
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <List size={12} aria-hidden="true" />
+                                <span>Cards</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleFormatChange('swimlanes')}
+                                aria-pressed={activeGanttFormat === 'swimlanes'}
+                                title="Full horizontal Gantt swimlanes"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '4px 10px',
+                                    borderRadius: '7px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    background: activeGanttFormat === 'swimlanes' ? 'var(--accent-primary)' : 'transparent',
+                                    color: activeGanttFormat === 'swimlanes' ? '#ffffff' : 'var(--text-secondary)',
+                                    fontWeight: activeGanttFormat === 'swimlanes' ? 700 : 500,
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <Calendar size={12} aria-hidden="true" />
+                                <span>Swimlanes</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Action Tools: Time Range, Copy, SVG */}
@@ -429,8 +750,17 @@ export default function JobGanttChart({ jobs, compact = false }) {
                 paddingTop: '14px',
                 paddingBottom: '8px'
             }}>
-                {/* Status / Category Pills */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
+                {/* Status / Category Pills (Horizontal scrollable chip rail on mobile) */}
+                <div style={{
+                    display: 'flex',
+                    overflowX: 'auto',
+                    flexWrap: containerWidth < 700 ? 'nowrap' : 'wrap',
+                    WebkitOverflowScrolling: 'touch',
+                    alignItems: 'center',
+                    gap: '6px',
+                    paddingBottom: '4px',
+                    maxWidth: '100%'
+                }}>
                     {GANTT_STATUS_FILTERS.map(f => (
                         <button
                             key={f.id}
@@ -438,6 +768,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
                             aria-pressed={statusFilter === f.id}
                             onClick={() => handleStatusFilterChange(f.id)}
                             style={{
+                                flexShrink: 0,
                                 padding: '4px 10px',
                                 borderRadius: '8px',
                                 fontSize: '0.75rem',
@@ -541,128 +872,148 @@ export default function JobGanttChart({ jobs, compact = false }) {
             {/* Main Content Area */}
             <div style={{ marginTop: '14px' }}>
                 {activeTab === 'gantt' ? (
-                    /* ================= GANTT TIMELINE SWIMLANE VIEW ================= */
-                    hasData ? (
-                        <div style={{
-                            borderRadius: '12px',
-                            border: '1px solid var(--border-subtle)',
-                            background: 'var(--bg-card)',
-                            overflow: 'hidden',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                        }}>
+                    activeGanttFormat === 'cards' ? (
+                        renderMobileTimelineCards()
+                    ) : (
+                        /* ================= GANTT TIMELINE SWIMLANE VIEW ================= */
+                        hasData ? (
                             <div style={{
-                                display: 'flex',
-                                overflowX: 'auto',
-                                WebkitOverflowScrolling: 'touch',
-                                width: '100%'
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-subtle)',
+                                background: 'var(--bg-card)',
+                                overflow: 'hidden',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                             }}>
-                                {/* Left Sticky Role Column */}
-                                <div style={{
-                                    width: `${leftColWidth}px`,
-                                    minWidth: `${leftColWidth}px`,
-                                    borderRight: '1px solid var(--border-subtle)',
-                                    background: 'var(--bg-card)',
-                                    flexShrink: 0,
-                                    zIndex: 10,
-                                    position: 'sticky',
-                                    left: 0
-                                }}>
+                                {isMobile && (
                                     <div style={{
-                                        height: `${headerHeight}px`,
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '0 12px',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        padding: '6px 10px',
+                                        background: 'rgba(107, 126, 103, 0.12)',
                                         borderBottom: '1px solid var(--border-subtle)',
-                                        background: 'var(--bg-panel)',
-                                        fontSize: '0.68rem',
-                                        fontWeight: 700,
-                                        color: 'var(--text-secondary)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em'
+                                        fontSize: '0.73rem',
+                                        color: 'var(--text-secondary)'
                                     }}>
-                                        <span>Company &amp; Role</span>
-                                        <span>Stage / Days</span>
+                                        <span>👉 Swipe timeline horizontally to view weeks &amp; dates</span>
                                     </div>
-                                    <div>
-                                        {items.map(item => (
-                                            <div
-                                                key={item.id}
-                                                style={{
-                                                    height: `${rowHeight}px`,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    padding: '0 12px',
-                                                    cursor: 'pointer',
-                                                    borderBottom: '1px solid var(--border-subtle)',
-                                                    background: hoveredItemId === item.id ? 'var(--bg-panel)' : 'transparent',
-                                                    transition: 'background-color 0.15s ease'
-                                                }}
-                                                onClick={() => openEditJobModal && openEditJobModal(item.id)}
-                                                onMouseEnter={() => setHoveredItemId(item.id)}
-                                                onMouseLeave={() => setHoveredItemId(null)}
-                                            >
-                                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{
-                                                            fontWeight: 700,
-                                                            fontSize: '0.78rem',
-                                                            color: hoveredItemId === item.id ? 'var(--accent-primary)' : 'var(--text-primary)',
+                                )}
+                                <div style={{
+                                    display: 'flex',
+                                    overflowX: 'auto',
+                                    WebkitOverflowScrolling: 'touch',
+                                    width: '100%'
+                                }}>
+                                    {/* Left Sticky Role Column */}
+                                    <div style={{
+                                        width: `${leftColWidth}px`,
+                                        minWidth: `${leftColWidth}px`,
+                                        borderRight: '1px solid var(--border-subtle)',
+                                        background: 'var(--bg-card)',
+                                        flexShrink: 0,
+                                        zIndex: 10,
+                                        position: 'sticky',
+                                        left: 0
+                                    }}>
+                                        <div style={{
+                                            height: `${headerHeight}px`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0 12px',
+                                            borderBottom: '1px solid var(--border-subtle)',
+                                            background: 'var(--bg-panel)',
+                                            fontSize: '0.68rem',
+                                            fontWeight: 700,
+                                            color: 'var(--text-secondary)',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
+                                        }}>
+                                            <span>Company</span>
+                                            <span>Stage</span>
+                                        </div>
+                                        <div>
+                                            {items.map(item => (
+                                                <div
+                                                    key={item.id}
+                                                    style={{
+                                                        height: `${rowHeight}px`,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        padding: '0 12px',
+                                                        cursor: 'pointer',
+                                                        borderBottom: '1px solid var(--border-subtle)',
+                                                        background: hoveredItemId === item.id ? 'var(--bg-panel)' : 'transparent',
+                                                        transition: 'background-color 0.15s ease'
+                                                    }}
+                                                    onClick={() => openEditJobModal && openEditJobModal(item.id)}
+                                                    onMouseEnter={() => setHoveredItemId(item.id)}
+                                                    onMouseLeave={() => setHoveredItemId(null)}
+                                                >
+                                                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '6px', maxWidth: containerWidth < 680 ? '60px' : '150px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <span style={{
+                                                                fontWeight: 700,
+                                                                fontSize: '0.78rem',
+                                                                color: hoveredItemId === item.id ? 'var(--accent-primary)' : 'var(--text-primary)',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap'
+                                                            }}>
+                                                                {item.company}
+                                                            </span>
+                                                            {item.isAlert && (
+                                                                <span
+                                                                    title={item.alertLabel}
+                                                                    style={{
+                                                                        width: '6px',
+                                                                        height: '6px',
+                                                                        borderRadius: '50%',
+                                                                        flexShrink: 0,
+                                                                        background: item.alertType === 'ghost' ? '#ef4444' : '#f59e0b'
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                        <p style={{
+                                                            fontSize: '0.68rem',
+                                                            color: 'var(--text-secondary)',
+                                                            margin: 0,
                                                             overflow: 'hidden',
                                                             textOverflow: 'ellipsis',
                                                             whiteSpace: 'nowrap'
                                                         }}>
-                                                            {item.company}
+                                                            {item.role}
+                                                        </p>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span style={{
+                                                            color: item.stageColor,
+                                                            backgroundColor: item.stageBg,
+                                                            border: `1px solid ${item.stageBorder}`,
+                                                            padding: '2px 5px',
+                                                            borderRadius: '4px',
+                                                            fontSize: containerWidth < 680 ? '0.62rem' : '0.64rem',
+                                                            fontWeight: 700
+                                                        }}>
+                                                            {item.shortStageLabel}
                                                         </span>
-                                                        {item.isAlert && (
-                                                            <span
-                                                                title={item.alertLabel}
-                                                                style={{
-                                                                    width: '6px',
-                                                                    height: '6px',
-                                                                    borderRadius: '50%',
-                                                                    flexShrink: 0,
-                                                                    background: item.alertType === 'ghost' ? '#ef4444' : '#f59e0b'
-                                                                }}
-                                                            />
+                                                        {containerWidth >= 680 && (
+                                                            <span style={{
+                                                                fontSize: '0.7rem',
+                                                                fontFamily: 'monospace',
+                                                                color: 'var(--text-secondary)'
+                                                            }}>
+                                                                {item.durationDays}d
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    <p style={{
-                                                        fontSize: '0.7rem',
-                                                        color: 'var(--text-secondary)',
-                                                        margin: 0,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap'
-                                                    }}>
-                                                        {item.role}
-                                                    </p>
                                                 </div>
-                                                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <span style={{
-                                                        color: item.stageColor,
-                                                        backgroundColor: item.stageBg,
-                                                        border: `1px solid ${item.stageBorder}`,
-                                                        padding: '2px 6px',
-                                                        borderRadius: '4px',
-                                                        fontSize: '0.64rem',
-                                                        fontWeight: 700
-                                                    }}>
-                                                        {item.shortStageLabel}
-                                                    </span>
-                                                    <span style={{
-                                                        fontSize: '0.7rem',
-                                                        fontFamily: 'monospace',
-                                                        color: 'var(--text-secondary)'
-                                                    }}>
-                                                        {item.durationDays}d
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
 
                                 {/* Right Horizontally Scrollable Timeline with SVG Swimlanes */}
                                 <div style={{
@@ -1035,92 +1386,92 @@ export default function JobGanttChart({ jobs, compact = false }) {
                             )}
                         </div>
                     )
-                ) : (
+                )) : (
                     /* ================= VELOCITY & DIAGNOSTIC INSIGHTS VIEW ================= */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                        {/* 4 KPI Metric Cards */}
+                        {/* 4 KPI Metric Cards (2x2 grid on mobile) */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                            gap: '12px'
+                            gridTemplateColumns: containerWidth < 520 ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(210px, 1fr))',
+                            gap: containerWidth < 520 ? '8px' : '12px'
                         }}>
                             {/* Card 1: Pipeline Velocity */}
                             <div style={{
-                                padding: '16px',
+                                padding: containerWidth < 520 ? '12px 14px' : '16px',
                                 borderRadius: '12px',
                                 border: '1px solid var(--border-subtle)',
                                 background: 'var(--bg-panel)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Avg Cycle Duration</span>
+                                    <span style={{ fontSize: containerWidth < 520 ? '0.7rem' : '0.75rem', fontWeight: 600 }}>Avg Cycle</span>
                                     <Clock size={16} color="var(--accent-primary)" aria-hidden="true" />
                                 </div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                                <div style={{ fontSize: containerWidth < 520 ? '1.35rem' : '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                     {insights.avgActiveCycleDays}
                                     <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '4px' }}>days active</span>
                                 </div>
-                                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-                                    Resolved roles average {insights.avgResolvedCycleDays}d to finish
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                                    Resolved average {insights.avgResolvedCycleDays}d
                                 </p>
                             </div>
 
                             {/* Card 2: Callback Velocity */}
                             <div style={{
-                                padding: '16px',
+                                padding: containerWidth < 520 ? '12px 14px' : '16px',
                                 borderRadius: '12px',
                                 border: '1px solid var(--border-subtle)',
                                 background: 'var(--bg-panel)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Callback Velocity</span>
+                                    <span style={{ fontSize: containerWidth < 520 ? '0.7rem' : '0.75rem', fontWeight: 600 }}>Callback Pace</span>
                                     <Zap size={16} color="#10b981" aria-hidden="true" />
                                 </div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                                <div style={{ fontSize: containerWidth < 520 ? '1.35rem' : '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                     ~{insights.avgCallbackVelocityDays}
                                     <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '4px' }}>days</span>
                                 </div>
-                                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-                                    Average time to first recruiter screening
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                                    Time to first recruiter screen
                                 </p>
                             </div>
 
                             {/* Card 3: Follow-Up Radar */}
                             <div style={{
-                                padding: '16px',
+                                padding: containerWidth < 520 ? '12px 14px' : '16px',
                                 borderRadius: '12px',
                                 border: '1px solid var(--border-subtle)',
                                 background: 'var(--bg-panel)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Action Radar</span>
+                                    <span style={{ fontSize: containerWidth < 520 ? '0.7rem' : '0.75rem', fontWeight: 600 }}>Action Radar</span>
                                     <AlertTriangle size={16} color="#f59e0b" aria-hidden="true" />
                                 </div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                                <div style={{ fontSize: containerWidth < 520 ? '1.35rem' : '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                     {insights.followupCount + insights.ghostAlertCount}
                                     <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '4px' }}>roles</span>
                                 </div>
-                                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                                     {insights.followupCount} follow-ups · {insights.ghostAlertCount} stalled
                                 </p>
                             </div>
 
                             {/* Card 4: In-Flight Pipeline */}
                             <div style={{
-                                padding: '16px',
+                                padding: containerWidth < 520 ? '12px 14px' : '16px',
                                 borderRadius: '12px',
                                 border: '1px solid var(--border-subtle)',
                                 background: 'var(--bg-panel)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Active In-Flight</span>
+                                    <span style={{ fontSize: containerWidth < 520 ? '0.7rem' : '0.75rem', fontWeight: 600 }}>Active In-Flight</span>
                                     <Activity size={16} color="var(--accent-secondary)" aria-hidden="true" />
                                 </div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                                <div style={{ fontSize: containerWidth < 520 ? '1.35rem' : '1.6rem', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                     {insights.activeCount}
                                     <span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '4px' }}>roles</span>
                                 </div>
-                                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-                                    Out of {insights.totalTracked} total applications recorded
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                                    Of {insights.totalTracked} total tracked
                                 </p>
                             </div>
                         </div>
