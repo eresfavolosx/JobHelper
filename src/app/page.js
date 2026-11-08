@@ -4,7 +4,7 @@ import { useUIStore } from '@/lib/uiStore';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2 } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
@@ -283,6 +283,20 @@ export default function Home() {
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
                 </Link>
 
+                <Link
+                    href="/gantt"
+                    className="card interactive-card"
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <Timer size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
+                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Timeline & Gantt</h3>
+                    </div>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
+                        Gantt & Velocity &rarr;
+                    </p>
+                </Link>
+
                 {isOwner(user) && <AiSafetyBadge variant="dashboard-card" />}
             </div>
 
@@ -290,10 +304,14 @@ export default function Home() {
             <GoalTrackerWidget />
 
             {/* Interactive Sankey Flow & Conversion / Success Rate Analytics */}
-            <JobSankeyChart jobs={jobs} />
+            <div id="sankey">
+                <JobSankeyChart jobs={jobs} />
+            </div>
 
             {/* Application Gantt Chart & Pipeline Velocity Insights */}
-            <JobGanttChart jobs={jobs} />
+            <div id="gantt">
+                <JobGanttChart jobs={jobs} />
+            </div>
 
             <ApplicationHistoryChart jobs={jobs} />
         </div>
