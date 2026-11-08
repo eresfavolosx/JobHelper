@@ -4,7 +4,7 @@ import { useUIStore } from '@/lib/uiStore';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer, GitBranch } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
@@ -65,18 +65,15 @@ export default function Home() {
     if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
-    if (!jobs || stats.total === 0) {
-        return (
-            <div className="container">
-                <Onboarding />
-                <JobSettingsBanner showGoalSummary={false} />
-                <GoalTrackerWidget />
-            </div>
-        );
-    }
+    const isNewUser = !jobs || stats.total === 0;
 
     return (
         <div className="container">
+            {isNewUser && (
+                <div style={{ marginBottom: '20px' }}>
+                    <Onboarding />
+                </div>
+            )}
             <header style={{
                 marginBottom: '20px',
                 display: 'flex',
@@ -281,6 +278,20 @@ export default function Home() {
                         <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Offers</h3>
                     </div>
                     <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{stats.offers}</p>
+                </Link>
+
+                <Link
+                    href="/sankey"
+                    className="card interactive-card"
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <GitBranch size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
+                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Pipeline Flow</h3>
+                    </div>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
+                        Sankey &amp; Rates &rarr;
+                    </p>
                 </Link>
 
                 <Link

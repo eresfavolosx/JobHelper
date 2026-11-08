@@ -35,9 +35,19 @@ const STORAGE_KEY_GANTT_STATUS = 'novujobs_gantt_status';
 
 function subscribeReducedMotion(callback) {
     if (typeof window === 'undefined' || !window.matchMedia) return () => {};
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    mq.addEventListener('change', callback);
-    return () => mq.removeEventListener('change', callback);
+    try {
+        const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', callback);
+            return () => mq.removeEventListener('change', callback);
+        } else if (typeof mq.addListener === 'function') {
+            mq.addListener(callback);
+            return () => mq.removeListener(callback);
+        }
+    } catch {
+        /* Safari sandbox fallback */
+    }
+    return () => {};
 }
 
 function getReducedMotionSnapshot() {
