@@ -15,17 +15,29 @@ import {
     Sparkles,
     Table,
     X,
-    ArrowRight
+    ArrowRight,
+    ArrowDown,
+    ChevronDown,
+    ChevronUp,
+    ListTree,
+    Layers,
+    Send,
+    MessageSquare,
+    Users,
+    Briefcase
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import {
     buildJobSankeyData,
     SANKEY_TIME_RANGES,
-    formatPipelineSummaryMarkdown
+    formatPipelineSummaryMarkdown,
+    classifyJobProgression,
+    filterJobsForSankey
 } from '@/lib/sankey-utils';
 
 const STORAGE_KEY_SANKEY_MODE = 'novujobs_sankey_mode';
 const STORAGE_KEY_SANKEY_RANGE = 'novujobs_sankey_range';
+const STORAGE_KEY_SANKEY_FORMAT = 'novujobs_sankey_format';
 
 function subscribeReducedMotion(callback) {
     if (typeof window === 'undefined' || !window.matchMedia) return () => {};
@@ -69,6 +81,36 @@ export default function JobSankeyChart({ jobs, compact = false }) {
     const svgRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(860);
 
+    const [layoutFormat, setLayoutFormat] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(STORAGE_KEY_SANKEY_FORMAT);
+            if (saved === 'flow' || saved === 'diagram') return saved;
+        }
+        return 'auto';
+    });
+
+    const isMobile = containerWidth < 700;
+    const activeFormat = layoutFormat === 'auto' ? (isMobile ? 'flow' : 'diagram') : layoutFormat;
+
+    const handleFormatChange = (fmt) => {
+        setLayoutFormat(fmt);
+        if (typeof window !== 'undefined') {
+            try { localStorage.setItem(STORAGE_KEY_SANKEY_FORMAT, fmt); } catch { /* ignore */ }
+        }
+    };
+
+    const [expandedStages, setExpandedStages] = useState({
+        applied: false,
+        screening: false,
+        interview: false,
+        offer: false,
+        wishlist: false
+    });
+
+    const toggleStage = (stageKey) => {
+        setExpandedStages(prev => ({ ...prev, [stageKey]: !prev[stageKey] }));
+    };
+
     const [mode, setMode] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem(STORAGE_KEY_SANKEY_MODE);
@@ -96,7 +138,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
         const observer = new ResizeObserver(entries => {
             for (const entry of entries) {
                 if (entry.contentRect?.width) {
-                    setContainerWidth(Math.max(540, Math.floor(entry.contentRect.width)));
+                    setContainerWidth(Math.floor(entry.contentRect.width));
                 }
             }
         });
@@ -126,10 +168,36 @@ export default function JobSankeyChart({ jobs, compact = false }) {
         return buildJobSankeyData(jobs, {
             mode,
             range,
-            width: containerWidth,
+            width: Math.max(540, containerWidth),
             height: chartHeight
         });
     }, [jobs, mode, range, containerWidth, chartHeight]);
+
+    // Categorized job roles per funnel stage for mobile cards inspection
+    const stageRoles = useMemo(() => {
+        if (!jobs || !Array.isArray(jobs)) {
+            return { wishlist: [], applied: [], screening: [], interview: [], offer: [] };
+        }
+        const filtered = filterJobsForSankey(jobs, { range });
+        const wishlist = [];
+        const applied = [];
+        const screening = [];
+        const interview = [];
+        const offer = [];
+
+        for (const job of filtered) {
+            const prog = classifyJobProgression(job);
+            if (prog.isWishlistOnly) {
+                wishlist.push(job);
+            } else {
+                applied.push(job);
+                if (prog.reachedScreening) screening.push(job);
+                if (prog.reachedInterview) interview.push(job);
+                if (prog.reachedOffer) offer.push(job);
+            }
+        }
+        return { wishlist, applied, screening, interview, offer };
+    }, [jobs, range]);
 
     const { stats, nodes, links, columns } = sankey;
 
@@ -285,8 +353,325 @@ export default function JobSankeyChart({ jobs, compact = false }) {
         );
     }
 
+    const renderMobileFlowCards = () => {
+        const stageList = [
+            {
+                key: 'applied',
+                title: '1. Applications Submitted',
+                count: stats.totalApplied,
+                subText: `${stats.activePipelineCount} active · ${stats.screeningReachedCount} advanced · ${stats.rejectedEarlyCount + stats.archivedEarlyCount} dropped early`,
+                color: '#6B7E67',
+                pct: 100,
+                icon: Send,
+                roles: stageRoles.applied,
+                badge: '100% of pipeline',
+                boardStage: 'applied'
+            },
+            {
+                key: 'screening',
+                title: '2. Initial Screening & Recruiter Calls',
+                count: stats.screeningReachedCount,
+                subText: `${stats.screeningActiveCount} active now · ${stats.interviewReachedCount} moved to interviews`,
+                color: '#0ea5e9',
+                pct: stats.rates.screeningRate,
+                icon: MessageSquare,
+                roles: stageRoles.screening,
+                badge: `${stats.rates.screeningRate}% callback rate`,
+                boardStage: 'screening'
+            },
+            {
+                key: 'interview',
+                title: '3. Technical & Team Interviews',
+                count: stats.interviewReachedCount,
+                subText: `${stats.interviewActiveCount} active loops · ${stats.offerReachedCount} reached offer`,
+                color: '#D4A373',
+                pct: stats.rates.interviewRate,
+                icon: Users,
+                roles: stageRoles.interview,
+                badge: `${stats.rates.interviewRate}% of applied`,
+                boardStage: 'interviewing'
+            },
+            {
+                key: 'offer',
+                title: '4. Job Offers & Outcomes',
+                count: stats.offerReachedCount,
+                subText: `${stats.acceptedCount} accepted 🎉 · ${stats.offerPendingCount} pending decision`,
+                color: '#10b981',
+                pct: stats.rates.offerRate,
+                icon: Award,
+                roles: stageRoles.offer,
+                badge: `${stats.rates.offerRate}% win rate`,
+                boardStage: 'offer'
+            }
+        ];
+
+        const bridges = [
+            {
+                rate: `${stats.rates.screeningRate}% Callback Rate`,
+                detail: `${stats.screeningReachedCount} of ${stats.totalApplied} reached screening · ${stats.rejectedEarlyCount + stats.archivedEarlyCount} dropped early`,
+                color: '#0ea5e9'
+            },
+            {
+                rate: `${stats.rates.screeningToInterviewRate}% Screen-to-Interview`,
+                detail: `${stats.interviewReachedCount} of ${stats.screeningReachedCount} advanced to loops`,
+                color: '#D4A373'
+            },
+            {
+                rate: `${stats.rates.interviewToOfferRate}% Interview Win Rate`,
+                detail: `${stats.offerReachedCount} won of ${stats.interviewReachedCount} interviewed`,
+                color: '#10b981'
+            }
+        ];
+
+        return (
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    width: '100%'
+                }}
+            >
+                {/* Optional Wishlist Card */}
+                {stageRoles.wishlist.length > 0 && (
+                    <div style={{
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        marginBottom: '8px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Briefcase size={16} color="var(--text-secondary)" />
+                                <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                                    Wishlist (Saved Opportunities)
+                                </strong>
+                            </div>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                                {stageRoles.wishlist.length} saved
+                            </span>
+                        </div>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                            Roles in research or waiting to be applied.
+                        </p>
+                    </div>
+                )}
+
+                {/* Progressive Flow Stage Cards */}
+                {stageList.map((stg, idx) => {
+                    const Icon = stg.icon;
+                    const isExpanded = expandedStages[stg.key];
+                    const bridge = bridges[idx];
+
+                    return (
+                        <div key={stg.key} style={{ display: 'flex', flexDirection: 'column' }}>
+                            {/* The Stage Card */}
+                            <div style={{
+                                padding: '14px 16px',
+                                borderRadius: '12px',
+                                background: 'var(--bg-card)',
+                                border: `1px solid ${isExpanded ? stg.color : 'var(--border-subtle)'}`,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                transition: prefersReducedMotion ? 'none' : 'border-color 0.15s ease'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <div style={{
+                                            padding: '6px',
+                                            borderRadius: '8px',
+                                            backgroundColor: `rgba(${stg.color === '#6B7E67' ? '107, 126, 103' : stg.color === '#0ea5e9' ? '14, 165, 233' : stg.color === '#D4A373' ? '212, 163, 115' : '16, 185, 129'}, 0.16)`,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <Icon size={16} color={stg.color} />
+                                        </div>
+                                        <div>
+                                            <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                                                {stg.title}
+                                            </strong>
+                                            <p style={{ margin: '2px 0 0 0', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
+                                                {stg.subText}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: stg.color }}>
+                                            {stg.count}
+                                        </div>
+                                        <span style={{
+                                            fontSize: '0.68rem',
+                                            padding: '2px 6px',
+                                            borderRadius: '999px',
+                                            background: 'var(--bg-panel)',
+                                            color: 'var(--text-secondary)',
+                                            fontWeight: 600
+                                        }}>
+                                            {stg.badge}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div style={{
+                                    width: '100%',
+                                    height: '6px',
+                                    borderRadius: '999px',
+                                    backgroundColor: 'rgba(148, 163, 184, 0.16)',
+                                    overflow: 'hidden',
+                                    margin: '10px 0 8px 0'
+                                }}>
+                                    <div style={{
+                                        width: `${Math.min(100, Math.max(stg.count > 0 ? 5 : 0, stg.pct))}%`,
+                                        height: '100%',
+                                        borderRadius: '999px',
+                                        backgroundColor: stg.color,
+                                        transition: prefersReducedMotion ? 'none' : 'width 0.35s ease'
+                                    }} />
+                                </div>
+
+                                {/* Drawer Toggle & Board Link */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    paddingTop: '4px'
+                                }}>
+                                    {stg.roles.length > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleStage(stg.key)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                padding: '4px 0',
+                                                fontSize: '0.74rem',
+                                                fontWeight: 700,
+                                                color: stg.color,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            <span>{isExpanded ? 'Hide Roles' : `Inspect ${stg.roles.length} ${stg.roles.length === 1 ? 'Role' : 'Roles'}`}</span>
+                                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        </button>
+                                    ) : (
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                            No active roles in this stage
+                                        </span>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleJumpToStageOnBoard(stg.boardStage)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: '4px 0',
+                                            fontSize: '0.72rem',
+                                            color: 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '3px'
+                                        }}
+                                    >
+                                        <span>Board</span>
+                                        <ExternalLink size={11} />
+                                    </button>
+                                </div>
+
+                                {/* Expanded Roles Drawer */}
+                                {isExpanded && stg.roles.length > 0 && (
+                                    <div style={{
+                                        marginTop: '10px',
+                                        paddingTop: '10px',
+                                        borderTop: '1px solid var(--border-subtle)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '6px'
+                                    }}>
+                                        {stg.roles.map(job => (
+                                            <div
+                                                key={job.id}
+                                                onClick={() => openEditJobModal(job)}
+                                                role="button"
+                                                tabIndex={0}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '8px 10px',
+                                                    borderRadius: '8px',
+                                                    backgroundColor: 'var(--bg-panel)',
+                                                    border: '1px solid var(--border-subtle)',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>
+                                                    <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{job.company}</strong>
+                                                    <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {job.role || job.title || 'Role'}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                                    {job.salary && (
+                                                        <span style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', background: 'var(--bg-card)', padding: '2px 5px', borderRadius: '4px' }}>
+                                                            {job.salary}
+                                                        </span>
+                                                    )}
+                                                    <ExternalLink size={12} color="var(--text-secondary)" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Downward Conversion Bridge */}
+                            {bridge && idx < stageList.length - 1 && (
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    padding: '6px 0'
+                                }}>
+                                    <div style={{ width: '2px', height: '10px', background: 'var(--border-subtle)' }} />
+                                    <div style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '4px 12px',
+                                        borderRadius: '999px',
+                                        backgroundColor: 'var(--bg-panel)',
+                                        border: `1px solid ${bridge.color}`,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        color: bridge.color,
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                    }}>
+                                        <ArrowDown size={12} />
+                                        <span>{bridge.rate}</span>
+                                    </div>
+                                    <span style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                        {bridge.detail}
+                                    </span>
+                                    <div style={{ width: '2px', height: '10px', background: 'var(--border-subtle)' }} />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     return (
         <section
+            ref={containerRef}
             className="card"
             aria-label="Job Search Pipeline Sankey Diagram and Conversion Statistics"
             style={{
@@ -348,6 +733,68 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '8px',
                     flexWrap: 'wrap'
                 }}>
+                    {/* Layout View Format Switcher: Mobile Cards vs Diagram */}
+                    <div
+                        role="group"
+                        aria-label="Sankey layout format"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            backgroundColor: 'var(--bg-panel)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: '8px',
+                            padding: '3px',
+                            gap: '2px'
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => handleFormatChange('flow')}
+                            aria-pressed={activeFormat === 'flow'}
+                            title="Mobile-optimized progressive flow cards"
+                            style={{
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '5px 10px',
+                                fontSize: '0.75rem',
+                                fontWeight: activeFormat === 'flow' ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: activeFormat === 'flow' ? 'var(--accent-primary)' : 'transparent',
+                                color: activeFormat === 'flow' ? '#ffffff' : 'var(--text-secondary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                transition: prefersReducedMotion ? 'none' : 'all 0.15s ease'
+                            }}
+                        >
+                            <ListTree size={13} aria-hidden="true" />
+                            <span>Flow Cards</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleFormatChange('diagram')}
+                            aria-pressed={activeFormat === 'diagram'}
+                            title="Full 5-column Sankey ribbon diagram"
+                            style={{
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '5px 10px',
+                                fontSize: '0.75rem',
+                                fontWeight: activeFormat === 'diagram' ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: activeFormat === 'diagram' ? 'var(--accent-primary)' : 'transparent',
+                                color: activeFormat === 'diagram' ? '#ffffff' : 'var(--text-secondary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                transition: prefersReducedMotion ? 'none' : 'all 0.15s ease'
+                            }}
+                        >
+                            <GitBranch size={13} aria-hidden="true" />
+                            <span>Diagram (SVG)</span>
+                        </button>
+                    </div>
+
                     {/* View Mode Switcher */}
                     <div
                         role="group"
@@ -480,16 +927,16 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                 </div>
             </div>
 
-            {/* 4 Key Conversion & Success Rate KPI Cards */}
+            {/* 4 Key Conversion & Success Rate KPI Cards (2x2 grid on mobile) */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(195px, 1fr))',
-                gap: '12px',
+                gridTemplateColumns: containerWidth < 540 ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(195px, 1fr))',
+                gap: containerWidth < 540 ? '8px' : '12px',
                 marginBottom: '18px'
             }}>
                 {/* KPI 1: Callback / Screening Rate */}
                 <div style={{
-                    padding: '14px 16px',
+                    padding: containerWidth < 540 ? '10px 12px' : '14px 16px',
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
@@ -498,27 +945,27 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '4px'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            Callback / Screening Rate
+                        <span style={{ fontSize: containerWidth < 540 ? '0.7rem' : '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Callback Rate
                         </span>
                         <TrendingUp size={15} color="#0ea5e9" aria-hidden="true" />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                        <span style={{ fontSize: '1.55rem', fontWeight: 800, color: '#0ea5e9' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: containerWidth < 540 ? '1.35rem' : '1.55rem', fontWeight: 800, color: '#0ea5e9' }}>
                             {stats.rates.screeningRate}%
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            ({stats.screeningReachedCount} of {stats.totalApplied} applied)
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            ({stats.screeningReachedCount}/{stats.totalApplied})
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        Applications advancing past initial resume screen
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                        Advancing past initial screen
                     </span>
                 </div>
 
                 {/* KPI 2: Interview Conversion Rate */}
                 <div style={{
-                    padding: '14px 16px',
+                    padding: containerWidth < 540 ? '10px 12px' : '14px 16px',
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
@@ -527,29 +974,29 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '4px'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        <span style={{ fontSize: containerWidth < 540 ? '0.7rem' : '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                             Interview Conversion
                         </span>
                         <Activity size={15} color="#D4A373" aria-hidden="true" />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                        <span style={{ fontSize: '1.55rem', fontWeight: 800, color: '#D4A373' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: containerWidth < 540 ? '1.35rem' : '1.55rem', fontWeight: 800, color: '#D4A373' }}>
                             {stats.rates.interviewRate}%
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            ({stats.interviewReachedCount} interviewed)
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            ({stats.interviewReachedCount} roles)
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
                         {stats.screeningReachedCount > 0
-                            ? `${stats.rates.screeningToInterviewRate}% of screened roles reached interviews`
-                            : `${stats.interviewActiveCount} active interviews right now`}
+                            ? `${stats.rates.screeningToInterviewRate}% of screened roles`
+                            : `${stats.interviewActiveCount} active`}
                     </span>
                 </div>
 
                 {/* KPI 3: Offer Success Rate */}
                 <div style={{
-                    padding: '14px 16px',
+                    padding: containerWidth < 540 ? '10px 12px' : '14px 16px',
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
@@ -558,29 +1005,29 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '4px'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            Offer Success Rate
+                        <span style={{ fontSize: containerWidth < 540 ? '0.7rem' : '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Offer Win Rate
                         </span>
                         <Award size={15} color="#10b981" aria-hidden="true" />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                        <span style={{ fontSize: '1.55rem', fontWeight: 800, color: '#10b981' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: containerWidth < 540 ? '1.35rem' : '1.55rem', fontWeight: 800, color: '#10b981' }}>
                             {stats.rates.offerRate}%
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                             ({stats.offerReachedCount} {stats.offerReachedCount === 1 ? 'offer' : 'offers'})
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
                         {stats.interviewReachedCount > 0
-                            ? `${stats.rates.interviewToOfferRate}% interview-to-offer win rate`
-                            : `${stats.acceptedCount} accepted · ${stats.offerPendingCount} pending`}
+                            ? `${stats.rates.interviewToOfferRate}% interview win rate`
+                            : `${stats.acceptedCount} accepted`}
                     </span>
                 </div>
 
                 {/* KPI 4: Active Pipeline & Resolution */}
                 <div style={{
-                    padding: '14px 16px',
+                    padding: containerWidth < 540 ? '10px 12px' : '14px 16px',
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
@@ -589,30 +1036,32 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '4px'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            Active Pipeline vs. Closed
+                        <span style={{ fontSize: containerWidth < 540 ? '0.7rem' : '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Active Pipeline
                         </span>
                         <CheckCircle2 size={15} color="var(--accent-primary)" aria-hidden="true" />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                        <span style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: containerWidth < 540 ? '1.35rem' : '1.55rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {stats.activePipelineCount}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            active ({stats.rates.activeRate}% of applied)
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            active ({stats.rates.activeRate}%)
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        {stats.rejectedTotalCount} rejected ({stats.rates.rejectionRate}%) · {stats.wishlistActiveCount} in wishlist
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                        {stats.rejectedTotalCount} rejected · {stats.wishlistActiveCount} in wishlist
                     </span>
                 </div>
             </div>
 
-            {/* Step-by-Step Stage Conversion Funnel Strip */}
+            {/* Step-by-Step Stage Conversion Funnel Strip (Horizontal swipe rail on mobile) */}
             <div
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+                    display: containerWidth < 680 ? 'flex' : 'grid',
+                    overflowX: containerWidth < 680 ? 'auto' : 'visible',
+                    WebkitOverflowScrolling: 'touch',
+                    gridTemplateColumns: containerWidth < 680 ? 'none' : 'repeat(auto-fit, minmax(135px, 1fr))',
                     gap: '8px',
                     padding: '12px 14px',
                     borderRadius: '12px',
@@ -629,8 +1078,9 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '5px',
+                            flex: containerWidth < 680 ? '0 0 135px' : '1',
                             paddingRight: idx < stats.stageFunnel.length - 1 ? '8px' : 0,
-                            borderRight: idx < stats.stageFunnel.length - 1 ? '1px solid var(--border-subtle)' : 'none'
+                            borderRight: idx < stats.stageFunnel.length - 1 && containerWidth >= 680 ? '1px solid var(--border-subtle)' : 'none'
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
@@ -677,228 +1127,248 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                 ))}
             </div>
 
-            {/* Interactive SVG Sankey Diagram */}
-            <div
-                ref={containerRef}
-                style={{
-                    width: '100%',
-                    overflowX: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    borderRadius: '12px',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-subtle)',
-                    padding: '12px 8px 8px'
-                }}
-            >
-                <svg
-                    ref={svgRef}
-                    width={sankey.width}
-                    height={sankey.height}
-                    viewBox={`0 0 ${sankey.width} ${sankey.height}`}
-                    role="img"
-                    aria-label={`Sankey diagram showing ${stats.totalTracked} tracked job opportunities across ${columns.length} pipeline stages`}
+            {/* Interactive View: Flow Cards or Full Diagram */}
+            {activeFormat === 'flow' ? (
+                renderMobileFlowCards()
+            ) : (
+                <div
                     style={{
-                        display: 'block',
-                        minWidth: '540px',
-                        width: `${sankey.width}px`,
-                        height: `${sankey.height}px`,
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none'
+                        width: '100%',
+                        overflowX: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        borderRadius: '12px',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        padding: '12px 8px 8px'
                     }}
                 >
-                    <defs>
-                        {links.map((link, idx) => (
-                            <linearGradient
-                                key={`grad-${link.id}-${idx}`}
-                                id={`sankey-grad-${idx}`}
-                                x1="0%"
-                                y1="0%"
-                                x2="100%"
-                                y2="0%"
-                            >
-                                <stop offset="0%" stopColor={link.sourceColor} stopOpacity="0.65" />
-                                <stop offset="100%" stopColor={link.targetColor} stopOpacity="0.65" />
-                            </linearGradient>
-                        ))}
-                    </defs>
+                    {isMobile && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            padding: '6px 10px',
+                            marginBottom: '8px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(107, 126, 103, 0.12)',
+                            border: '1px solid rgba(107, 126, 103, 0.25)',
+                            fontSize: '0.73rem',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            <span>👉 Swipe horizontally to view all 5 columns</span>
+                        </div>
+                    )}
+                    <svg
+                        ref={svgRef}
+                        width={sankey.width}
+                        height={sankey.height}
+                        viewBox={`0 0 ${sankey.width} ${sankey.height}`}
+                        role="img"
+                        aria-label={`Sankey diagram showing ${stats.totalTracked} tracked job opportunities across ${columns.length} pipeline stages`}
+                        style={{
+                            display: 'block',
+                            minWidth: '540px',
+                            width: `${sankey.width}px`,
+                            height: `${sankey.height}px`,
+                            userSelect: 'none',
+                            WebkitUserSelect: 'none'
+                        }}
+                    >
+                        <defs>
+                            {links.map((link, idx) => (
+                                <linearGradient
+                                    key={`grad-${link.id}-${idx}`}
+                                    id={`sankey-grad-${idx}`}
+                                    x1="0%"
+                                    y1="0%"
+                                    x2="100%"
+                                    y2="0%"
+                                >
+                                    <stop offset="0%" stopColor={link.sourceColor} stopOpacity="0.65" />
+                                    <stop offset="100%" stopColor={link.targetColor} stopOpacity="0.65" />
+                                </linearGradient>
+                            ))}
+                        </defs>
 
-                    {/* Column Stage Headers */}
-                    {columns.map(col => {
-                        const isFirst = col.index === 0;
-                        const isLast = col.index === columns.length - 1;
-                        const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
-                        const labelX = isFirst ? col.x - 8 : isLast ? col.x + 8 : col.x;
-                        return (
-                            <text
-                                key={`col-header-${col.index}`}
-                                x={labelX}
-                                y={18}
-                                textAnchor={anchor}
-                                fill="var(--text-secondary, #9DA7AE)"
-                                style={{
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                    fill: 'var(--text-secondary, #9DA7AE)',
-                                    opacity: 0.85,
-                                    fontFamily: 'system-ui, -apple-system, sans-serif'
-                                }}
-                            >
-                                {col.title}
-                            </text>
-                        );
-                    })}
-
-                    {/* Cubic-Bézier Flow Ribbons */}
-                    <g>
-                        {links.map((link, idx) => {
-                            const isSelected = selectedSelection?.type === 'link' && selectedSelection.id === link.id;
-                            const isHovered = hoveredLinkId === link.id;
-                            const isConnectedToNode =
-                                hoveredNodeId && (link.source === hoveredNodeId || link.target === hoveredNodeId);
-                            const isConnectedToSelectedNode =
-                                selectedSelection?.type === 'node' &&
-                                (link.source === selectedSelection.id || link.target === selectedSelection.id);
-
-                            const anyHighlightActive = Boolean(hoveredLinkId || hoveredNodeId || selectedSelection);
-                            const isHighlighted = isHovered || isSelected || isConnectedToNode || isConnectedToSelectedNode;
-                            const opacity = anyHighlightActive
-                                ? (isHighlighted ? 0.88 : 0.16)
-                                : 0.52;
-
+                        {/* Column Stage Headers */}
+                        {columns.map(col => {
+                            const isFirst = col.index === 0;
+                            const isLast = col.index === columns.length - 1;
+                            const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
+                            const labelX = isFirst ? col.x - 8 : isLast ? col.x + 8 : col.x;
                             return (
-                                <path
-                                    key={link.id}
-                                    d={link.ribbonPath}
-                                    fill={`url(#sankey-grad-${idx})`}
-                                    stroke={isHighlighted ? link.targetColor : 'none'}
-                                    strokeWidth={isHighlighted ? 1 : 0}
-                                    opacity={opacity}
-                                    tabIndex={0}
-                                    role="button"
-                                    aria-label={`${link.sourceLabel} to ${link.targetLabel}: ${link.value} ${link.value === 1 ? 'opportunity' : 'opportunities'} (${link.conversionPct}%)`}
+                                <text
+                                    key={`col-header-${col.index}`}
+                                    x={labelX}
+                                    y={18}
+                                    textAnchor={anchor}
+                                    fill="var(--text-secondary, #9DA7AE)"
                                     style={{
-                                        cursor: 'pointer',
-                                        outline: 'none',
-                                        transition: prefersReducedMotion ? 'none' : 'opacity 0.18s ease'
+                                        fontSize: '10.5px',
+                                        fontWeight: 700,
+                                        letterSpacing: '0.05em',
+                                        textTransform: 'uppercase',
+                                        fill: 'var(--text-secondary, #9DA7AE)',
+                                        opacity: 0.85,
+                                        fontFamily: 'system-ui, -apple-system, sans-serif'
                                     }}
-                                    onMouseEnter={() => setHoveredLinkId(link.id)}
-                                    onMouseLeave={() => setHoveredLinkId(null)}
-                                    onFocus={() => setHoveredLinkId(link.id)}
-                                    onBlur={() => setHoveredLinkId(null)}
-                                    onClick={() => {
-                                        setSelectedSelection(prev =>
-                                            prev?.type === 'link' && prev.id === link.id
-                                                ? null
-                                                : { type: 'link', id: link.id }
-                                        );
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
+                                >
+                                    {col.title}
+                                </text>
+                            );
+                        })}
+
+                        {/* Cubic-Bézier Flow Ribbons */}
+                        <g>
+                            {links.map((link, idx) => {
+                                const isSelected = selectedSelection?.type === 'link' && selectedSelection.id === link.id;
+                                const isHovered = hoveredLinkId === link.id;
+                                const isConnectedToNode =
+                                    hoveredNodeId && (link.source === hoveredNodeId || link.target === hoveredNodeId);
+                                const isConnectedToSelectedNode =
+                                    selectedSelection?.type === 'node' &&
+                                    (link.source === selectedSelection.id || link.target === selectedSelection.id);
+
+                                const anyHighlightActive = Boolean(hoveredLinkId || hoveredNodeId || selectedSelection);
+                                const isHighlighted = isHovered || isSelected || isConnectedToNode || isConnectedToSelectedNode;
+                                const opacity = anyHighlightActive
+                                    ? (isHighlighted ? 0.88 : 0.16)
+                                    : 0.52;
+
+                                return (
+                                    <path
+                                        key={link.id}
+                                        d={link.ribbonPath}
+                                        fill={`url(#sankey-grad-${idx})`}
+                                        stroke={isHighlighted ? link.targetColor : 'none'}
+                                        strokeWidth={isHighlighted ? 1 : 0}
+                                        opacity={opacity}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`${link.sourceLabel} to ${link.targetLabel}: ${link.value} ${link.value === 1 ? 'opportunity' : 'opportunities'} (${link.conversionPct}%)`}
+                                        style={{
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            transition: prefersReducedMotion ? 'none' : 'opacity 0.18s ease'
+                                        }}
+                                        onMouseEnter={() => setHoveredLinkId(link.id)}
+                                        onMouseLeave={() => setHoveredLinkId(null)}
+                                        onFocus={() => setHoveredLinkId(link.id)}
+                                        onBlur={() => setHoveredLinkId(null)}
+                                        onClick={() => {
                                             setSelectedSelection(prev =>
                                                 prev?.type === 'link' && prev.id === link.id
                                                     ? null
                                                     : { type: 'link', id: link.id }
                                             );
-                                        }
-                                    }}
-                                >
-                                    <title>{`${link.sourceLabel} → ${link.targetLabel}: ${link.value} (${link.conversionPct}% step conversion · ${link.totalPct}% of total)`}</title>
-                                </path>
-                            );
-                        })}
-                    </g>
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                setSelectedSelection(prev =>
+                                                    prev?.type === 'link' && prev.id === link.id
+                                                        ? null
+                                                        : { type: 'link', id: link.id }
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        <title>{`${link.sourceLabel} → ${link.targetLabel}: ${link.value} (${link.conversionPct}% step conversion · ${link.totalPct}% of total)`}</title>
+                                    </path>
+                                );
+                            })}
+                        </g>
 
-                    {/* Stage Nodes & Labels */}
-                    <g>
-                        {nodes.map(node => {
-                            const isSelected = selectedSelection?.type === 'node' && selectedSelection.id === node.id;
-                            const isHovered = hoveredNodeId === node.id;
-                            const isHighlighted = isSelected || isHovered;
-                            const isRightSide = node.colIndex === sankey.numCols - 1 && sankey.numCols > 1;
-                            const labelX = isRightSide ? node.x0 - 8 : node.x1 + 8;
-                            const textAnchor = isRightSide ? 'end' : 'start';
-                            const centerY = (node.y0 + node.y1) / 2;
+                        {/* Stage Nodes & Labels */}
+                        <g>
+                            {nodes.map(node => {
+                                const isSelected = selectedSelection?.type === 'node' && selectedSelection.id === node.id;
+                                const isHovered = hoveredNodeId === node.id;
+                                const isHighlighted = isSelected || isHovered;
+                                const isRightSide = node.colIndex === sankey.numCols - 1 && sankey.numCols > 1;
+                                const labelX = isRightSide ? node.x0 - 8 : node.x1 + 8;
+                                const textAnchor = isRightSide ? 'end' : 'start';
+                                const centerY = (node.y0 + node.y1) / 2;
 
-                            return (
-                                <g
-                                    key={node.id}
-                                    tabIndex={0}
-                                    role="button"
-                                    aria-label={`${node.label}: ${node.value} ${node.value === 1 ? 'opportunity' : 'opportunities'} (${node.pctOfTotal}% of tracked)`}
-                                    style={{ cursor: 'pointer', outline: 'none' }}
-                                    onMouseEnter={() => setHoveredNodeId(node.id)}
-                                    onMouseLeave={() => setHoveredNodeId(null)}
-                                    onFocus={() => setHoveredNodeId(node.id)}
-                                    onBlur={() => setHoveredNodeId(null)}
-                                    onClick={() => {
-                                        setSelectedSelection(prev =>
-                                            prev?.type === 'node' && prev.id === node.id
-                                                ? null
-                                                : { type: 'node', id: node.id }
-                                        );
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
+                                return (
+                                    <g
+                                        key={node.id}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`${node.label}: ${node.value} ${node.value === 1 ? 'opportunity' : 'opportunities'} (${node.pctOfTotal}% of tracked)`}
+                                        style={{ cursor: 'pointer', outline: 'none' }}
+                                        onMouseEnter={() => setHoveredNodeId(node.id)}
+                                        onMouseLeave={() => setHoveredNodeId(null)}
+                                        onFocus={() => setHoveredNodeId(node.id)}
+                                        onBlur={() => setHoveredNodeId(null)}
+                                        onClick={() => {
                                             setSelectedSelection(prev =>
                                                 prev?.type === 'node' && prev.id === node.id
                                                     ? null
                                                     : { type: 'node', id: node.id }
                                             );
-                                        }
-                                    }}
-                                >
-                                    <title>{`${node.label}: ${node.value} (${node.pctOfTotal}% of tracked)`}</title>
-                                    <rect
-                                        x={node.x0}
-                                        y={node.y0}
-                                        width={node.x1 - node.x0}
-                                        height={node.height}
-                                        rx={5}
-                                        ry={5}
-                                        fill={node.color}
-                                        stroke={isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.22)'}
-                                        strokeWidth={isHighlighted ? 2 : 1}
-                                    />
-                                    <text
-                                        x={labelX}
-                                        y={centerY - 2}
-                                        textAnchor={textAnchor}
-                                        fill="var(--text-primary, #FAF8F4)"
-                                        style={{
-                                            fontSize: '12px',
-                                            fontWeight: 700,
-                                            fill: 'var(--text-primary, #FAF8F4)',
-                                            pointerEvents: 'none',
-                                            fontFamily: 'system-ui, -apple-system, sans-serif'
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                setSelectedSelection(prev =>
+                                                    prev?.type === 'node' && prev.id === node.id
+                                                        ? null
+                                                        : { type: 'node', id: node.id }
+                                                );
+                                            }
                                         }}
                                     >
-                                        {node.label}
-                                    </text>
-                                    <text
-                                        x={labelX}
-                                        y={centerY + 12}
-                                        textAnchor={textAnchor}
-                                        fill="var(--text-secondary, #9DA7AE)"
-                                        style={{
-                                            fontSize: '10.5px',
-                                            fontWeight: 600,
-                                            fill: 'var(--text-secondary, #9DA7AE)',
-                                            pointerEvents: 'none',
-                                            fontFamily: 'system-ui, -apple-system, sans-serif'
-                                        }}
-                                    >
-                                        {node.value} ({node.pctOfTotal}%)
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </g>
-                </svg>
-            </div>
+                                        <title>{`${node.label}: ${node.value} (${node.pctOfTotal}% of tracked)`}</title>
+                                        <rect
+                                            x={node.x0}
+                                            y={node.y0}
+                                            width={node.x1 - node.x0}
+                                            height={node.height}
+                                            rx={5}
+                                            ry={5}
+                                            fill={node.color}
+                                            stroke={isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.22)'}
+                                            strokeWidth={isHighlighted ? 2 : 1}
+                                        />
+                                        <text
+                                            x={labelX}
+                                            y={centerY - 2}
+                                            textAnchor={textAnchor}
+                                            fill="var(--text-primary, #FAF8F4)"
+                                            style={{
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                fill: 'var(--text-primary, #FAF8F4)',
+                                                pointerEvents: 'none',
+                                                fontFamily: 'system-ui, -apple-system, sans-serif'
+                                            }}
+                                        >
+                                            {node.label}
+                                        </text>
+                                        <text
+                                            x={labelX}
+                                            y={centerY + 12}
+                                            textAnchor={textAnchor}
+                                            fill="var(--text-secondary, #9DA7AE)"
+                                            style={{
+                                                fontSize: '10.5px',
+                                                fontWeight: 600,
+                                                fill: 'var(--text-secondary, #9DA7AE)',
+                                                pointerEvents: 'none',
+                                                fontFamily: 'system-ui, -apple-system, sans-serif'
+                                            }}
+                                        >
+                                            {node.value} ({node.pctOfTotal}%)
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                    </svg>
+                </div>
+            )}
 
             {/* Interactive Flow / Node Inspector Panel (when hovering or clicking a node/ribbon) */}
             {activeDetail && (
