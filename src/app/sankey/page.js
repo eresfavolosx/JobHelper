@@ -1,18 +1,23 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { GitBranch, Timer, Columns, Plus, LayoutDashboard, Search } from 'lucide-react';
 import JobSankeyChart from '@/components/JobSankeyChart';
+import CycleFilterBar from '@/components/CycleFilterBar';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 
 const emptySubscribe = () => () => {};
 
 export default function SankeyPage() {
     const { user, loading } = useAuth();
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
 
@@ -162,6 +167,9 @@ export default function SankeyPage() {
                     </button>
                 </div>
             </header>
+
+            {/* Search Cycles Selector */}
+            <CycleFilterBar />
 
             {/* Main Interactive Sankey Chart Component */}
             <main>

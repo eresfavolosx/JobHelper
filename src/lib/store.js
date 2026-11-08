@@ -5,6 +5,13 @@ import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db, auth } from './firebase.js';
 import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription.js';
 import { resolveAppliedAtForStatusChange, findMiscountedApplications } from './goal-tracker.js';
+import {
+    resolveCyclesFromJobs,
+    closeCycleWithAcceptedOffer,
+    reopenCycleForRevertedOffer,
+    getActiveCycle,
+    createCycle
+} from './cycle-utils.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const appliedAtCleanupInFlight = new Set();
@@ -51,6 +58,15 @@ function runAppliedAtCleanupOnce(userId, cloudJobs, applyLocal) {
     });
 }
 
+function saveCyclesToFirestore(userId, cycles) {
+    if (typeof window === 'undefined' || !userId || !Array.isArray(cycles)) return;
+    import('firebase/firestore').then(({ setDoc, doc }) => {
+        const cyclesRef = doc(db, "users", userId, "data", "cycles");
+        setDoc(cyclesRef, { list: cycles, updatedAt: new Date().toISOString() }, { merge: true })
+            .catch(e => console.error("[Store] Failed to save cycles:", e));
+    }).catch(e => console.error("[Store] Import failed for saveCyclesToFirestore:", e));
+}
+
 const ALLOWED_PROFILE_KEYS = new Set([
     'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
     'experienceLevel', 'country', 'modality', 'minimumSalary',
@@ -71,7 +87,7 @@ const ALLOWED_JOB_KEYS = new Set([
     'relevanceScore', 'matchReason', 'status', 'createdAt',
     'updatedAt', 'appliedAt', 'dateAdded', 'deletedAt', 'archivedAt',
     'previousStatus', 'source', 'pubDate', 'tags',
-    'resumeUrl', 'resumeName'
+    'resumeUrl', 'resumeName', 'cycleId', 'cycleNumber'
 ]);
 
 const PROFILE_STRING_LIMITS = {
@@ -108,7 +124,8 @@ const JOB_STRING_LIMITS = {
     source: 100,
     pubDate: 100,
     resumeUrl: 2048,
-    resumeName: 200
+    resumeName: 200,
+    cycleId: 100
 };
 
 const VALID_JOB_STATUSES = new Set([
@@ -195,7 +212,51 @@ export const useAppStore = create(
     persist(
         (set, get) => ({
             jobs: [],
+            cycles: [],
+            selectedCycleId: 'all',
+            offerCelebrationModal: null,
             currentUserId: null, // Track which user's data this is
+
+            // Cycle Management Actions
+            setSelectedCycleId: (cycleId) => set({ selectedCycleId: cycleId }),
+            closeOfferCelebrationModal: () => set({ offerCelebrationModal: null }),
+            setCycles: (cycles) => set({ cycles: Array.isArray(cycles) ? cycles : [] }),
+            startNewCycle: (name) => {
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const maxNum = Math.max(...currentCycles.map(c => Number(c?.cycleNumber) || 1), 0);
+                const nextNum = maxNum + 1;
+                const nowIso = new Date().toISOString();
+                const newCycle = createCycle(nextNum, {
+                    name: name || `Search Cycle ${nextNum}`,
+                    status: 'active',
+                    startedAt: nowIso
+                });
+                const updatedCycles = [
+                    ...currentCycles.map(c => c.status === 'active' ? { ...c, status: 'completed', endedAt: nowIso, updatedAt: nowIso } : c),
+                    newCycle
+                ];
+                set({ cycles: updatedCycles, selectedCycleId: newCycle.id });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, updatedCycles);
+                return newCycle;
+            },
+            reopenCycle: (cycleId) => {
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const updatedCycles = currentCycles.map(c => {
+                    if (c.id === cycleId) {
+                        return {
+                            ...c,
+                            status: 'active',
+                            endedAt: null,
+                            updatedAt: new Date().toISOString()
+                        };
+                    }
+                    return c;
+                });
+                set({ cycles: updatedCycles, selectedCycleId: cycleId });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, updatedCycles);
+            },
 
             // Set the current user ID and clear data if user changed
             setCurrentUser: (userId) => {
@@ -211,6 +272,9 @@ export const useAppStore = create(
                 console.log("User changed or initialized, resetting local cache for user:", userId);
                 set({
                     jobs: [],
+                    cycles: [],
+                    selectedCycleId: 'all',
+                    offerCelebrationModal: null,
                     profile: {
                         fullName: '',
                         targetRole: '',
@@ -243,6 +307,9 @@ export const useAppStore = create(
                 console.log("Clearing user data on logout");
                 set({
                     jobs: [],
+                    cycles: [],
+                    selectedCycleId: 'all',
+                    offerCelebrationModal: null,
                     currentUserId: null,
                     profile: {
                         fullName: '',
@@ -295,18 +362,52 @@ export const useAppStore = create(
 
                 const nowIso = new Date().toISOString();
                 const initialStatus = job?.status || 'applied';
+
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const activeCycle = getActiveCycle(currentCycles);
+                const targetCycleId = job?.cycleId || activeCycle?.id || 'cycle_1';
+                const targetCycleNumber = job?.cycleNumber || activeCycle?.cycleNumber || 1;
+
                 const newJob = {
                     status: initialStatus,
                     ...job,
                     id: generateId(),
                     createdAt: nowIso,
+                    cycleId: targetCycleId,
+                    cycleNumber: targetCycleNumber,
                     ...(initialStatus !== 'wishlist' && initialStatus !== 'deleted' && initialStatus !== 'archived' && !job?.appliedAt
                         ? { appliedAt: nowIso }
                         : {})
                 };
-                set((state) => ({ jobs: [...state.jobs, newJob] }));
-                // Persist to Firestore
+
                 const userId = get().currentUserId || auth?.currentUser?.uid;
+
+                if (initialStatus === 'accepted') {
+                    const { updatedCycles, closedCycle, newActiveCycle } = closeCycleWithAcceptedOffer(currentCycles, newJob);
+                    newJob.cycleId = closedCycle.id;
+                    newJob.cycleNumber = closedCycle.cycleNumber;
+                    set((state) => ({
+                        jobs: [...state.jobs, newJob],
+                        cycles: updatedCycles,
+                        offerCelebrationModal: {
+                            isOpen: true,
+                            cycle: closedCycle,
+                            nextCycle: newActiveCycle,
+                            acceptedJob: newJob
+                        }
+                    }));
+                    saveCyclesToFirestore(userId, updatedCycles);
+                } else {
+                    set((state) => ({
+                        jobs: [...state.jobs, newJob],
+                        cycles: currentCycles
+                    }));
+                    if (!get().cycles || get().cycles.length === 0) {
+                        saveCyclesToFirestore(userId, currentCycles);
+                    }
+                }
+
+                // Persist to Firestore
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", newJob.id);
@@ -328,6 +429,10 @@ export const useAppStore = create(
                     updates.status !== existingJob.status &&
                     VALID_PREVIOUS_STATUSES.has(existingJob.status)
                 );
+
+                const isBecomingAccepted = updates?.status === 'accepted' && existingJob?.status !== 'accepted';
+                const isLeavingAccepted = existingJob?.status === 'accepted' && updates?.status && updates.status !== 'accepted';
+
                 const enrichedUpdates = {
                     ...updates,
                     ...(statusChanged && updates.previousStatus === undefined
@@ -335,10 +440,35 @@ export const useAppStore = create(
                         : {}),
                     ...(resolvedAppliedAt ? { appliedAt: resolvedAppliedAt, updatedAt: nowIso } : {})
                 };
+
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+
+                if (isBecomingAccepted) {
+                    const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                    const candidateJob = { ...existingJob, ...enrichedUpdates };
+                    const { updatedCycles, closedCycle, newActiveCycle } = closeCycleWithAcceptedOffer(currentCycles, candidateJob);
+                    enrichedUpdates.cycleId = closedCycle.id;
+                    enrichedUpdates.cycleNumber = closedCycle.cycleNumber;
+                    set({
+                        cycles: updatedCycles,
+                        offerCelebrationModal: {
+                            isOpen: true,
+                            cycle: closedCycle,
+                            nextCycle: newActiveCycle,
+                            acceptedJob: { ...candidateJob, cycleId: closedCycle.id, cycleNumber: closedCycle.cycleNumber }
+                        }
+                    });
+                    saveCyclesToFirestore(userId, updatedCycles);
+                } else if (isLeavingAccepted) {
+                    const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                    const reopenedCycles = reopenCycleForRevertedOffer(currentCycles, id, get().jobs);
+                    set({ cycles: reopenedCycles });
+                    saveCyclesToFirestore(userId, reopenedCycles);
+                }
+
                 set((state) => ({
                     jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...enrichedUpdates } : job))
                 }));
-                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         const jobRef = doc(db, "users", userId, "jobs", id);
@@ -452,6 +582,10 @@ export const useAppStore = create(
                     existingJob.status !== 'deleted' &&
                     VALID_PREVIOUS_STATUSES.has(existingJob.status)
                 );
+
+                const isBecomingAccepted = newStatus === 'accepted' && existingJob?.status !== 'accepted';
+                const isLeavingAccepted = existingJob?.status === 'accepted' && newStatus !== 'accepted';
+
                 const updates = {
                     status: newStatus,
                     updatedAt: nowIso,
@@ -462,10 +596,35 @@ export const useAppStore = create(
                             ? { archivedAt: null, deletedAt: null, previousStatus: null }
                             : {}))
                 };
+
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+
+                if (isBecomingAccepted) {
+                    const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                    const candidateJob = { ...existingJob, ...updates };
+                    const { updatedCycles, closedCycle, newActiveCycle } = closeCycleWithAcceptedOffer(currentCycles, candidateJob);
+                    updates.cycleId = closedCycle.id;
+                    updates.cycleNumber = closedCycle.cycleNumber;
+                    set({
+                        cycles: updatedCycles,
+                        offerCelebrationModal: {
+                            isOpen: true,
+                            cycle: closedCycle,
+                            nextCycle: newActiveCycle,
+                            acceptedJob: { ...candidateJob, cycleId: closedCycle.id, cycleNumber: closedCycle.cycleNumber }
+                        }
+                    });
+                    saveCyclesToFirestore(userId, updatedCycles);
+                } else if (isLeavingAccepted) {
+                    const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                    const reopenedCycles = reopenCycleForRevertedOffer(currentCycles, id, get().jobs);
+                    set({ cycles: reopenedCycles });
+                    saveCyclesToFirestore(userId, reopenedCycles);
+                }
+
                 set((state) => ({
                     jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
                 }));
-                const userId = get().currentUserId || auth?.currentUser?.uid;
                 if (userId) {
                     import('firebase/firestore').then(({ setDoc, doc }) => {
                         setDoc(doc(db, "users", userId, "jobs", id), sanitizeJobForFirestore(cleanObject(updates)), { merge: true })
@@ -692,9 +851,30 @@ export const useAppStore = create(
                     }
                 );
 
+                // 3. Search Cycles Listener
+                const cyclesRef = doc(db, "users", userId, "data", "cycles");
+                const cyclesUnsub = onSnapshot(cyclesRef,
+                    (docSnap) => {
+                        if (docSnap.exists()) {
+                            const data = docSnap.data() || {};
+                            const remoteList = Array.isArray(data.list) ? data.list : [];
+                            const resolved = resolveCyclesFromJobs(get().jobs, remoteList);
+                            set({ cycles: resolved });
+                        } else {
+                            const initialCycles = resolveCyclesFromJobs(get().jobs, get().cycles || []);
+                            set({ cycles: initialCycles });
+                            saveCyclesToFirestore(userId, initialCycles);
+                        }
+                    },
+                    (error) => {
+                        console.error("[Store] Cycles snapshot error:", error);
+                    }
+                );
+
                 return () => {
                     profileUnsub();
                     jobsUnsub();
+                    cyclesUnsub();
                 };
             },
 
@@ -703,6 +883,8 @@ export const useAppStore = create(
             name: 'job-tracker-storage',
             partialize: (state) => ({
                 jobs: state.jobs,
+                cycles: state.cycles,
+                selectedCycleId: state.selectedCycleId,
                 profile: state.profile,
                 currentUserId: state.currentUserId  // Also persist user ID
             })
