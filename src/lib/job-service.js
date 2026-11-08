@@ -71,7 +71,7 @@ export async function fetchJobsFromRSS(keywords = []) {
             'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fremoteok.com%2Frss'
         ];
 
-        for (const url of proxyUrls) {
+        const feedResults = await Promise.all(proxyUrls.map(async (url) => {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2500);
@@ -82,19 +82,22 @@ export async function fetchJobsFromRSS(keywords = []) {
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data?.items)) {
-                        const parsed = data.items.map(item => ({
+                        return data.items.map(item => ({
                             title: item.title || '',
                             link: item.link || item.guid || '',
                             description: item.description || '',
                             pubDate: item.pubDate || new Date().toISOString(),
                             source: url.includes('weworkremotely') ? 'WeWorkRemotely' : 'RemoteOK'
                         })).filter(j => j.title && j.link);
-                        allJobs.push(...parsed);
                     }
                 }
             } catch {
                 // Silently fall back to curated tech jobs catalog
             }
+            return [];
+        }));
+        for (const items of feedResults) {
+            if (items.length > 0) allJobs.push(...items);
         }
     }
 

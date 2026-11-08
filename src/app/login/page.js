@@ -53,7 +53,7 @@ export default function LoginPage() {
             router.push('/');
         } catch (err) {
             console.error('Authentication error occurred', err);
-            setError(err.message || 'Failed to authenticate with Google. Please try again.');
+            setError('Failed to authenticate with Google. Please try again.');
         }
     };
 
@@ -83,11 +83,11 @@ export default function LoginPage() {
             if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
                 setError('Invalid email or password. Please double check and try again.');
             } else if (err.code === 'auth/email-already-in-use') {
-                setError('An account with this email already exists. Try signing in instead.');
+                setError('Authentication failed. Please check your credentials and try again.');
             } else if (err.code === 'auth/invalid-email') {
                 setError('Please provide a valid email address.');
             } else {
-                setError(err.message || 'An unexpected error occurred. Please try again.');
+                setError('An unexpected error occurred. Please try again.');
             }
         } finally {
             setLoading(false);

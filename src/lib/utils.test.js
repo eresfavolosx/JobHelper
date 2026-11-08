@@ -37,8 +37,10 @@ describe('utils', () => {
       assert.equal(sanitizeUrl('example.com'), 'https://example.com/');
     });
 
-    it('should block javascript: scheme', () => {
+    it('should block javascript: scheme and control-character bypasses', () => {
       assert.equal(sanitizeUrl('javascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('\x0Bjavascript:alert(1)'), null);
+      assert.equal(sanitizeUrl('java\x00script:alert(1)'), null);
     });
 
     it('should block data: scheme', () => {

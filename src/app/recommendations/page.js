@@ -64,16 +64,27 @@ export default function RecommendationsPage() {
     const filteredRecommendations = useMemo(() => {
         if (!Array.isArray(jobs)) return [];
         const tokens = recSearchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
-        return jobs.filter(job => {
-            if (!job) return false;
-            if (minScoreFilter > 0 && (job.relevanceScore || 0) < minScoreFilter) {
-                return false;
-            }
-            if (tokens.length === 0) return true;
-            const parsed = parseRecommendedJobTitle(job.title, job.source);
-            const haystack = `${job.title || ''} ${parsed.company || ''} ${parsed.role || ''} ${job.source || ''} ${job.matchReason || ''} ${job.description || ''}`.toLowerCase();
-            return tokens.every(t => haystack.includes(t));
-        });
+        return jobs
+            .filter(job => {
+                if (!job) return false;
+                if (minScoreFilter > 0 && (job.relevanceScore || 0) < minScoreFilter) {
+                    return false;
+                }
+                if (tokens.length === 0) return true;
+                const parsed = parseRecommendedJobTitle(job.title, job.source);
+                const haystack = `${job.title || ''} ${parsed.company || ''} ${parsed.role || ''} ${job.source || ''} ${job.matchReason || ''} ${job.description || ''}`.toLowerCase();
+                return tokens.every(t => haystack.includes(t));
+            })
+            .map(job => {
+                const parsedDate = job.pubDate ? new Date(job.pubDate) : null;
+                return {
+                    ...job,
+                    sanitizedLink: sanitizeUrl(job.link),
+                    parsedTitle: parseRecommendedJobTitle(job.title, job.source),
+                    formattedDate: parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : 'Recent',
+                    cleanDescription: String(job.description || '').replace(/<[^>]*>?/gm, '')
+                };
+            });
     }, [jobs, recSearchQuery, minScoreFilter]);
 
     const findJobs = async (forceRefresh = false) => {
@@ -334,7 +345,7 @@ export default function RecommendationsPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '24px' }}>
                     {filteredRecommendations.map((job, i) => {
-                        const sanitizedLink = sanitizeUrl(job.link);
+                        const sanitizedLink = job.sanitizedLink;
                         return (
                         <div key={i} className="card animate-scale-in" style={{
                             padding: '24px',
@@ -358,7 +369,7 @@ export default function RecommendationsPage() {
                                 <div style={{ display: 'flex', gap: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                                     <span>{job.source}</span>
                                     <span>•</span>
-                                    <span>{job.pubDate && !isNaN(new Date(job.pubDate).getTime()) ? new Date(job.pubDate).toLocaleDateString() : 'Recent'}</span>
+                                    <span>{job.formattedDate}</span>
                                 </div>
 
                                 <div style={{
@@ -382,7 +393,7 @@ export default function RecommendationsPage() {
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 }}>
-                                    {job.description.replace(/<[^>]*>?/gm, '')}
+                                    {job.cleanDescription}
                                 </p>
                             </div>
 
@@ -416,7 +427,7 @@ export default function RecommendationsPage() {
                                     <button
                                         onClick={() => {
                                             try {
-                                                const parsed = parseRecommendedJobTitle(job.title, job.source);
+                                                const parsed = job.parsedTitle || parseRecommendedJobTitle(job.title, job.source);
                                                 addJob({
                                                     company: parsed.company,
                                                     role: parsed.role,
@@ -434,7 +445,7 @@ export default function RecommendationsPage() {
                                                 if (err?.code === 'LIMIT_REACHED') {
                                                     setUpgradeOpen(true);
                                                 } else {
-                                                    alert(err?.message || 'Failed to save job application.');
+                                                    setError('Failed to save job application to board.');
                                                 }
                                             }
                                         }}
