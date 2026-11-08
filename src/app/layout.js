@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer, GitBranch } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer, GitBranch, TrendingUp } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
@@ -475,6 +475,19 @@ function NavContent({ onOpenMorningSync }) {
                         <span className="sidebar-nav-left">
                             <Timer size={18} />
                             <span className="sidebar-label">Timeline & Gantt</span>
+                        </span>
+                    </Link>
+
+                    <Link
+                        href="/trends"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/trends' ? 'active' : ''}`}
+                        title="Market Trends & Industry Benchmarks"
+                        aria-label="Trends & Benchmarks"
+                    >
+                        <span className="sidebar-nav-left">
+                            <TrendingUp size={18} />
+                            <span className="sidebar-label">Trends &amp; Benchmarks</span>
                         </span>
                     </Link>
 

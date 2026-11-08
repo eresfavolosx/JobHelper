@@ -8,13 +8,14 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, X,
     Clock, FileText, Sparkles, SlidersHorizontal, Columns3, Rows3,
-    Archive, Building2, MapPin, DollarSign, ArrowUpDown, GitBranch
+    Archive, Building2, MapPin, DollarSign, ArrowUpDown, GitBranch, TrendingUp
 } from 'lucide-react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 import JobSettingsBanner from './JobSettingsBanner';
 import JobSankeyChart from './JobSankeyChart';
 import JobGanttChart from './JobGanttChart';
+import MarketBenchmarkView from './MarketBenchmarkView';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
 
 const COLUMNS = [
@@ -66,6 +67,8 @@ export default function KanbanBoard() {
     const [showSankey, setShowSankey] = useState(false);
     // Toggleable Application Gantt & Pipeline Velocity drawer on the Board
     const [showGantt, setShowGantt] = useState(false);
+    // Toggleable Market Trends & Industry Benchmarks drawer on the Board
+    const [showTrends, setShowTrends] = useState(false);
     // Board layout mode: 'stacked' (All Sections overview, default on mobile) or 'columns' (Horizontal Kanban, default on desktop)
     const [viewMode, setViewMode] = useState(() => (
         typeof window !== 'undefined' && window.innerWidth <= 768 ? 'stacked' : 'columns'
@@ -518,6 +521,36 @@ export default function KanbanBoard() {
                         >
                             <Clock size={13} color="var(--accent-primary)" />
                             <span>{showGantt ? 'Hide Gantt & Velocity' : 'Gantt & Velocity'}</span>
+                        </button>
+
+                        {/* Market Trends & Benchmarks Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowTrends(prev => !prev)}
+                            aria-pressed={showTrends}
+                            className="btn-secondary"
+                            title="Toggle market trends and industry benchmark comparison"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '999px',
+                                fontSize: '0.77rem',
+                                fontWeight: 700,
+                                border: showTrends
+                                    ? '1px solid var(--accent-primary)'
+                                    : '1px solid var(--border-subtle)',
+                                background: showTrends
+                                    ? 'rgba(107, 126, 103, 0.18)'
+                                    : 'var(--bg-card)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <TrendingUp size={13} color="var(--accent-primary)" />
+                            <span>{showTrends ? 'Hide Benchmarks' : 'Market Benchmarks'}</span>
                         </button>
                     </div>
 
@@ -1188,6 +1221,28 @@ export default function KanbanBoard() {
                         </Link>
                     </div>
                     <JobGanttChart jobs={matchedJobs} compact={true} />
+                </div>
+            )}
+
+            {showTrends && (
+                <div style={{ marginBottom: '14px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
+                        <Link
+                            href="/trends"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                color: 'var(--accent-primary)',
+                                textDecoration: 'none'
+                            }}
+                        >
+                            <span>Open Dedicated Full-Screen Market Benchmarks View &rarr;</span>
+                        </Link>
+                    </div>
+                    <MarketBenchmarkView jobs={matchedJobs} compact={true} />
                 </div>
             )}
 

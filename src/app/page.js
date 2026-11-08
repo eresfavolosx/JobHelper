@@ -4,13 +4,14 @@ import { useUIStore } from '@/lib/uiStore';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer, GitBranch } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer, GitBranch, TrendingUp } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import GoalTrackerWidget from '@/components/GoalTrackerWidget';
 import JobSankeyChart from '@/components/JobSankeyChart';
 import JobGanttChart from '@/components/JobGanttChart';
+import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
 import { isOwner } from '@/lib/subscription';
@@ -308,6 +309,20 @@ export default function Home() {
                     </p>
                 </Link>
 
+                <Link
+                    href="/trends"
+                    className="card interactive-card"
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <TrendingUp size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
+                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Market Benchmarks</h3>
+                    </div>
+                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
+                        Trends &amp; Rates &rarr;
+                    </p>
+                </Link>
+
                 {isOwner(user) && <AiSafetyBadge variant="dashboard-card" />}
             </div>
 
@@ -322,6 +337,11 @@ export default function Home() {
             {/* Application Gantt Chart & Pipeline Velocity Insights */}
             <div id="gantt">
                 <JobGanttChart jobs={jobs} />
+            </div>
+
+            {/* Market Trends & Industry Benchmark Comparisons */}
+            <div id="trends">
+                <MarketBenchmarkView jobs={jobs} />
             </div>
 
             <ApplicationHistoryChart jobs={jobs} />
