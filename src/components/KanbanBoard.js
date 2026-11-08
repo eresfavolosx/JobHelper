@@ -1149,6 +1149,22 @@ export default function KanbanBoard() {
 
             {showSankey && (
                 <div style={{ marginBottom: '12px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
+                        <Link
+                            href="/sankey"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                color: 'var(--accent-primary)',
+                                textDecoration: 'none'
+                            }}
+                        >
+                            <span>Open Dedicated Full-Screen Sankey View &rarr;</span>
+                        </Link>
+                    </div>
                     <JobSankeyChart jobs={matchedJobs} compact={true} />
                 </div>
             )}
