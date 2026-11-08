@@ -7,11 +7,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, X,
     Clock, FileText, Sparkles, SlidersHorizontal, Columns3, Rows3,
-    Archive, Building2, MapPin, DollarSign, ArrowUpDown
+    Archive, Building2, MapPin, DollarSign, ArrowUpDown, GitBranch
 } from 'lucide-react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 import JobSettingsBanner from './JobSettingsBanner';
+import JobSankeyChart from './JobSankeyChart';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
 
 const COLUMNS = [
@@ -59,6 +60,8 @@ export default function KanbanBoard() {
     const [activeId, setActiveId] = useState(null);
     // Filters drawer hidden by default so all board sections are immediately visible, while the primary search input stays always visible
     const [filtersOpen, setFiltersOpen] = useState(false);
+    // Toggleable Sankey Flow & Conversion Analytics drawer on the Board
+    const [showSankey, setShowSankey] = useState(false);
     // Board layout mode: 'stacked' (All Sections overview, default on mobile) or 'columns' (Horizontal Kanban, default on desktop)
     const [viewMode, setViewMode] = useState(() => (
         typeof window !== 'undefined' && window.innerWidth <= 768 ? 'stacked' : 'columns'
@@ -157,9 +160,10 @@ export default function KanbanBoard() {
 
     const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
-    const { columnsData, jobsMap, filteredCount } = useMemo(() => {
+    const { columnsData, jobsMap, filteredCount, matchedJobs } = useMemo(() => {
         const data = {};
         const map = new Map();
+        const matchedList = [];
         let matched = 0;
 
         COLUMNS.forEach(c => data[c.id] = []);
@@ -183,7 +187,10 @@ export default function KanbanBoard() {
 
                 if (data[j.status]) {
                     data[j.status].push(j);
-                    if (j.status !== 'deleted') matched++;
+                    if (j.status !== 'deleted') {
+                        matched++;
+                        matchedList.push(j);
+                    }
                 }
             });
         }
@@ -194,7 +201,7 @@ export default function KanbanBoard() {
             });
         }
 
-        return { columnsData: data, jobsMap: map, filteredCount: matched };
+        return { columnsData: data, jobsMap: map, filteredCount: matched, matchedJobs: matchedList };
     }, [jobs, searchQuery, companyFilter, stageFilter, locationFilter, quickFilter, sortBy, nowMs]);
 
     // Determine whether a section is collapsed in 'stacked' (All Sections) mode:
@@ -447,6 +454,36 @@ export default function KanbanBoard() {
                                 </span>
                             )}
                             {filtersOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
+
+                        {/* Sankey Flow & Conversion Stats Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowSankey(prev => !prev)}
+                            aria-pressed={showSankey}
+                            className="btn-secondary"
+                            title="Toggle interactive Sankey diagram and conversion/success rate analytics"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '999px',
+                                fontSize: '0.77rem',
+                                fontWeight: 700,
+                                border: showSankey
+                                    ? '1px solid var(--accent-primary)'
+                                    : '1px solid var(--border-subtle)',
+                                background: showSankey
+                                    ? 'rgba(107, 126, 103, 0.18)'
+                                    : 'var(--bg-card)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <GitBranch size={13} color="var(--accent-primary)" />
+                            <span>{showSankey ? 'Hide Sankey & Stats' : 'Sankey & Stats'}</span>
                         </button>
                     </div>
 
@@ -1075,6 +1112,12 @@ export default function KanbanBoard() {
                     })}
                 </div>
             </div>
+
+            {showSankey && (
+                <div style={{ marginBottom: '12px', flexShrink: 0 }}>
+                    <JobSankeyChart jobs={matchedJobs} compact={true} />
+                </div>
+            )}
 
             {/* Main Kanban Board (Supports 'stacked' All-Sections View & 'columns' Horizontal View) */}
             <div
