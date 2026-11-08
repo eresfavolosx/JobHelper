@@ -42,7 +42,7 @@ function parseMultiCsv(val) {
 }
 
 export default function Onboarding({ isCollapsible = false, onDismiss }) {
-    const { openNewJobModal } = useUIStore();
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
     const addJob = useAppStore(state => state.addJob);

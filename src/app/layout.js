@@ -101,7 +101,12 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 function AuthenticatedLayout({ children }) {
     const { user } = useAuth();
     const jobs = useAppStore(state => state.jobs);
-    const { isJobModalOpen, closeJobModal, editingJob, openNewJobModal, openGlobalSearch, toggleSidebarCollapse } = useUIStore();
+    const isJobModalOpen = useUIStore(state => state.isJobModalOpen);
+    const closeJobModal = useUIStore(state => state.closeJobModal);
+    const editingJob = useUIStore(state => state.editingJob);
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
+    const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
+    const toggleSidebarCollapse = useUIStore(state => state.toggleSidebarCollapse);
     const [morningSyncOpen, setMorningSyncOpen] = useState(false);
     const [coachJob, setCoachJob] = useState(null);
 
@@ -238,13 +243,11 @@ export default function RootLayout({ children }) {
 }
 
 function NavContent({ onOpenMorningSync }) {
-    const { 
-        openNewJobModal, 
-        openGlobalSearch, 
-        isSidebarCollapsed, 
-        toggleSidebarCollapse, 
-        setSidebarCollapsed 
-    } = useUIStore();
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
+    const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
+    const isSidebarCollapsed = useUIStore(state => state.isSidebarCollapsed);
+    const toggleSidebarCollapse = useUIStore(state => state.toggleSidebarCollapse);
+    const setSidebarCollapsed = useUIStore(state => state.setSidebarCollapsed);
     const { user } = useAuth();
     const profile = useAppStore((state) => state.profile);
     const jobs = useAppStore((state) => state.jobs);
