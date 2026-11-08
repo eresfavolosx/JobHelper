@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import GoalTrackerWidget from '@/components/GoalTrackerWidget';
+import JobSankeyChart from '@/components/JobSankeyChart';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
 import { isOwner } from '@/lib/subscription';
@@ -286,6 +287,9 @@ export default function Home() {
 
             {/* Application Output Goal & Cadence Command Center */}
             <GoalTrackerWidget />
+
+            {/* Interactive Sankey Flow & Conversion / Success Rate Analytics */}
+            <JobSankeyChart jobs={jobs} />
 
             <ApplicationHistoryChart jobs={jobs} />
         </div>

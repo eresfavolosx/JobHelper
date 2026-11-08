@@ -322,8 +322,17 @@ export const useAppStore = create(
                 const resolvedAppliedAt = updates?.status && !updates.appliedAt
                     ? resolveAppliedAtForStatusChange(existingJob, updates.status, nowIso)
                     : undefined;
+                const statusChanged = Boolean(
+                    updates?.status &&
+                    existingJob?.status &&
+                    updates.status !== existingJob.status &&
+                    VALID_PREVIOUS_STATUSES.has(existingJob.status)
+                );
                 const enrichedUpdates = {
                     ...updates,
+                    ...(statusChanged && updates.previousStatus === undefined
+                        ? { previousStatus: existingJob.status }
+                        : {}),
                     ...(resolvedAppliedAt ? { appliedAt: resolvedAppliedAt, updatedAt: nowIso } : {})
                 };
                 set((state) => ({
@@ -436,13 +445,22 @@ export const useAppStore = create(
                 const existingJob = get().jobs.find(j => j?.id === id);
                 const nowIso = new Date().toISOString();
                 const resolvedAppliedAt = resolveAppliedAtForStatusChange(existingJob, newStatus, nowIso);
+                const shouldRecordPrevStatus = Boolean(
+                    existingJob?.status &&
+                    existingJob.status !== newStatus &&
+                    existingJob.status !== 'archived' &&
+                    existingJob.status !== 'deleted' &&
+                    VALID_PREVIOUS_STATUSES.has(existingJob.status)
+                );
                 const updates = {
                     status: newStatus,
                     updatedAt: nowIso,
                     ...(resolvedAppliedAt ? { appliedAt: resolvedAppliedAt } : {}),
-                    ...(existingJob?.status === 'archived' || existingJob?.status === 'deleted'
-                        ? { archivedAt: null, deletedAt: null, previousStatus: null }
-                        : {})
+                    ...(shouldRecordPrevStatus
+                        ? { previousStatus: existingJob.status }
+                        : (existingJob?.status === 'archived' || existingJob?.status === 'deleted'
+                            ? { archivedAt: null, deletedAt: null, previousStatus: null }
+                            : {}))
                 };
                 set((state) => ({
                     jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
