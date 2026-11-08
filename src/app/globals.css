@@ -46,6 +46,17 @@
   --radius-lg: 18px;
   --radius-md: 12px;
   --radius-sm: 8px;
+
+  /* Semantic Design System Aliases & Cross-Browser Safari Fallbacks */
+  --card: var(--bg-card);
+  --background: var(--bg-app);
+  --foreground: var(--text-primary);
+  --muted: var(--bg-panel);
+  --muted-foreground: var(--text-secondary);
+  --border: var(--border-subtle);
+  --primary: var(--accent-primary);
+  --primary-foreground: #FAF8F4;
+  --secondary: var(--accent-secondary);
 }
 
 /* Light Theme Overrides (Warm Cotton Plaster & Architectural Slate Grey) */
