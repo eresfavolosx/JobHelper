@@ -7,7 +7,7 @@
 export const CADENCE_OPTIONS = [
     { value: 'weekly', label: 'Weekly', defaultTarget: 10, helper: 'Applications per week (Mon - Sun)' },
     { value: 'monthly', label: 'Monthly', defaultTarget: 40, helper: 'Applications per calendar month' },
-    { value: 'daily', label: 'Daily', defaultTarget: 3, helper: 'Applications per day' },
+    { value: 'daily', label: 'Daily', defaultTarget: 5, helper: 'Applications per day (5/day goal)' },
     { value: 'total', label: 'Milestone Total', defaultTarget: 100, helper: 'Total pipeline target' }
 ];
 
@@ -216,6 +216,94 @@ export function getCycleDaysRemaining(cadence, now = new Date()) {
 }
 
 /**
+ * Builds a deterministic cycle identifier for a goal configuration and timestamp.
+ * Used to track whether the user has already celebrated completing the current goal cycle/target.
+ */
+export function getGoalCycleKey(goal = DEFAULT_GOAL, now = new Date()) {
+    const target = Math.max(1, parseInt(goal?.target, 10) || DEFAULT_GOAL.target);
+    const cadence = goal?.cadence || DEFAULT_GOAL.cadence;
+    const pad2 = (n) => String(n).padStart(2, '0');
+
+    if (cadence === 'daily') {
+        const y = now.getFullYear();
+        const m = pad2(now.getMonth() + 1);
+        const d = pad2(now.getDate());
+        return `daily:${y}-${m}-${d}:target:${target}`;
+    }
+
+    if (cadence === 'weekly') {
+        const current = new Date(now);
+        const dayOfWeek = current.getDay();
+        const distanceToMonday = (dayOfWeek + 6) % 7;
+        const monday = new Date(current);
+        monday.setDate(current.getDate() - distanceToMonday);
+        const y = monday.getFullYear();
+        const m = pad2(monday.getMonth() + 1);
+        const d = pad2(monday.getDate());
+        return `weekly:${y}-${m}-${d}:target:${target}`;
+    }
+
+    if (cadence === 'monthly') {
+        const y = now.getFullYear();
+        const m = pad2(now.getMonth() + 1);
+        return `monthly:${y}-${m}:target:${target}`;
+    }
+
+    return `total:all:target:${target}`;
+}
+
+/**
+ * Builds a deterministic daily milestone key for achieving 5 applications today.
+ */
+export function getDailyMilestoneKey(now = new Date()) {
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const y = now.getFullYear();
+    const m = pad2(now.getMonth() + 1);
+    const d = pad2(now.getDate());
+    return `daily-milestone:${y}-${m}-${d}:target:5`;
+}
+
+/**
+ * Determines whether full-screen confetti & celebration should trigger for the current goal progress.
+ * Triggers when:
+ * - Goal tracking is enabled, AND
+ * - EITHER the cadence goal is completed (count >= target),
+ * - OR the 5 applications daily goal is achieved (todayCount >= 5).
+ */
+export function shouldTriggerGoalCelebration({
+    prevCount = null,
+    prevCycleKey = null,
+    prevTodayCount = null,
+    currentProgress,
+    celebratedCycleKey = null,
+    celebratedDailyMilestoneKey = null
+} = {}) {
+    if (!currentProgress || currentProgress.enabled === false) return false;
+
+    // 1. Cadence goal completed (daily, weekly, monthly, total)
+    const isCadenceCompleted = currentProgress.count >= currentProgress.target && currentProgress.target > 0;
+    const cycleKey = currentProgress.cycleKey;
+    const crossedCadenceThreshold =
+        isCadenceCompleted &&
+        (
+            (prevCycleKey === cycleKey && typeof prevCount === 'number' && prevCount < currentProgress.target) ||
+            (cycleKey && celebratedCycleKey !== cycleKey)
+        );
+
+    // 2. 5 applications daily goal / milestone completed (todayCount >= 5)
+    const isDailyMilestoneCompleted = currentProgress.todayCount >= 5;
+    const dailyKey = currentProgress.dailyMilestoneKey || getDailyMilestoneKey();
+    const crossedDailyMilestone =
+        isDailyMilestoneCompleted &&
+        (
+            (typeof prevTodayCount === 'number' && prevTodayCount < 5) ||
+            (dailyKey && celebratedDailyMilestoneKey !== dailyKey)
+        );
+
+    return crossedCadenceThreshold || crossedDailyMilestone;
+}
+
+/**
  * Evaluates progress against user goal and returns both today's applied roles
  * and the roles contributing to the active goal cycle.
  */
@@ -317,11 +405,18 @@ export function calculateGoalProgress(jobs = [], goal = DEFAULT_GOAL, now = new 
         }
     }
 
+    const cycleKey = getGoalCycleKey({ target, cadence }, now);
+    const dailyMilestoneKey = getDailyMilestoneKey(now);
+    const isDailyGoalMet = todayCount >= 5;
+
     const result = {
         count,
         todayCount,
         target,
         cadence,
+        cycleKey,
+        dailyMilestoneKey,
+        isDailyGoalMet,
         percentage,
         remaining,
         pace,

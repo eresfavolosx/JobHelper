@@ -294,7 +294,7 @@ export const useAppStore = create(
                 };
 
                 const nowIso = new Date().toISOString();
-                const initialStatus = job?.status || 'wishlist';
+                const initialStatus = job?.status || 'applied';
                 const newJob = {
                     status: initialStatus,
                     ...job,

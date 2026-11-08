@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, X, Check, CheckCircle2, Sliders, Minus, Plus, Briefcase } from 'lucide-react';
+import { Target, X, Check, CheckCircle2, Sliders, Minus, Plus, Briefcase, PartyPopper } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { useUIStore } from '@/lib/uiStore';
 import { CADENCE_OPTIONS, DEFAULT_GOAL, calculateGoalProgress } from '@/lib/goal-tracker';
 
 export default function GoalCustomizationModal({ isOpen, onClose }) {
@@ -14,6 +15,7 @@ function GoalFormModalBody({ onClose }) {
     const profile = useAppStore(state => state.profile);
     const jobs = useAppStore(state => state.jobs);
     const updateProfile = useAppStore(state => state.updateProfile);
+    const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
 
     const currentGoal = profile?.applicationGoal || DEFAULT_GOAL;
 
@@ -188,6 +190,31 @@ function GoalFormModalBody({ onClose }) {
                             }}>
                                 {liveProgress.count} / {numTarget} applications ({liveProgress.percentage}%)
                             </span>
+                            {(liveProgress.percentage >= 100 || liveProgress.todayCount >= 5) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onClose();
+                                        triggerGoalCelebration();
+                                    }}
+                                    style={{
+                                        background: 'rgba(95, 130, 99, 0.2)',
+                                        border: '1px solid var(--success)',
+                                        borderRadius: '999px',
+                                        color: 'var(--success)',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        padding: '2px 8px',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                    title="Celebrate goal with full-screen confetti!"
+                                >
+                                    <PartyPopper size={12} /> {liveProgress.todayCount >= 5 && liveProgress.percentage < 100 ? 'Celebrate 5 Today 🎉' : 'Celebrate 🎉'}
+                                </button>
+                            )}
                         </div>
                         <span style={{
                             fontSize: '0.75rem',

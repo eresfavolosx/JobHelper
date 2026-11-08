@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, Key, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe } from 'lucide-react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
-import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, getAvailableAiProviders, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
+import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
 import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
 import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';

@@ -23,6 +23,7 @@ import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import GlobalJobSearchModal from '@/components/GlobalJobSearchModal';
+import GoalCelebrationOverlay from '@/components/GoalCelebrationOverlay';
 
 
 
@@ -176,6 +177,7 @@ function AuthenticatedLayout({ children }) {
             <DailyReminder />
             <UndoToast />
             <GlobalJobSearchModal />
+            <GoalCelebrationOverlay />
             <AddJobModal
                 isOpen={isJobModalOpen}
                 onClose={closeJobModal}

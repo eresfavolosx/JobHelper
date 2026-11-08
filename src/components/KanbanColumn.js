@@ -2,7 +2,8 @@
 import React, { memo, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
-import { Ghost, Archive, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Ghost, Archive, Trash2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { useUIStore } from '@/lib/uiStore';
 import JobCard from './JobCard';
 
 const COLUMN_ACCENTS = {
@@ -92,6 +93,7 @@ const arePropsEqual = (prevProps, nextProps) => {
 };
 
 const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed = false, onToggleCollapse }) => {
+    const openNewJobModal = useUIStore(state => state.openNewJobModal);
     // ⚡ Bolt: Memoize SortableContext items array
     // Prevents creating a new array reference on every render, avoiding unnecessary
     // recalculations and UI jank in dnd-kit during drag operations.
@@ -144,33 +146,62 @@ const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed
                     </span>
                 </div>
 
-                {onToggleCollapse && (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleCollapse(column.id);
-                        }}
-                        aria-expanded={!isCollapsed}
-                        aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${column.title} section`}
-                        title={`${isCollapsed ? 'Expand' : 'Collapse'} ${column.title}`}
-                        style={{
-                            background: 'var(--glass-highlight)',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: '8px',
-                            color: 'var(--text-secondary)',
-                            width: '28px',
-                            height: '28px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            flexShrink: 0
-                        }}
-                    >
-                        {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-                    </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {!column.isArchive && !column.isTrash && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                openNewJobModal(column.id);
+                            }}
+                            aria-label={`Add application to ${column.title}`}
+                            title={`Add application to ${column.title}`}
+                            style={{
+                                background: 'var(--glass-highlight)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: '7px',
+                                color: 'var(--text-secondary)',
+                                width: '26px',
+                                height: '26px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            <Plus size={14} />
+                        </button>
+                    )}
+
+                    {onToggleCollapse && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleCollapse(column.id);
+                            }}
+                            aria-expanded={!isCollapsed}
+                            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${column.title} section`}
+                            title={`${isCollapsed ? 'Expand' : 'Collapse'} ${column.title}`}
+                            style={{
+                                background: 'var(--glass-highlight)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: '8px',
+                                color: 'var(--text-secondary)',
+                                width: '28px',
+                                height: '28px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0
+                            }}
+                        >
+                            {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {!isCollapsed && (

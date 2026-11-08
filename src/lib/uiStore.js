@@ -5,7 +5,11 @@ export const useUIStore = create((set) => ({
     isJobModalOpen: false,
     editingJob: null, // If set, we are editing this job
 
-    openNewJobModal: () => set({ isJobModalOpen: true, editingJob: null }),
+    openNewJobModal: (initialData = null) =>
+        set({
+            isJobModalOpen: true,
+            editingJob: typeof initialData === 'string' ? { status: initialData } : initialData
+        }),
     openEditJobModal: (job) => set({ isJobModalOpen: true, editingJob: job }),
     closeJobModal: () => set({ isJobModalOpen: false, editingJob: null }),
 
@@ -64,5 +68,15 @@ export const useUIStore = create((set) => ({
             boardQuickFilter: 'all',
             boardSortBy: 'default'
         }),
-    setHighlightedJobId: (highlightedJobId) => set({ highlightedJobId })
+    setHighlightedJobId: (highlightedJobId) => set({ highlightedJobId }),
+
+    // Full-screen Goal Completion Confetti & Celebration state
+    isGoalCelebrationOpen: false,
+    goalCelebrationBurstId: 0,
+    triggerGoalCelebration: () =>
+        set((state) => ({
+            isGoalCelebrationOpen: true,
+            goalCelebrationBurstId: state.goalCelebrationBurstId + 1
+        })),
+    closeGoalCelebration: () => set({ isGoalCelebrationOpen: false })
 }));
