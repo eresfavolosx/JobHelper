@@ -1,4 +1,5 @@
 "use client";
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -1153,7 +1154,23 @@ export default function KanbanBoard() {
             )}
 
             {showGantt && (
-                <div style={{ marginBottom: '12px', flexShrink: 0 }}>
+                <div style={{ marginBottom: '14px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
+                        <Link
+                            href="/gantt"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                color: 'var(--accent-primary)',
+                                textDecoration: 'none'
+                            }}
+                        >
+                            <span>Open Dedicated Full-Screen Gantt View &rarr;</span>
+                        </Link>
+                    </div>
                     <JobGanttChart jobs={matchedJobs} compact={true} />
                 </div>
             )}

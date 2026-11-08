@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
@@ -450,6 +450,19 @@ function NavContent({ onOpenMorningSync }) {
                                 {jobs.length}
                             </span>
                         )}
+                    </Link>
+
+                    <Link
+                        href="/gantt"
+                        onClick={closeMobileMenu}
+                        className={`sidebar-nav-link ${mounted && pathname === '/gantt' ? 'active' : ''}`}
+                        title="Application Timeline & Gantt View"
+                        aria-label="Timeline & Gantt"
+                    >
+                        <span className="sidebar-nav-left">
+                            <Timer size={18} />
+                            <span className="sidebar-label">Timeline & Gantt</span>
+                        </span>
                     </Link>
 
                     <Link
