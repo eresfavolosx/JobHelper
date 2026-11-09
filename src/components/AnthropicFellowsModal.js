@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     X, Shield, Sparkles, CheckCircle2, 
@@ -99,6 +99,19 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
         setTimeout(() => setCopiedProof(false), 2500);
     };
 
+    const mouseDownTargetRef = useRef(null);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            onClose();
+        }
+        mouseDownTargetRef.current = null;
+    };
+
     return createPortal(
         <div 
             className="modal-overlay" 
@@ -116,7 +129,8 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
                 zIndex: 99999,
                 padding: '20px'
             }}
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
         >
             <div 
                 className="card"

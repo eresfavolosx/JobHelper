@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     X, Sparkles, Clock, AlertTriangle, Copy, Mail, 
@@ -188,12 +188,26 @@ Return ONLY valid JSON matching this schema:
         setTimeout(() => setCopiedIndex(null), 2500);
     };
 
+    const mouseDownTargetRef = useRef(null);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            onClose();
+        }
+        mouseDownTargetRef.current = null;
+    };
+
     const modalContent = (
         <div
             role="dialog"
             aria-modal="true"
             aria-label="NovuJobs AI Career Agent"
-            onClick={onClose}
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             style={{
                 position: 'fixed',
                 inset: 0,
