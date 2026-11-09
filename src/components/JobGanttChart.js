@@ -20,10 +20,12 @@ import {
     Plus,
     List,
     ChevronRight,
-    Send
+    Send,
+    Layers
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
+import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
 import {
     GANTT_STAGE_META,
     GANTT_TIME_RANGES,
@@ -68,6 +70,16 @@ export default function JobGanttChart({ jobs, compact = false }) {
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
     const openNewJobModal = useUIStore(s => s.openNewJobModal);
     const logJobFollowUp = useAppStore(s => s.logJobFollowUp);
+
+    const rawJobs = useAppStore(state => state.jobs);
+    const storeCycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const setSelectedCycleId = useAppStore(state => state.setSelectedCycleId);
+
+    // Resolve search cycles and filter jobs
+    const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
+    const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const cycleFilteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
 
     const prefersReducedMotion = useSyncExternalStore(
         subscribeReducedMotion,
@@ -165,14 +177,14 @@ export default function JobGanttChart({ jobs, compact = false }) {
 
     // Calculate Gantt data & insights
     const ganttData = useMemo(() => {
-        return buildGanttChartData(jobs, {
+        return buildGanttChartData(cycleFilteredJobs, {
             range,
             statusFilter,
             searchQuery,
             sortBy,
             width: containerWidth
         });
-    }, [jobs, range, statusFilter, searchQuery, sortBy, containerWidth]);
+    }, [cycleFilteredJobs, range, statusFilter, searchQuery, sortBy, containerWidth]);
 
     const { items, columns, insights, todayPercent, hasData, totalVisible } = ganttData;
 
@@ -505,7 +517,12 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                 fontWeight: 600,
                                 border: '1px solid var(--border-subtle)'
                             }}>
-                                {totalVisible} {totalVisible === 1 ? 'role' : 'roles'}
+                                <Layers size={11} color="var(--accent-primary)" />
+                                <span>
+                                    {selectedCycleId === 'all'
+                                        ? `All Cycles · ${totalVisible} ${totalVisible === 1 ? 'role' : 'roles'}`
+                                        : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${totalVisible} ${totalVisible === 1 ? 'role' : 'roles'}`}
+                                </span>
                             </span>
                         </div>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>
@@ -649,8 +666,43 @@ export default function JobGanttChart({ jobs, compact = false }) {
                     )}
                 </div>
 
-                {/* Right Action Tools: Time Range, Copy, SVG */}
+                {/* Right Action Tools: Cycle Selector, Time Range, Copy, SVG */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                    {/* Search Cycle Selector */}
+                    {cycles.length > 0 && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <Layers size={13} color="var(--accent-primary)" />
+                            <select
+                                value={selectedCycleId}
+                                onChange={e => setSelectedCycleId(e.target.value)}
+                                aria-label="Filter Gantt timeline by job search cycle"
+                                style={{
+                                    padding: '5px 10px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-panel)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="all" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                    All Cycles ({(rawJobs || sourceJobs).filter(j => j && j.status !== 'deleted').length})
+                                </option>
+                                {cycles.map(c => {
+                                    const count = filterJobsByCycle(rawJobs || sourceJobs, cycles, c.id).length;
+                                    return (
+                                        <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                            {c.name || `Cycle ${c.cycleNumber || 1}`} ({count})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    )}
+
                     {/* Time Range Pills */}
                     <div
                         role="group"
@@ -1373,7 +1425,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '420px', margin: '0 auto 16px auto' }}>
                                 Try clearing your search query or selecting &quot;All Roles&quot; to see full timeline history.
                             </p>
-                            {(!jobs || jobs.length === 0) ? (
+                            {(!cycleFilteredJobs || cycleFilteredJobs.length === 0) ? (
                                 <button
                                     type="button"
                                     onClick={() => openNewJobModal && openNewJobModal()}

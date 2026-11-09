@@ -24,6 +24,8 @@ import {
     computeBenchmarkAnalytics,
     formatBenchmarkSummaryMarkdown
 } from '@/lib/benchmark-analytics';
+import { useAppStore } from '@/lib/store';
+import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
 
 function subscribeReducedMotion(callback) {
     if (typeof window === 'undefined' || !window.matchMedia) return () => {};
@@ -52,6 +54,11 @@ function getReducedMotionServerSnapshot() {
 }
 
 export default function MarketBenchmarkView({ jobs, compact = false }) {
+    const rawJobs = useAppStore(state => state.jobs);
+    const storeCycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const setSelectedCycleId = useAppStore(state => state.setSelectedCycleId);
+
     const prefersReducedMotion = useSyncExternalStore(
         subscribeReducedMotion,
         getReducedMotionSnapshot,
@@ -62,13 +69,18 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
     const [range, setRange] = useState('all');
     const [copiedSummary, setCopiedSummary] = useState(false);
 
+    // Resolve search cycles and filter jobs
+    const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
+    const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const filteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
+
     // Compute all benchmark metrics, deltas, and trends
     const analytics = useMemo(() => {
-        return computeBenchmarkAnalytics(jobs, {
+        return computeBenchmarkAnalytics(filteredJobs, {
             benchmarkProfile,
             range
         });
-    }, [jobs, benchmarkProfile, range]);
+    }, [filteredJobs, benchmarkProfile, range]);
 
     const {
         benchmark,
@@ -169,7 +181,12 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
                                 fontWeight: 600,
                                 border: '1px solid var(--border-subtle)'
                             }}>
-                                {totalApplied} Applications Analyzed
+                                <Layers size={11} color="var(--accent-primary)" />
+                                <span>
+                                    {selectedCycleId === 'all'
+                                        ? `All Cycles · ${totalApplied} Applied`
+                                        : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${totalApplied} Applied`}
+                                </span>
                             </span>
                         </div>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>
@@ -178,8 +195,43 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
                     </div>
                 </div>
 
-                {/* Right Action Tools: Benchmark Selector, Time Range & Export */}
+                {/* Right Action Tools: Cycle Selector, Benchmark Profile, Time Range & Export */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                    {/* Search Cycle Selector */}
+                    {cycles.length > 0 && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <Layers size={13} color="var(--accent-primary)" />
+                            <select
+                                value={selectedCycleId}
+                                onChange={e => setSelectedCycleId(e.target.value)}
+                                aria-label="Filter benchmarks by job search cycle"
+                                style={{
+                                    padding: '5px 10px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-panel)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="all" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                    All Cycles ({(rawJobs || sourceJobs).filter(j => j && j.status !== 'deleted').length})
+                                </option>
+                                {cycles.map(c => {
+                                    const count = filterJobsByCycle(rawJobs || sourceJobs, cycles, c.id).length;
+                                    return (
+                                        <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                            {c.name || `Cycle ${c.cycleNumber || 1}`} ({count})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    )}
+
                     {/* Benchmark Profile Dropdown */}
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                         <SlidersHorizontal size={13} color="var(--accent-primary)" />
