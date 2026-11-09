@@ -24,10 +24,10 @@ export const SANKEY_STAGE_META = {
     interview_reached: { label: 'Advanced to Interviews', shortLabel: 'Interviewed', color: '#D4A373' },
     screening_closed: { label: 'Ended After Screening', shortLabel: 'Closed (Screen)', color: '#f97316' },
     interview_active: { label: 'Active Interviewing', shortLabel: 'Interviewing', color: '#D4A373' },
-    offer_reached: { label: 'Offer Received', shortLabel: 'Offer Received', color: '#10b981' },
+    offer_reached: { label: 'Advanced to Offer', shortLabel: 'Offer Stage', color: '#10b981' },
     interview_closed: { label: 'Ended After Interview', shortLabel: 'Closed (Interview)', color: '#ef4444' },
     offer_pending: { label: 'Pending Offer Decision', shortLabel: 'Pending Offer', color: '#10b981' },
-    accepted_final: { label: 'Offer Accepted', shortLabel: 'Accepted', color: '#22c55e' },
+    accepted_final: { label: 'Offer Accepted 🎉', shortLabel: 'Accepted', color: '#22c55e' },
     offer_declined: { label: 'Offer Declined / Closed', shortLabel: 'Declined', color: '#f59e0b' },
     // Direct stage nodes
     stage_wishlist: { label: 'Wishlist', shortLabel: 'Wishlist', color: '#9DA7AE', boardStage: 'wishlist' },
@@ -620,15 +620,16 @@ export function buildJobSankeyData(jobs, options = {}) {
     const colIndexMap = new Map(distinctCols.map((c, idx) => [c, idx]));
     const numCols = distinctCols.length;
 
-    const padTop = 28;
-    const padBottom = 28;
-    const padLeft = 20;
-    const padRight = 20;
-    const nodeWidth = 18;
+    const padTop = 38;
+    const padBottom = 32;
+    const padLeft = numCols > 1 ? 140 : 24;
+    const padRight = numCols > 1 ? 170 : 24;
+    const nodeWidth = 12;
     const nodeGap = 16;
+    const minNodeHeight = 22;
 
-    const usableWidth = Math.max(200, width - padLeft - padRight - nodeWidth);
-    const usableHeight = Math.max(160, height - padTop - padBottom);
+    const usableWidth = Math.max(260, width - padLeft - padRight - nodeWidth);
+    const usableHeight = Math.max(180, height - padTop - padBottom);
     const colStep = numCols > 1 ? usableWidth / (numCols - 1) : 0;
 
     // Group nodes by normalized column index
@@ -655,8 +656,8 @@ export function buildJobSankeyData(jobs, options = {}) {
         const x0 = Math.round(padLeft + cIdx * colStep);
         const x1 = x0 + nodeWidth;
 
-        // Compute raw heights with a readable minimum height of 10px
-        const rawHeights = colNodes.map(n => Math.max(10, n.value * valueScale));
+        // Compute raw heights with minimum height of minNodeHeight (22px) so nodes are always vertical bars
+        const rawHeights = colNodes.map(n => Math.max(minNodeHeight, n.value * valueScale));
         const totalNodesH = rawHeights.reduce((a, b) => a + b, 0);
         const totalGapsH = Math.max(0, colNodes.length - 1) * nodeGap;
         let totalColH = totalNodesH + totalGapsH;
@@ -668,22 +669,61 @@ export function buildJobSankeyData(jobs, options = {}) {
             totalColH = totalNodesH * adjustFactor + totalGapsH;
         }
 
-        // Vertically center the column within the SVG canvas
-        let currentY = padTop + Math.max(0, (usableHeight - totalColH) / 2);
+        // Align column vertically with upstream feeding nodes instead of blindly centering in empty space
+        let startY = padTop;
+        if (cIdx > 0) {
+            const inLinks = rawLinks.filter(l => {
+                const target = rawNodes.get(l.target);
+                return target && target.colIndex === cIdx;
+            });
+            if (inLinks.length > 0) {
+                const primarySource = rawNodes.get(inLinks[0].source);
+                if (primarySource && typeof primarySource.y0 === 'number') {
+                    startY = primarySource.y0;
+                }
+            }
+        }
+        const maxStartY = padTop + usableHeight - totalColH;
+        let currentY = Math.max(padTop, Math.min(startY, Math.max(padTop, maxStartY)));
 
         colNodes.forEach((node, idx) => {
-            const h = Math.max(8, rawHeights[idx] * adjustFactor);
+            const h = Math.max(16, rawHeights[idx] * adjustFactor);
             node.x0 = x0;
             node.x1 = x1;
             node.y0 = currentY;
             node.y1 = currentY + h;
             node.height = h;
+            node.centerY = currentY + h / 2;
             node.pctOfTotal = toPct(node.value, filtered.length);
             node.pctOfApplied = toPct(node.value, stats.totalApplied || filtered.length);
             node.outOffset = 0;
             node.inOffset = 0;
+
+            // Determine label placement
+            node.isLeftSide = numCols > 1 && node.colIndex === 0;
+            node.labelX = node.isLeftSide ? node.x0 - 10 : node.x1 + 10;
+            node.textAnchor = node.isLeftSide ? 'end' : 'start';
+            node.labelY = node.centerY;
+
             currentY += h + nodeGap;
         });
+
+        // Resolve vertical label collisions within this column
+        const minLabelSpacing = 28;
+        for (let i = 1; i < colNodes.length; i++) {
+            if (colNodes[i].labelY < colNodes[i - 1].labelY + minLabelSpacing) {
+                colNodes[i].labelY = colNodes[i - 1].labelY + minLabelSpacing;
+            }
+        }
+        const maxLabelY = padTop + usableHeight - 4;
+        if (colNodes.length > 0 && colNodes[colNodes.length - 1].labelY > maxLabelY) {
+            colNodes[colNodes.length - 1].labelY = maxLabelY;
+            for (let i = colNodes.length - 2; i >= 0; i--) {
+                if (colNodes[i].labelY > colNodes[i + 1].labelY - minLabelSpacing) {
+                    colNodes[i].labelY = colNodes[i + 1].labelY - minLabelSpacing;
+                }
+            }
+        }
     }
 
     // Compute cubic-Bézier ribbon geometry for each link
@@ -715,8 +755,8 @@ export function buildJobSankeyData(jobs, options = {}) {
 
         const sx = sourceNode.x1;
         const tx = targetNode.x0;
-        const cx0 = sx + (tx - sx) * 0.45;
-        const cx1 = sx + (tx - sx) * 0.55;
+        const cx0 = sx + (tx - sx) * 0.5;
+        const cx1 = sx + (tx - sx) * 0.5;
 
         // Closed cubic-Bézier ribbon polygon for exact variable-thickness rendering
         const ribbonPath = [

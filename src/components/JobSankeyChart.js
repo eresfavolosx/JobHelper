@@ -161,16 +161,17 @@ export default function JobSankeyChart({ jobs, compact = false }) {
         }
     };
 
-    const chartHeight = compact ? 330 : 390;
+    const chartHeight = compact ? 380 : 440;
+    const chartWidth = Math.max(980, containerWidth);
 
     const sankey = useMemo(() => {
         return buildJobSankeyData(jobs, {
             mode,
             range,
-            width: Math.max(540, containerWidth),
+            width: chartWidth,
             height: chartHeight
         });
-    }, [jobs, mode, range, containerWidth, chartHeight]);
+    }, [jobs, mode, range, chartWidth, chartHeight]);
 
     // Categorized job roles per funnel stage for mobile cards inspection
     const stageRoles = useMemo(() => {
@@ -1199,24 +1200,20 @@ export default function JobSankeyChart({ jobs, compact = false }) {
 
                         {/* Column Stage Headers */}
                         {columns.map(col => {
-                            const isFirst = col.index === 0;
-                            const isLast = col.index === columns.length - 1;
-                            const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
-                            const labelX = isFirst ? col.x - 8 : isLast ? col.x + 8 : col.x;
                             return (
                                 <text
                                     key={`col-header-${col.index}`}
-                                    x={labelX}
-                                    y={18}
-                                    textAnchor={anchor}
+                                    x={col.x}
+                                    y={20}
+                                    textAnchor="middle"
                                     fill="var(--text-secondary, #9DA7AE)"
                                     style={{
-                                        fontSize: '10.5px',
+                                        fontSize: '11px',
                                         fontWeight: 700,
                                         letterSpacing: '0.05em',
                                         textTransform: 'uppercase',
                                         fill: 'var(--text-secondary, #9DA7AE)',
-                                        opacity: 0.85,
+                                        opacity: 0.9,
                                         fontFamily: 'system-ui, -apple-system, sans-serif'
                                     }}
                                 >
@@ -1292,10 +1289,9 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                                 const isSelected = selectedSelection?.type === 'node' && selectedSelection.id === node.id;
                                 const isHovered = hoveredNodeId === node.id;
                                 const isHighlighted = isSelected || isHovered;
-                                const isRightSide = node.colIndex === sankey.numCols - 1 && sankey.numCols > 1;
-                                const labelX = isRightSide ? node.x0 - 8 : node.x1 + 8;
-                                const textAnchor = isRightSide ? 'end' : 'start';
-                                const centerY = (node.y0 + node.y1) / 2;
+                                const labelX = node.labelX ?? (node.x1 + 10);
+                                const textAnchor = node.textAnchor ?? 'start';
+                                const labelY = node.labelY ?? (node.y0 + node.y1) / 2;
 
                                 return (
                                     <g
@@ -1332,38 +1328,46 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                                             y={node.y0}
                                             width={node.x1 - node.x0}
                                             height={node.height}
-                                            rx={5}
-                                            ry={5}
+                                            rx={4}
+                                            ry={4}
                                             fill={node.color}
                                             stroke={isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.22)'}
                                             strokeWidth={isHighlighted ? 2 : 1}
                                         />
                                         <text
                                             x={labelX}
-                                            y={centerY - 2}
+                                            y={labelY - 2}
                                             textAnchor={textAnchor}
+                                            stroke="var(--bg-card, #1c1d1f)"
+                                            strokeWidth={3.5}
+                                            strokeLinejoin="round"
                                             fill="var(--text-primary, #FAF8F4)"
                                             style={{
-                                                fontSize: '12px',
+                                                fontSize: '11.5px',
                                                 fontWeight: 700,
                                                 fill: 'var(--text-primary, #FAF8F4)',
                                                 pointerEvents: 'none',
-                                                fontFamily: 'system-ui, -apple-system, sans-serif'
+                                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                paintOrder: 'stroke fill'
                                             }}
                                         >
                                             {node.label}
                                         </text>
                                         <text
                                             x={labelX}
-                                            y={centerY + 12}
+                                            y={labelY + 12}
                                             textAnchor={textAnchor}
+                                            stroke="var(--bg-card, #1c1d1f)"
+                                            strokeWidth={3}
+                                            strokeLinejoin="round"
                                             fill="var(--text-secondary, #9DA7AE)"
                                             style={{
-                                                fontSize: '10.5px',
+                                                fontSize: '10px',
                                                 fontWeight: 600,
                                                 fill: 'var(--text-secondary, #9DA7AE)',
                                                 pointerEvents: 'none',
-                                                fontFamily: 'system-ui, -apple-system, sans-serif'
+                                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                paintOrder: 'stroke fill'
                                             }}
                                         >
                                             {node.value} ({node.pctOfTotal}%)
