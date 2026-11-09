@@ -17,53 +17,66 @@ export const INDUSTRY_BENCHMARK_PROFILES = {
     tech_general: {
         id: 'tech_general',
         label: 'General Tech / Software Engineering',
-        description: 'Mid-to-senior tech roles applying primarily through company portals and job boards.',
+        description: 'Mid-to-senior software engineers and tech professionals applying via company career sites and job boards.',
         rates: {
-            screeningRate: 12.0,            // 12% of applications advance to initial recruiter screen
-            screeningToInterviewRate: 45.0, // 45% of screened candidates reach interview loop
-            interviewToOfferRate: 22.0,     // 22% of interview loops convert to an offer
-            overallOfferRate: 2.8,          // 2.8% net application-to-offer conversion (~1 offer per 36 apps)
-            avgCycleDays: 38,               // 38 days average start-to-finish duration
-            avgCallbackDays: 10             // 10 days average response callback time
+            screeningRate: 12.0,            // 12% of applications advance to initial recruiter screen (~1 in 8.3)
+            screeningToInterviewRate: 42.0, // 42% of screened candidates reach the technical interview loop
+            interviewToOfferRate: 24.0,     // 24% of interview finalists convert to a formal offer (~1 in 4)
+            overallOfferRate: 1.2,          // 1.2% net application-to-offer rate (12% × 42% × 24% ≈ 1.2%, ~1 offer per 83 apps)
+            avgCycleDays: 42,               // 42 days average start-to-finish hiring cycle
+            avgCallbackDays: 9              // 9 business days average callback response time
         }
     },
     product_design: {
         id: 'product_design',
         label: 'Product, UX & Data Analytics',
-        description: 'Product Managers, Product Designers, and Data Analysts in technology.',
+        description: 'Product Managers, Product Designers, UX Researchers, and Data Analysts in technology.',
         rates: {
-            screeningRate: 14.0,
-            screeningToInterviewRate: 40.0,
-            interviewToOfferRate: 20.0,
-            overallOfferRate: 2.5,
-            avgCycleDays: 35,
-            avgCallbackDays: 9
+            screeningRate: 12.5,            // 12.5% of applications advance to initial recruiter screen (~1 in 8)
+            screeningToInterviewRate: 40.0, // 40% of screened candidates pass portfolio/case review to loops
+            interviewToOfferRate: 22.0,     // 22% of final loop presentations convert to an offer
+            overallOfferRate: 1.1,          // 1.1% net application-to-offer rate (12.5% × 40% × 22% = 1.1%)
+            avgCycleDays: 38,               // 38 days average hiring cycle
+            avgCallbackDays: 8              // 8 business days average callback response time
         }
     },
     competitive_entry: {
         id: 'competitive_entry',
         label: 'Competitive / High-Volume Market',
-        description: 'High-volume applicant pools, entry-level, career switchers, or economic downturn markets.',
+        description: 'High-applicant-volume roles, entry-level/new grads, career switchers, or saturated applicant pools (250+ applicants/req).',
         rates: {
-            screeningRate: 6.5,
-            screeningToInterviewRate: 35.0,
-            interviewToOfferRate: 15.0,
-            overallOfferRate: 1.2,
-            avgCycleDays: 45,
-            avgCallbackDays: 14
+            screeningRate: 5.0,             // 5.0% of applications pass initial ATS resume screen (~1 in 20)
+            screeningToInterviewRate: 32.0, // 32% of candidates pass automated coding/take-home tests to interview
+            interviewToOfferRate: 18.0,     // 18% of interview finalists convert to an offer
+            overallOfferRate: 0.3,          // 0.3% net application-to-offer rate (5% × 32% × 18% ≈ 0.3%, ~1 offer per 330 apps)
+            avgCycleDays: 48,               // 48 days average hiring cycle
+            avgCallbackDays: 14             // 14 business days average callback response time
+        }
+    },
+    leadership_staff: {
+        id: 'leadership_staff',
+        label: 'Staff+, Principal & Tech Leadership',
+        description: 'Staff/Principal Engineers, Engineering Managers, Directors, and senior technical leadership.',
+        rates: {
+            screeningRate: 20.0,            // 20% recruiter screening rate due to specialized senior profile match
+            screeningToInterviewRate: 50.0, // 50% advance to full leadership & architectural panel
+            interviewToOfferRate: 18.0,     // 18% convert (rigorous hiring committee calibration across finalists)
+            overallOfferRate: 1.8,          // 1.8% net application-to-offer rate (20% × 50% × 18% = 1.8%)
+            avgCycleDays: 56,               // 56 days (8 weeks) average executive hiring cycle
+            avgCallbackDays: 10             // 10 business days average callback response time
         }
     },
     referral_network: {
         id: 'referral_network',
-        label: 'Warm Network & Referral Benchmark',
-        description: 'Candidates with employee referrals, recruiter headhunting, or strong professional connections.',
+        label: 'Warm Network & Employee Referral',
+        description: 'Candidates with employee referrals, recruiter headhunting, or executive professional connections.',
         rates: {
-            screeningRate: 35.0,
-            screeningToInterviewRate: 60.0,
-            interviewToOfferRate: 30.0,
-            overallOfferRate: 6.3,
-            avgCycleDays: 28,
-            avgCallbackDays: 6
+            screeningRate: 36.0,            // 36% of referred applications advance to recruiter screen (~1 in 2.8)
+            screeningToInterviewRate: 62.0, // 62% of screened referrals advance to technical interviews
+            interviewToOfferRate: 32.0,     // 32% of referral finalists convert to an offer (~1 in 3.1)
+            overallOfferRate: 7.1,          // 7.1% net application-to-offer rate (36% × 62% × 32% ≈ 7.1%, ~1 offer per 14 referrals)
+            avgCycleDays: 28,               // 28 days fast-tracked start-to-finish hiring cycle
+            avgCallbackDays: 5              // 5 business days average callback response time
         }
     }
 };
@@ -475,7 +488,25 @@ function generateBenchmarkRecommendations({
         });
     }
 
-    // 2. Interview Loop Conversion Analysis
+    // 2. Screening-to-Interview Loop Transition
+    if (tiers.screeningToInterview === 'needs_attention' && screeningRate > 0) {
+        const diff = Math.abs(Math.round((screeningToInterviewRate - benchmark.screeningToInterviewRate) * 10) / 10);
+        list.push({
+            id: 'phone_screen_transition',
+            tone: 'warning',
+            title: `Screen-to-Interview Drop-off (${screeningToInterviewRate}% vs ${benchmark.screeningToInterviewRate}% Benchmark)`,
+            description: `Recruiters are reaching out, but progression to technical rounds is lagging by -${diff}%. Action: Polish your 2-minute introductory narrative, verify clear compensation alignment early, and review technical core fundamentals.`
+        });
+    } else if (tiers.screeningToInterview === 'outperforming') {
+        list.push({
+            id: 'strong_phone_screens',
+            tone: 'success',
+            title: `High Recruiter Screen Conversion (${screeningToInterviewRate}%)`,
+            description: `You are consistently converting initial phone screens into full interview loops, exceeding industry standard (${benchmark.screeningToInterviewRate}%).`
+        });
+    }
+
+    // 3. Interview Loop Conversion Analysis
     if (tiers.interviewToOffer === 'needs_attention') {
         list.push({
             id: 'interview_coaching',
@@ -489,6 +520,16 @@ function generateBenchmarkRecommendations({
             tone: 'success',
             title: `Elite Interview-to-Offer Conversion (${interviewToOfferRate}%)`,
             description: `Your final loop closing rate is substantially higher than standard tech benchmarks. You excel in live interview interactions.`
+        });
+    }
+
+    // 4. Overall Offer Pipeline Performance
+    if (tiers.overallOffer === 'outperforming') {
+        list.push({
+            id: 'elite_pipeline',
+            tone: 'success',
+            title: `Exceptional Overall Offer Rate (${overallOfferRate}% vs ${benchmark.overallOfferRate}% Market Average)`,
+            description: `Your end-to-end pipeline conversion from application to final offer is well above market baseline. You have established a strong competitive advantage in candidate positioning and interview execution.`
         });
     }
 
