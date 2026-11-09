@@ -82,16 +82,20 @@ export default function Home() {
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
                 flexWrap: 'wrap',
-                gap: '12px'
+                gap: '12px',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box'
             }}>
-                <div>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Dashboard</h2>
-                    <p style={{ color: 'var(--text-secondary)' }}>
+                <div style={{ minWidth: 0, maxWidth: '100%' }}>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', margin: 0, lineHeight: 1.2 }}>Dashboard</h2>
+                    <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
                         Welcome back. Here is your application progress and active job settings.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', maxWidth: '100%' }}>
                     <button
                         type="button"
                         onClick={() => openGlobalSearch()}
@@ -153,13 +157,17 @@ export default function Home() {
                 <div
                     className="card"
                     style={{
-                        padding: '12px 16px',
+                        padding: '12px 14px',
                         marginBottom: '18px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         flexWrap: 'wrap',
-                        gap: '10px'
+                        gap: '10px',
+                        width: '100%',
+                        maxWidth: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box'
                     }}
                 >
                     <div
@@ -169,8 +177,10 @@ export default function Home() {
                             alignItems: 'center',
                             gap: '6px',
                             overflowX: 'auto',
-                            flex: 1,
-                            minWidth: 0
+                            WebkitOverflowScrolling: 'touch',
+                            flex: '1 1 auto',
+                            minWidth: 0,
+                            maxWidth: '100%'
                         }}
                     >
                         <span style={{

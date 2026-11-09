@@ -1067,7 +1067,11 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     borderRadius: '12px',
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-subtle)',
-                    marginBottom: '18px'
+                    marginBottom: '18px',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box'
                 }}
                 aria-label="Stage-by-stage conversion funnel"
             >
@@ -1134,6 +1138,9 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                 <div
                     style={{
                         width: '100%',
+                        maxWidth: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
                         overflowX: 'auto',
                         WebkitOverflowScrolling: 'touch',
                         borderRadius: '12px',
@@ -1510,9 +1517,14 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                 <div style={{
                     marginTop: '14px',
                     overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     borderRadius: '10px',
                     border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-card)'
+                    background: 'var(--bg-card)',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box'
                 }}>
                     <table style={{
                         width: '100%',

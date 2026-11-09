@@ -334,7 +334,7 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
             {/* 4 Core Comparative Funnel Benchmark Cards */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
                 gap: '14px',
                 marginBottom: '22px'
             }}>
@@ -390,7 +390,7 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
             {/* Two Column Grid: Weekly Trends & Channel ROI Matrix */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
                 gap: '16px',
                 marginBottom: '20px'
             }}>

@@ -801,8 +801,8 @@ export default function JobGanttChart({ jobs, compact = false }) {
                 </div>
 
                 {/* Search & Sort */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', minWidth: '180px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
+                    <div style={{ position: 'relative', flex: '1 1 140px', minWidth: '130px', maxWidth: '100%' }}>
                         <Search size={13} color="var(--text-secondary)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                         <input
                             type="text"
@@ -1541,7 +1541,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                         Pipeline Action Radar ({insights.alertsList.length} Roles Need Attention)
                                     </h4>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '10px' }}>
                                     {insights.alertsList.map(item => (
                                         <div
                                             key={item.id}
