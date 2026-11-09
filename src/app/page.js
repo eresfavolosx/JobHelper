@@ -4,14 +4,10 @@ import { useUIStore } from '@/lib/uiStore';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer, GitBranch, TrendingUp } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle, Compass, Plus, Search, Building2, Timer, GitBranch, TrendingUp, BarChart3 } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Onboarding from '@/components/Onboarding';
-import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import GoalTrackerWidget from '@/components/GoalTrackerWidget';
-import JobSankeyChart from '@/components/JobSankeyChart';
-import JobGanttChart from '@/components/JobGanttChart';
-import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
 import CycleFilterBar from '@/components/CycleFilterBar';
@@ -290,44 +286,16 @@ export default function Home() {
                 </Link>
 
                 <Link
-                    href="/sankey"
+                    href="/insights"
                     className="card interactive-card"
                     style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <GitBranch size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Pipeline Flow</h3>
+                        <BarChart3 size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
+                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Insights</h3>
                     </div>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
-                        Sankey &amp; Rates &rarr;
-                    </p>
-                </Link>
-
-                <Link
-                    href="/gantt"
-                    className="card interactive-card"
-                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <Timer size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Timeline & Gantt</h3>
-                    </div>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
-                        Gantt & Velocity &rarr;
-                    </p>
-                </Link>
-
-                <Link
-                    href="/trends"
-                    className="card interactive-card"
-                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <TrendingUp size={24} color="var(--accent-primary)" style={{ minWidth: '24px' }} />
-                        <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Market Benchmarks</h3>
-                    </div>
-                    <p style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '8px' }}>
-                        Trends &amp; Rates &rarr;
+                    <p className="dashboard-insights-cta">
+                        Charts &amp; analysis &rarr;
                     </p>
                 </Link>
 
@@ -337,22 +305,23 @@ export default function Home() {
             {/* Application Output Goal & Cadence Command Center */}
             <GoalTrackerWidget />
 
-            {/* Interactive Sankey Flow & Conversion / Success Rate Analytics */}
-            <div id="sankey">
-                <JobSankeyChart jobs={jobs} />
+            {/* Shortcuts into the consolidated Insights hub */}
+            <div className="dashboard-insights-strip">
+                {[
+                    { href: '/insights#pipeline', icon: GitBranch, label: 'Pipeline Flow' },
+                    { href: '/insights#timeline', icon: Timer, label: 'Timeline' },
+                    { href: '/insights#benchmarks', icon: TrendingUp, label: 'Benchmarks' },
+                    { href: '/insights#overview', icon: BarChart3, label: 'History & KPIs' }
+                ].map(item => {
+                    const Icon = item.icon;
+                    return (
+                        <Link key={item.href} href={item.href} className="card interactive-card dashboard-insights-link">
+                            <Icon size={18} color="var(--accent-primary)" aria-hidden="true" />
+                            <span>{item.label}</span>
+                        </Link>
+                    );
+                })}
             </div>
-
-            {/* Application Gantt Chart & Pipeline Velocity Insights */}
-            <div id="gantt">
-                <JobGanttChart jobs={jobs} />
-            </div>
-
-            {/* Market Trends & Industry Benchmark Comparisons */}
-            <div id="trends">
-                <MarketBenchmarkView jobs={jobs} />
-            </div>
-
-            <ApplicationHistoryChart jobs={jobs} />
         </div>
     );
 }

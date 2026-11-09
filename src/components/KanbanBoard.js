@@ -8,14 +8,11 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, X,
     Clock, FileText, Sparkles, SlidersHorizontal, Columns3, Rows3,
-    Archive, Building2, MapPin, DollarSign, ArrowUpDown, GitBranch, TrendingUp
+    Archive, Building2, MapPin, DollarSign, ArrowUpDown, BarChart3
 } from 'lucide-react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
 import JobSettingsBanner from './JobSettingsBanner';
-import JobSankeyChart from './JobSankeyChart';
-import JobGanttChart from './JobGanttChart';
-import MarketBenchmarkView from './MarketBenchmarkView';
 import CycleFilterBar from './CycleFilterBar';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
@@ -71,12 +68,6 @@ export default function KanbanBoard() {
     const [activeId, setActiveId] = useState(null);
     // Filters drawer hidden by default so all board sections are immediately visible, while the primary search input stays always visible
     const [filtersOpen, setFiltersOpen] = useState(false);
-    // Toggleable Sankey Flow & Conversion Analytics drawer on the Board
-    const [showSankey, setShowSankey] = useState(false);
-    // Toggleable Application Gantt & Pipeline Velocity drawer on the Board
-    const [showGantt, setShowGantt] = useState(false);
-    // Toggleable Market Trends & Industry Benchmarks drawer on the Board
-    const [showTrends, setShowTrends] = useState(false);
     // Board layout mode: 'stacked' (All Sections overview, default on mobile) or 'columns' (Horizontal Kanban, default on desktop)
     const [viewMode, setViewMode] = useState(() => (
         typeof window !== 'undefined' && window.innerWidth <= 768 ? 'stacked' : 'columns'
@@ -474,13 +465,11 @@ export default function KanbanBoard() {
                             {filtersOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
 
-                        {/* Sankey Flow & Conversion Stats Toggle Button */}
-                        <button
-                            type="button"
-                            onClick={() => setShowSankey(prev => !prev)}
-                            aria-pressed={showSankey}
+                        {/* Single entry point to the consolidated Insights hub */}
+                        <Link
+                            href="/insights"
                             className="btn-secondary"
-                            title="Toggle interactive Sankey diagram and conversion/success rate analytics"
+                            title="Open Insights: pipeline flow, timeline, benchmarks & trends for the selected cycle"
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -489,80 +478,16 @@ export default function KanbanBoard() {
                                 borderRadius: '999px',
                                 fontSize: '0.77rem',
                                 fontWeight: 700,
-                                border: showSankey
-                                    ? '1px solid var(--accent-primary)'
-                                    : '1px solid var(--border-subtle)',
-                                background: showSankey
-                                    ? 'rgba(107, 126, 103, 0.18)'
-                                    : 'var(--bg-card)',
+                                border: '1px solid var(--border-subtle)',
+                                background: 'var(--bg-card)',
                                 color: 'var(--text-primary)',
-                                cursor: 'pointer',
+                                textDecoration: 'none',
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            <GitBranch size={13} color="var(--accent-primary)" />
-                            <span>{showSankey ? 'Hide Sankey & Stats' : 'Sankey & Stats'}</span>
-                        </button>
-
-                        {/* Gantt Timeline & Pipeline Velocity Toggle Button */}
-                        <button
-                            type="button"
-                            onClick={() => setShowGantt(prev => !prev)}
-                            aria-pressed={showGantt}
-                            className="btn-secondary"
-                            title="Toggle application Gantt timeline and pipeline velocity insights"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                borderRadius: '999px',
-                                fontSize: '0.77rem',
-                                fontWeight: 700,
-                                border: showGantt
-                                    ? '1px solid var(--accent-primary)'
-                                    : '1px solid var(--border-subtle)',
-                                background: showGantt
-                                    ? 'rgba(107, 126, 103, 0.18)'
-                                    : 'var(--bg-card)',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <Clock size={13} color="var(--accent-primary)" />
-                            <span>{showGantt ? 'Hide Gantt & Velocity' : 'Gantt & Velocity'}</span>
-                        </button>
-
-                        {/* Market Trends & Benchmarks Toggle Button */}
-                        <button
-                            type="button"
-                            onClick={() => setShowTrends(prev => !prev)}
-                            aria-pressed={showTrends}
-                            className="btn-secondary"
-                            title="Toggle market trends and industry benchmark comparison"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                borderRadius: '999px',
-                                fontSize: '0.77rem',
-                                fontWeight: 700,
-                                border: showTrends
-                                    ? '1px solid var(--accent-primary)'
-                                    : '1px solid var(--border-subtle)',
-                                background: showTrends
-                                    ? 'rgba(107, 126, 103, 0.18)'
-                                    : 'var(--bg-card)',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <TrendingUp size={13} color="var(--accent-primary)" />
-                            <span>{showTrends ? 'Hide Benchmarks' : 'Market Benchmarks'}</span>
-                        </button>
+                            <BarChart3 size={13} color="var(--accent-primary)" />
+                            <span>Insights</span>
+                        </Link>
                     </div>
 
                     {/* Board View Switcher: All Sections (Stacked) vs Columns (Horizontal) */}
@@ -1190,72 +1115,6 @@ export default function KanbanBoard() {
                     })}
                 </div>
             </div>
-
-            {showSankey && (
-                <div style={{ marginBottom: '12px', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
-                        <Link
-                            href="/sankey"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                color: 'var(--accent-primary)',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            <span>Open Dedicated Full-Screen Sankey View &rarr;</span>
-                        </Link>
-                    </div>
-                    <JobSankeyChart jobs={matchedJobs} compact={true} />
-                </div>
-            )}
-
-            {showGantt && (
-                <div style={{ marginBottom: '14px', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
-                        <Link
-                            href="/gantt"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                color: 'var(--accent-primary)',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            <span>Open Dedicated Full-Screen Gantt View &rarr;</span>
-                        </Link>
-                    </div>
-                    <JobGanttChart jobs={matchedJobs} compact={true} />
-                </div>
-            )}
-
-            {showTrends && (
-                <div style={{ marginBottom: '14px', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
-                        <Link
-                            href="/trends"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                color: 'var(--accent-primary)',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            <span>Open Dedicated Full-Screen Market Benchmarks View &rarr;</span>
-                        </Link>
-                    </div>
-                    <MarketBenchmarkView jobs={matchedJobs} compact={true} />
-                </div>
-            )}
 
             {/* Main Kanban Board (Supports 'stacked' All-Sections View & 'columns' Horizontal View) */}
             <div

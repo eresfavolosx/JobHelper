@@ -63,7 +63,7 @@ export default function UndoToast() {
     if (!deletedJob) return null;
 
     return (
-        <div style={{
+        <div className="undo-toast" style={{
             position: 'fixed',
             bottom: '24px',
             left: '50%',
