@@ -20,7 +20,6 @@ import {
     ChevronDown,
     ChevronUp,
     ListTree,
-    Layers,
     Send,
     MessageSquare,
     Users,

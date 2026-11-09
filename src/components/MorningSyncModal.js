@@ -61,7 +61,10 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
 
             activeJobs.forEach(job => {
                 if (job.status === 'applied' || job.status === 'screening' || job.status === 'interviewing') {
-                    const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
+                    const latestFollowUp = Array.isArray(job.followUps) && job.followUps.length > 0
+                        ? job.followUps[0].date
+                        : null;
+                    const refDate = job.lastFollowUpAt || latestFollowUp || job.lastInteraction || job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
                     if (!refDate) return;
                     const diff = Date.now() - new Date(refDate).getTime();
                     const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));

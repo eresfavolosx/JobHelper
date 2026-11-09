@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer, GitBranch, TrendingUp, BarChart3 } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, BarChart3 } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';

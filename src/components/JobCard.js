@@ -4,7 +4,7 @@ import { memo, useState, useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import { Trash2, Pencil, ExternalLink, MapPin, Sparkles, Clock, FileText, Plus, Check, X, ChevronDown, Archive, ArchiveRestore, GripVertical } from 'lucide-react';
+import { Trash2, Pencil, ExternalLink, MapPin, Sparkles, Clock, FileText, Plus, Check, X, ChevronDown, Archive, ArchiveRestore, GripVertical, Send } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { safeDate, sanitizeUrl } from '@/lib/utils';
@@ -75,6 +75,7 @@ const JobCard = memo(function JobCard({ job }) {
     const restoreJob = useAppStore(s => s.restoreJob);
     const moveJob = useAppStore(s => s.moveJob);
     const updateJob = useAppStore(s => s.updateJob);
+    const logJobFollowUp = useAppStore(s => s.logJobFollowUp);
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
     const isHighlighted = useUIStore(s => s.highlightedJobId === job.id);
     const setBoardFilters = useUIStore(s => s.setBoardFilters);
@@ -84,13 +85,38 @@ const JobCard = memo(function JobCard({ job }) {
     const [resumeUrlDraft, setResumeUrlDraft] = useState(job.resumeUrl || '');
     const [resumeNameDraft, setResumeNameDraft] = useState(job.resumeName || '');
 
+    // Follow-up outreach logger state
+    const [followUpOpen, setFollowUpOpen] = useState(false);
+    const [followUpChannel, setFollowUpChannel] = useState('email');
+    const [followUpNote, setFollowUpNote] = useState('');
+    const [followUpSuccess, setFollowUpSuccess] = useState(false);
+
     const [today] = useState(() => new Date());
     const daysSince = useMemo(() => {
-        const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
+        const latestFollowUp = Array.isArray(job.followUps) && job.followUps.length > 0
+            ? job.followUps[0].date
+            : null;
+        const refDate = job.lastFollowUpAt || latestFollowUp || job.lastInteraction || job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
         if (!refDate) return 0;
         const diff = today.getTime() - new Date(refDate).getTime();
         return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
     }, [job, today]);
+
+    const handleLogFollowUp = (e, quick = false) => {
+        e.stopPropagation();
+        e.preventDefault();
+        logJobFollowUp(job.id, {
+            date: new Date().toISOString(),
+            channel: quick ? 'email' : followUpChannel,
+            note: quick ? 'Followed up with recruiter' : (followUpNote.trim() || 'Followed up with recruiter')
+        });
+        setFollowUpSuccess(true);
+        setTimeout(() => {
+            setFollowUpSuccess(false);
+            setFollowUpOpen(false);
+            setFollowUpNote('');
+        }, 1200);
+    };
 
     const ghostChip = useMemo(() => {
         if (daysSince >= 10) {
@@ -641,51 +667,222 @@ const JobCard = memo(function JobCard({ job }) {
                 </div>
             </div>
 
-            {/* Ghosting Radar Chip & AI Coach Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }} onPointerDown={e => e.stopPropagation()}>
-                <span
-                    title={`Application status age: ${daysSince} days`}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: '600',
-                        color: ghostChip.color,
-                        background: ghostChip.bg,
-                        padding: '2px 8px',
-                        borderRadius: '12px'
-                    }}
-                >
-                    <Clock size={11} /> {ghostChip.label}
-                </span>
+            {/* Ghosting Radar Chip, Follow-Up Markers & Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '8px' }} onPointerDown={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span
+                        title={`Application communication age: ${daysSince} days since last activity`}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.72rem',
+                            fontWeight: '600',
+                            color: ghostChip.color,
+                            background: ghostChip.bg,
+                            padding: '2px 8px',
+                            borderRadius: '12px'
+                        }}
+                    >
+                        <Clock size={11} /> {ghostChip.label}
+                    </span>
 
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setCoachOpen(true);
-                    }}
+                    {Array.isArray(job.followUps) && job.followUps.length > 0 && (
+                        <span
+                            title={`Logged ${job.followUps.length} follow-up${job.followUps.length > 1 ? 's' : ''}. Latest: ${new Date(job.followUps[0].date).toLocaleDateString()} (${job.followUps[0].channel || 'outreach'})`}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.70rem',
+                                fontWeight: '600',
+                                color: '#8b5cf6',
+                                background: 'rgba(139, 92, 246, 0.14)',
+                                border: '1px solid rgba(139, 92, 246, 0.28)',
+                                padding: '2px 7px',
+                                borderRadius: '12px'
+                            }}
+                        >
+                            <Send size={10} /> {job.followUps.length} {job.followUps.length === 1 ? 'follow-up' : 'follow-ups'}
+                        </span>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setFollowUpOpen(prev => !prev);
+                        }}
+                        onPointerDown={e => e.stopPropagation()}
+                        className="job-action-btn"
+                        title="Log a follow-up outreach to reset no comms counter"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.74rem',
+                            fontWeight: '600',
+                            background: followUpOpen ? 'rgba(139, 92, 246, 0.22)' : 'rgba(139, 92, 246, 0.12)',
+                            color: '#8b5cf6',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Send size={11} /> Follow Up
+                    </button>
+
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setCoachOpen(true);
+                        }}
+                        onPointerDown={e => e.stopPropagation()}
+                        className="job-action-btn"
+                        title="Launch AI Career Agent (Ghosting Buster, STAR Interview Prep & ATS Gap)"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.18), rgba(132, 167, 145, 0.14))',
+                            color: 'var(--accent-primary)',
+                            border: '1px solid rgba(94, 135, 110, 0.35)',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Sparkles size={12} /> AI Coach
+                    </button>
+                </div>
+            </div>
+
+            {/* Inline Follow-Up Outreach Logger Popover */}
+            {followUpOpen && (
+                <div
+                    onClick={e => e.stopPropagation()}
                     onPointerDown={e => e.stopPropagation()}
-                    className="job-action-btn"
-                    title="Launch AI Career Agent (Ghosting Buster, STAR Interview Prep & ATS Gap)"
                     style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        background: 'linear-gradient(135deg, rgba(94, 135, 110, 0.18), rgba(132, 167, 145, 0.14))',
-                        color: 'var(--accent-primary)',
-                        border: '1px solid rgba(94, 135, 110, 0.35)',
-                        borderRadius: '6px',
-                        padding: '3px 8px',
-                        cursor: 'pointer'
+                        marginTop: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-app)',
+                        border: '1px solid rgba(139, 92, 246, 0.35)',
+                        boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
                     }}
                 >
-                    <Sparkles size={12} /> AI Coach
-                </button>
-            </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Send size={12} color="#8b5cf6" /> Log Follow-Up (Resets Timer)
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setFollowUpOpen(false)}
+                            aria-label="Close follow-up logger"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                        >
+                            <X size={13} />
+                        </button>
+                    </div>
+
+                    {followUpSuccess ? (
+                        <div style={{ fontSize: '0.74rem', color: 'var(--success)', fontWeight: 600, padding: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Check size={13} /> Follow-up recorded! Communication counter reset to 0 days.
+                        </div>
+                    ) : (
+                        <>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                {[
+                                    { id: 'email', label: '📧 Email' },
+                                    { id: 'linkedin', label: '💼 LinkedIn' },
+                                    { id: 'phone', label: '📞 Phone' },
+                                    { id: 'message', label: '💬 Message' },
+                                    { id: 'other', label: '🤝 Other' }
+                                ].map(ch => (
+                                    <button
+                                        key={ch.id}
+                                        type="button"
+                                        onClick={() => setFollowUpChannel(ch.id)}
+                                        style={{
+                                            padding: '2px 7px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.68rem',
+                                            fontWeight: 600,
+                                            border: followUpChannel === ch.id ? '1px solid #8b5cf6' : '1px solid var(--border-subtle)',
+                                            background: followUpChannel === ch.id ? 'rgba(139, 92, 246, 0.22)' : 'var(--bg-card)',
+                                            color: followUpChannel === ch.id ? '#8b5cf6' : 'var(--text-secondary)',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {ch.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <input
+                                type="text"
+                                value={followUpNote}
+                                onChange={e => setFollowUpNote(e.target.value)}
+                                placeholder="Note (e.g. Sent polite check-in email to recruiter)..."
+                                style={{
+                                    width: '100%',
+                                    padding: '5px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-card)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.74rem'
+                                }}
+                            />
+
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', marginTop: '2px' }}>
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleLogFollowUp(e, true)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.70rem',
+                                        fontWeight: 600,
+                                        background: 'var(--bg-card)',
+                                        border: '1px solid var(--border-subtle)',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Instantly log today with default message and reset counter"
+                                >
+                                    ⚡ Quick Log Today
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleLogFollowUp(e, false)}
+                                    style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.70rem',
+                                        fontWeight: 700,
+                                        background: '#8b5cf6',
+                                        border: 'none',
+                                        color: '#ffffff',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Save &amp; Reset Counter
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
             {job.notes && <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--glass-panel)', padding: '8px 12px', borderRadius: '8px', lineHeight: '1.4' }}>{job.notes}</div>}
         </div>

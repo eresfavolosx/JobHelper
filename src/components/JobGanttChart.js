@@ -20,9 +20,10 @@ import {
     Plus,
     List,
     ChevronRight,
-    CheckCircle2
+    Send
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
+import { useAppStore } from '@/lib/store';
 import {
     GANTT_STAGE_META,
     GANTT_TIME_RANGES,
@@ -66,6 +67,7 @@ function getReducedMotionServerSnapshot() {
 export default function JobGanttChart({ jobs, compact = false }) {
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
     const openNewJobModal = useUIStore(s => s.openNewJobModal);
+    const logJobFollowUp = useAppStore(s => s.logJobFollowUp);
 
     const prefersReducedMotion = useSyncExternalStore(
         subscribeReducedMotion,
@@ -1253,6 +1255,24 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                                                         strokeWidth={1.5}
                                                                     />
                                                                 )}
+                                                                {m.type === 'followup' && (
+                                                                    <g>
+                                                                        <circle
+                                                                            cx={mx}
+                                                                            cy={my}
+                                                                            r={isMilestoneHovered ? 6.5 : 5}
+                                                                            fill="#8b5cf6"
+                                                                            stroke="#ffffff"
+                                                                            strokeWidth={1.5}
+                                                                        />
+                                                                        <circle
+                                                                            cx={mx}
+                                                                            cy={my}
+                                                                            r={1.8}
+                                                                            fill="#ffffff"
+                                                                        />
+                                                                    </g>
+                                                                )}
                                                                 {m.type === 'resolved' && (
                                                                     <rect
                                                                         x={mx - 4}
@@ -1315,6 +1335,10 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                                         <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
                                         Offer Stage
+                                    </span>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                        <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />
+                                        Follow-Up Marker
                                     </span>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                                         <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: '#ef4444', display: 'inline-block' }} />
@@ -1586,14 +1610,43 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
+                                                gap: '6px',
                                                 fontSize: '0.7rem',
                                                 color: 'var(--accent-primary)',
                                                 fontWeight: 600,
                                                 paddingTop: '6px',
                                                 borderTop: '1px solid var(--border-subtle)'
                                             }}>
-                                                <span>Click to view role &amp; contacts</span>
-                                                <ArrowUpRight size={13} />
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                                    View role &amp; contacts <ArrowUpRight size={13} />
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        logJobFollowUp(item.id, {
+                                                            date: new Date().toISOString(),
+                                                            channel: 'email',
+                                                            note: 'Follow-up logged via Action Radar'
+                                                        });
+                                                    }}
+                                                    title="Log follow-up today to reset stalled counter"
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        padding: '3px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 700,
+                                                        background: 'rgba(139, 92, 246, 0.16)',
+                                                        color: '#8b5cf6',
+                                                        border: '1px solid rgba(139, 92, 246, 0.35)',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <Send size={10} /> ⚡ Log Follow-Up
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
