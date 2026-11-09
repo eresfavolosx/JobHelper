@@ -63,6 +63,10 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                 borderRadius: '12px',
                 background: 'var(--bg-secondary)',
                 border: '1px solid var(--border-subtle)',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box',
                 ...style
             }}
         >
@@ -71,10 +75,13 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
-                gap: '10px'
+                gap: '10px',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0
             }}>
                 {/* Header label & Active cycle summary */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, maxWidth: '100%', flexWrap: 'wrap' }}>
                     <div style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -108,7 +115,11 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                             borderRadius: '999px',
                             background: currentCycleObj.status === 'completed' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)',
                             color: currentCycleObj.status === 'completed' ? '#16a34a' : 'var(--accent-primary)',
-                            fontWeight: 500
+                            fontWeight: 500,
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                         }}>
                             {currentCycleObj.status === 'completed' ? (
                                 <>
@@ -226,7 +237,11 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                     WebkitOverflowScrolling: 'touch',
                     scrollbarWidth: 'none',
                     msOverflowStyle: 'none',
-                    paddingBottom: '2px'
+                    paddingBottom: '2px',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box'
                 }}
             >
                 {/* All Cycles Pill */}

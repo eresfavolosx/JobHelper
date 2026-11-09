@@ -67,7 +67,10 @@ export default function OfferAcceptedCycleModal() {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '20px',
-                    overflow: 'hidden'
+                    overflowX: 'hidden',
+                    overflowY: 'auto',
+                    maxHeight: '92dvh',
+                    boxSizing: 'border-box'
                 }}
             >
                 {/* Decorative celebratory top bar */}

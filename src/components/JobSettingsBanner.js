@@ -155,7 +155,11 @@ export default function JobSettingsBanner({
                     border: isExpanded ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                     boxShadow: 'var(--shadow-sm)',
                     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box'
                 }}
             >
                 {/* Row 1: Compact Collapsible Header Title + Summary Badge + Action Buttons */}
@@ -165,7 +169,10 @@ export default function JobSettingsBanner({
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     gap: '8px',
-                    marginBottom: isExpanded ? '12px' : 0
+                    marginBottom: isExpanded ? '12px' : 0,
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0
                 }}>
                     <div
                         onClick={() => setIsExpanded(prev => !prev)}
