@@ -4,7 +4,8 @@ import {
     classifyJobProgression,
     calculatePipelineStats,
     buildJobSankeyData,
-    formatPipelineSummaryMarkdown
+    formatPipelineSummaryMarkdown,
+    splitLabel
 } from './sankey-utils.js';
 
 describe('sankey-utils — Job Search Pipeline Sankey & Conversion Analytics', () => {
@@ -111,6 +112,22 @@ describe('sankey-utils — Job Search Pipeline Sankey & Conversion Analytics', (
         assert.equal(directGraph.isEmpty, false);
         assert.ok(directGraph.nodes.some(n => n.id === 'stage_interviewing'));
         assert.ok(directGraph.nodes.some(n => n.id === 'stage_offer'));
+
+        // Verify every node contains divided lines array for clean SVG rendering
+        for (const node of funnelGraph.nodes) {
+            assert.ok(Array.isArray(node.lines) && node.lines.length >= 1, `node ${node.id} should have lines`);
+            for (const line of node.lines) {
+                assert.ok(typeof line === 'string' && line.length > 0);
+            }
+        }
+    });
+
+    test('splitLabel cleanly divides long labels across spaces, slashes, and parentheticals', () => {
+        assert.deepEqual(splitLabel('Wishlist'), ['Wishlist']);
+        assert.deepEqual(splitLabel('Reached Screening / Interview'), ['Reached Screening', '/ Interview']);
+        assert.deepEqual(splitLabel('Rejected (Resume Screen)'), ['Rejected', '(Resume Screen)']);
+        assert.deepEqual(splitLabel('Offer Declined / Closed'), ['Offer Declined', '/ Closed']);
+        assert.deepEqual(splitLabel('Very Long Generic Pipeline Stage Name'), ['Very Long Generic', 'Pipeline Stage Name']);
     });
 
     test('buildJobSankeyData handles empty job list gracefully', () => {
