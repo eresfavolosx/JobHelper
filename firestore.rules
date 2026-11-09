@@ -22,12 +22,22 @@ service cloud.firestore {
     //   - contextDocuments: list (optional, max 20 items) - Uploaded resume/context documents
     //   - resumeAnalysis: map or null (optional, max 50 keys) - AI-extracted resume analysis
     //   - geminiApiKey: string (optional, 0..200 chars) - User-provided Gemini API key
+    //   - claudeApiKey: string (optional, 0..200 chars) - User-provided Claude API key
+    //   - openaiApiKey: string (optional, 0..200 chars) - User-provided OpenAI API key
+    //   - customAiApiKey: string (optional, 0..200 chars) - User-provided custom AI API key
+    //   - customAiBaseUrl: string (optional, 0..250 chars) - Custom AI base URL
+    //   - customAiModel: string (optional, 0..100 chars) - Custom AI model name
+    //   - activeAiProvider: string (optional, in ['gemini', 'claude', 'openai', 'custom']) - Selected active AI provider
     //   - googleMapsApiKey: string (optional, 0..200 chars) - User-provided Google Maps API key
     //   - subscriptionStatus: string (optional, in ['free', 'premium', 'trial']) - Subscription status
     //   - trialStartDate: string/timestamp/null (optional, 0..100 chars) - Trial start date
     //   - trialEndDate: string/timestamp/null (optional, 0..100 chars) - Trial end date
     //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
     //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
+    //
+    // Collection: /users/{userId}/data/cycles (single document 'cycles')
+    // Document ID: 'cycles'
+    // Fields: User search cycles data
     //
     // Collection: /users/{userId}/jobs/{jobId}
     // Document ID: {jobId} (string, 1..100 chars)
@@ -58,6 +68,11 @@ service cloud.firestore {
     //   - tags: list or null (optional, max 25 items) - Job tags
     //   - resumeUrl: string (optional, 0..2048 chars) - Resume download URL
     //   - resumeName: string (optional, 0..200 chars) - Resume file name
+    //   - cycleId: string (optional, 0..100 chars) - Associated search cycle ID
+    //   - cycleNumber: int (optional) - Associated search cycle sequence number
+    //   - followUps: list (optional, max 100 items) - Follow-up history / notes
+    //   - lastFollowUpAt: string/timestamp/null (optional, 0..100 chars) - Last follow-up timestamp
+    //   - lastInteraction: string/timestamp/null (optional, 0..100 chars) - Last interaction date/timestamp
     //
     // ===============================================================
 
@@ -139,6 +154,8 @@ service cloud.firestore {
                'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
                'experienceLevel', 'country', 'modality', 'minimumSalary',
                'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
+               'claudeApiKey', 'openaiApiKey', 'customAiApiKey',
+               'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
                'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
                'applicationGoal', 'updatedAt'
              ]) &&
@@ -156,6 +173,13 @@ service cloud.firestore {
               data.minimumSalary is int ||
               data.minimumSalary is number) &&
              isValidOptionalString(data, 'geminiApiKey', 0, 200) &&
+             isValidOptionalString(data, 'claudeApiKey', 0, 200) &&
+             isValidOptionalString(data, 'openaiApiKey', 0, 200) &&
+             isValidOptionalString(data, 'customAiApiKey', 0, 200) &&
+             isValidOptionalString(data, 'customAiBaseUrl', 0, 250) &&
+             isValidOptionalString(data, 'customAiModel', 0, 100) &&
+             (!('activeAiProvider' in data) ||
+              (data.activeAiProvider is string && data.activeAiProvider in ['gemini', 'claude', 'openai', 'custom'])) &&
              isValidOptionalString(data, 'googleMapsApiKey', 0, 200) &&
              (!('subscriptionStatus' in data) ||
               (data.subscriptionStatus is string && data.subscriptionStatus in ['free', 'premium', 'trial'])) &&
@@ -193,7 +217,8 @@ service cloud.firestore {
                'relevanceScore', 'matchReason', 'status', 'createdAt',
                'dateAdded', 'updatedAt', 'appliedAt', 'deletedAt', 'archivedAt',
                'previousStatus', 'source', 'pubDate', 'tags',
-               'resumeUrl', 'resumeName'
+               'resumeUrl', 'resumeName',
+               'cycleId', 'cycleNumber', 'followUps', 'lastFollowUpAt', 'lastInteraction'
              ]) &&
              ('status' in data &&
               data.status is string &&
@@ -219,15 +244,22 @@ service cloud.firestore {
              isValidOptionalString(data, 'pubDate', 0, 100) &&
              isValidOptionalString(data, 'resumeUrl', 0, 2048) &&
              isValidOptionalString(data, 'resumeName', 0, 200) &&
+             isValidOptionalString(data, 'cycleId', 0, 100) &&
+             (!('cycleNumber' in data) || data.cycleNumber is int) &&
              isValidDateOrTimestamp(data, 'createdAt') &&
              isValidDateOrTimestamp(data, 'dateAdded') &&
              isValidDateOrTimestamp(data, 'updatedAt') &&
              isValidDateOrTimestamp(data, 'appliedAt') &&
+             isValidDateOrTimestamp(data, 'lastFollowUpAt') &&
+             isValidDateOrTimestamp(data, 'lastInteraction') &&
              isValidDeletedAt(data) &&
              (isValidDateOrTimestamp(data, 'archivedAt') || data.archivedAt is number) &&
              (!('tags' in data) ||
               data.tags == null ||
               (data.tags is list && data.tags.size() <= 25)) &&
+             (!('followUps' in data) ||
+              data.followUps == null ||
+              (data.followUps is list && data.followUps.size() <= 100)) &&
              (!('relevanceScore' in data) ||
               ((data.relevanceScore is int || data.relevanceScore is float) &&
                data.relevanceScore >= 0 && data.relevanceScore <= 100));
@@ -254,6 +286,13 @@ service cloud.firestore {
         allow update: if isOwner(userId) &&
                         isValidProfile(request.resource.data) &&
                         canUpdateProfile(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      // User search cycles document: /users/{userId}/data/cycles
+      match /data/cycles {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }
 

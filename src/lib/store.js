@@ -870,7 +870,6 @@ export const useAppStore = create(
                                 console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
                                 import('firebase/firestore').then(({ setDoc, doc }) => {
                                     localOnlyJobs.forEach(job => {
-                                        syncedCloudJobIds.add(job.id);
                                         const jobRef = doc(db, "users", userId, "jobs", job.id);
                                         const cleanJob = sanitizeJobForFirestore(cleanObject(job));
                                         setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
