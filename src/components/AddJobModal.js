@@ -12,14 +12,15 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
     return (
         <AddJobModalDialog
-            key={initialData?.id || 'new'}
+            isOpen={isOpen}
+            key={initialData?.id || initialData?.url || initialData?.role || 'new'}
             onClose={onClose}
             initialData={initialData}
         />
     );
 }
 
-function AddJobModalDialog({ onClose, initialData = {} }) {
+function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
     const addJob = useAppStore((state) => state.addJob);
     const updateJob = useAppStore((state) => state.updateJob);
     const logJobFollowUp = useAppStore((state) => state.logJobFollowUp);
@@ -137,8 +138,6 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [onClose]);
-
-    if (!isOpen) return null;
 
     const handleCalculateCommute = async () => {
         const destination = formData.location || formData.company;

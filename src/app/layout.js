@@ -73,8 +73,14 @@ function UrlListener() {
             const url = rawUrl ? sanitizeUrl(rawUrl) : '';
             const resumeUrl = rawResumeUrl ? sanitizeUrl(rawResumeUrl) : '';
 
-            // Clean URL
-            window.history.replaceState({}, '', '/');
+            // Clean URL safely
+            try {
+                if (typeof window !== 'undefined' && window.history?.replaceState) {
+                    window.history.replaceState({}, '', window.location.pathname || '/');
+                }
+            } catch (e) {
+                console.warn('[UrlListener] Could not clear URL parameters:', e);
+            }
 
             // Open modal with this "phantom" job data
             openEditJobModal({

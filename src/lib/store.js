@@ -87,7 +87,8 @@ const ALLOWED_JOB_KEYS = new Set([
     'relevanceScore', 'matchReason', 'status', 'createdAt',
     'updatedAt', 'appliedAt', 'dateAdded', 'deletedAt', 'archivedAt',
     'previousStatus', 'source', 'pubDate', 'tags',
-    'resumeUrl', 'resumeName', 'cycleId', 'cycleNumber'
+    'resumeUrl', 'resumeName', 'cycleId', 'cycleNumber',
+    'followUps', 'lastFollowUpAt', 'lastInteraction'
 ]);
 
 const PROFILE_STRING_LIMITS = {
