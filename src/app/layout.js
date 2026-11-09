@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer, GitBranch, TrendingUp } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, Timer, GitBranch, TrendingUp, BarChart3 } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
@@ -318,6 +318,55 @@ function NavContent({ onOpenMorningSync }) {
                 <Plus size={24} />
             </button>
 
+            {/* Mobile Bottom Tab Bar (phones only via CSS) */}
+            <nav className="mobile-bottom-nav" aria-label="Primary">
+                <Link
+                    href="/"
+                    onClick={closeMobileMenu}
+                    className={`mobile-bottom-link ${mounted && pathname === '/' ? 'active' : ''}`}
+                    aria-current={mounted && pathname === '/' ? 'page' : undefined}
+                >
+                    <LayoutDashboard size={21} />
+                    <span>Home</span>
+                </Link>
+                <Link
+                    href="/kanban"
+                    onClick={closeMobileMenu}
+                    className={`mobile-bottom-link ${mounted && pathname === '/kanban' ? 'active' : ''}`}
+                    aria-current={mounted && pathname === '/kanban' ? 'page' : undefined}
+                >
+                    <Columns size={21} />
+                    <span>Board</span>
+                </Link>
+                <button
+                    type="button"
+                    className="mobile-bottom-add"
+                    onClick={() => { closeMobileMenu(); openNewJobModal(); }}
+                    aria-label="Add New Job"
+                >
+                    <Plus size={24} />
+                </button>
+                <Link
+                    href="/insights"
+                    onClick={closeMobileMenu}
+                    className={`mobile-bottom-link ${mounted && pathname?.startsWith('/insights') ? 'active' : ''}`}
+                    aria-current={mounted && pathname?.startsWith('/insights') ? 'page' : undefined}
+                >
+                    <BarChart3 size={21} />
+                    <span>Insights</span>
+                </Link>
+                <button
+                    type="button"
+                    className={`mobile-bottom-link ${isMobileMenuOpen ? 'active' : ''}`}
+                    onClick={toggleMobileMenu}
+                    aria-expanded={isMobileMenuOpen}
+                    aria-label="More menu"
+                >
+                    {isMobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
+                    <span>More</span>
+                </button>
+            </nav>
+
             <nav className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'open' : ''}`}>
                 {/* Header: Expanded State */}
                 <div className="sidebar-expanded-only" style={{ justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -455,41 +504,15 @@ function NavContent({ onOpenMorningSync }) {
                     </Link>
 
                     <Link
-                        href="/sankey"
+                        href="/insights"
                         onClick={closeMobileMenu}
-                        className={`sidebar-nav-link ${mounted && pathname === '/sankey' ? 'active' : ''}`}
-                        title="Pipeline Flow & Conversion Sankey"
-                        aria-label="Pipeline Flow & Sankey"
+                        className={`sidebar-nav-link ${mounted && pathname?.startsWith('/insights') ? 'active' : ''}`}
+                        title="Insights — pipeline flow, timeline, benchmarks & trends"
+                        aria-label="Insights"
                     >
                         <span className="sidebar-nav-left">
-                            <GitBranch size={18} />
-                            <span className="sidebar-label">Pipeline Flow &amp; Sankey</span>
-                        </span>
-                    </Link>
-
-                    <Link
-                        href="/gantt"
-                        onClick={closeMobileMenu}
-                        className={`sidebar-nav-link ${mounted && pathname === '/gantt' ? 'active' : ''}`}
-                        title="Application Timeline & Gantt View"
-                        aria-label="Timeline & Gantt"
-                    >
-                        <span className="sidebar-nav-left">
-                            <Timer size={18} />
-                            <span className="sidebar-label">Timeline & Gantt</span>
-                        </span>
-                    </Link>
-
-                    <Link
-                        href="/trends"
-                        onClick={closeMobileMenu}
-                        className={`sidebar-nav-link ${mounted && pathname === '/trends' ? 'active' : ''}`}
-                        title="Market Trends & Industry Benchmarks"
-                        aria-label="Trends & Benchmarks"
-                    >
-                        <span className="sidebar-nav-left">
-                            <TrendingUp size={18} />
-                            <span className="sidebar-label">Trends &amp; Benchmarks</span>
+                            <BarChart3 size={18} />
+                            <span className="sidebar-label">Insights</span>
                         </span>
                     </Link>
 
