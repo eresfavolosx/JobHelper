@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     INDUSTRY_BENCHMARK_PROFILES,
-    TRENDS_TIME_RANGES,
     normalizeJobSource,
     normalizeWorkArrangement,
     computeBenchmarkAnalytics,
@@ -13,7 +12,7 @@ describe('Market Trends & Industry Benchmark Analytics Engine', () => {
     describe('1. Benchmark Profile Definitions', () => {
         it('should have standard benchmark profiles defined with positive conversion metrics', () => {
             const profiles = Object.values(INDUSTRY_BENCHMARK_PROFILES);
-            assert.ok(profiles.length >= 4);
+            assert.ok(profiles.length >= 5);
 
             for (const p of profiles) {
                 assert.ok(p.id);
@@ -23,6 +22,16 @@ describe('Market Trends & Industry Benchmark Analytics Engine', () => {
                 assert.ok(p.rates.interviewToOfferRate > 0);
                 assert.ok(p.rates.overallOfferRate > 0);
                 assert.ok(p.rates.avgCycleDays > 0);
+                assert.ok(p.rates.avgCallbackDays > 0);
+
+                // Verify mathematical consistency: product of stage conversion rates matches net overall offer rate
+                const computedNetRate = (p.rates.screeningRate / 100) *
+                                        (p.rates.screeningToInterviewRate / 100) *
+                                        (p.rates.interviewToOfferRate / 100) * 100;
+                assert.ok(
+                    Math.abs(computedNetRate - p.rates.overallOfferRate) <= 0.15,
+                    `Profile ${p.id} overallOfferRate (${p.rates.overallOfferRate}%) does not match product of stages (${computedNetRate.toFixed(2)}%)`
+                );
             }
         });
     });

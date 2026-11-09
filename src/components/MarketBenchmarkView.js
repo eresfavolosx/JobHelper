@@ -11,11 +11,9 @@ import {
     Download,
     Sparkles,
     Calendar,
-    Target,
     Layers,
     ArrowUpRight,
     ArrowDownRight,
-    AlertTriangle,
     BarChart2,
     SlidersHorizontal,
     Compass
@@ -75,18 +73,13 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
     const {
         benchmark,
         totalApplied,
-        totalTracked,
-        interviewCount,
-        offerCount,
         userRates,
         benchmarkRates,
         deltas,
         tiers,
         weeklyTrends,
         sourceComparison,
-        arrangementComparison,
-        recommendations,
-        hasData
+        recommendations
     } = analytics;
 
     // Copy formatted Markdown summary
