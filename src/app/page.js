@@ -258,6 +258,9 @@ export default function Home() {
                 </div>
             )}
 
+            {/* Optional, compact and dismissible Anthropic Fellows banner for platform owner */}
+            {isOwner(user) && <AiSafetyBadge variant="dashboard-card" />}
+
             <div className="dashboard-stats-grid">
                 <Link
                     href="/kanban"
@@ -308,8 +311,6 @@ export default function Home() {
                         Charts &amp; analysis &rarr;
                     </p>
                 </Link>
-
-                {isOwner(user) && <AiSafetyBadge variant="dashboard-card" />}
             </div>
 
             {/* Application Output Goal & Cadence Command Center */}

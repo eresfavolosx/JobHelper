@@ -3,15 +3,21 @@ import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } fro
 import { createPortal } from 'react-dom';
 import { 
     Bell, CheckCircle2, Clock, AlertTriangle, Sparkles, 
-    X, ChevronRight, Send, Sunrise, Mail
+    X, ChevronRight, Send, Sunrise, Mail, Shield
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
+import { isOwner } from '@/lib/subscription';
+import AnthropicFellowsModal from './AnthropicFellowsModal';
 import Link from 'next/link';
 
 const emptySubscribe = () => () => {};
 
 export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningSync, onOpenGmailSync }) {
     const jobs = useAppStore(state => state.jobs);
+    const { user } = useAuth();
+    const isPlatformOwner = isOwner(user);
+    const [isAnthropicModalOpen, setIsAnthropicModalOpen] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [dismissedIds, setDismissedIds] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -203,8 +209,24 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
             link: '/recommendations'
         });
 
+        // For platform owner, add Anthropic Fellows & AI Safety prep notification
+        if (isPlatformOwner) {
+            list.unshift({
+                id: 'anthropic-fellows',
+                type: 'anthropic',
+                title: 'Anthropic Fellows AI Safety Prep',
+                message: 'Empirical AI Safety Fellowship ($3,850/wk + $15k/mo compute). Ready to review qualification scoring, research blueprints, and interview practice.',
+                color: 'var(--accent-primary)',
+                actionLabel: 'Open Prep Hub',
+                onAction: () => {
+                    setIsOpen(false);
+                    setIsAnthropicModalOpen(true);
+                }
+            });
+        }
+
         return list.filter(item => !dismissedIds.has(item.id));
-    }, [jobs, dismissedIds, now]);
+    }, [jobs, dismissedIds, now, isPlatformOwner]);
 
     const unreadCount = notifications.length;
 
@@ -424,6 +446,8 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                             <AlertTriangle size={14} color="#ef4444" />
                                         ) : item.type === 'followup' ? (
                                             <Clock size={14} color="#f59e0b" />
+                                        ) : item.type === 'anthropic' ? (
+                                            <Shield size={14} color="var(--accent-primary)" />
                                         ) : (
                                             <Sparkles size={14} color="var(--accent-primary)" />
                                         )}
@@ -432,9 +456,33 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                         </div>
                                     </div>
 
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: item.job ? '8px' : '0' }}>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: (item.job || item.onAction) ? '8px' : '0' }}>
                                         {item.message}
                                     </div>
+
+                                    {item.onAction && (
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                            <button
+                                                onClick={item.onAction}
+                                                className="btn-secondary"
+                                                style={{
+                                                    fontSize: '0.75rem',
+                                                    padding: '4px 10px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    background: 'rgba(107, 126, 103, 0.16)',
+                                                    border: '1px solid rgba(107, 126, 103, 0.35)',
+                                                    color: 'var(--text-primary)',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    borderRadius: '6px'
+                                                }}
+                                            >
+                                                <Shield size={12} color="var(--accent-primary)" /> {item.actionLabel || 'Open Prep Hub'}
+                                            </button>
+                                        </div>
+                                    )}
 
                                     {item.job && (
                                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
@@ -506,6 +554,13 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                     </div>
                 </>,
                 portalTarget
+            )}
+
+            {isPlatformOwner && (
+                <AnthropicFellowsModal 
+                    isOpen={isAnthropicModalOpen}
+                    onClose={() => setIsAnthropicModalOpen(false)}
+                />
             )}
         </div>
     );
