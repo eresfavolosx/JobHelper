@@ -173,8 +173,8 @@ export default function JobSankeyChart({ jobs, compact = false }) {
         }
     };
 
-    const chartHeight = compact ? 380 : 440;
-    const chartWidth = Math.max(980, containerWidth);
+    const chartHeight = compact ? 420 : 480;
+    const chartWidth = Math.max(1120, containerWidth);
 
     const sankey = useMemo(() => {
         return buildJobSankeyData(cycleFilteredJobs, {
@@ -1385,44 +1385,92 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                                             stroke={isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.22)'}
                                             strokeWidth={isHighlighted ? 2 : 1}
                                         />
-                                        <text
-                                            x={labelX}
-                                            y={labelY - 2}
-                                            textAnchor={textAnchor}
-                                            stroke="var(--bg-card, #1c1d1f)"
-                                            strokeWidth={3.5}
-                                            strokeLinejoin="round"
-                                            fill="var(--text-primary, #FAF8F4)"
-                                            style={{
-                                                fontSize: '11.5px',
-                                                fontWeight: 700,
-                                                fill: 'var(--text-primary, #FAF8F4)',
-                                                pointerEvents: 'none',
-                                                fontFamily: 'system-ui, -apple-system, sans-serif',
-                                                paintOrder: 'stroke fill'
-                                            }}
-                                        >
-                                            {node.label}
-                                        </text>
-                                        <text
-                                            x={labelX}
-                                            y={labelY + 12}
-                                            textAnchor={textAnchor}
-                                            stroke="var(--bg-card, #1c1d1f)"
-                                            strokeWidth={3}
-                                            strokeLinejoin="round"
-                                            fill="var(--text-secondary, #9DA7AE)"
-                                            style={{
-                                                fontSize: '10px',
-                                                fontWeight: 600,
-                                                fill: 'var(--text-secondary, #9DA7AE)',
-                                                pointerEvents: 'none',
-                                                fontFamily: 'system-ui, -apple-system, sans-serif',
-                                                paintOrder: 'stroke fill'
-                                            }}
-                                        >
-                                            {node.value} ({node.pctOfTotal}%)
-                                        </text>
+                                        {node.lines && node.lines.length > 1 ? (
+                                            <>
+                                                {node.lines.map((line, lIdx) => (
+                                                    <text
+                                                        key={lIdx}
+                                                        x={labelX}
+                                                        y={labelY - (node.lines.length === 2 ? 10 : 16) + lIdx * 14}
+                                                        textAnchor={textAnchor}
+                                                        stroke="var(--bg-card, #1c1d1f)"
+                                                        strokeWidth={3.5}
+                                                        strokeLinejoin="round"
+                                                        fill="var(--text-primary, #FAF8F4)"
+                                                        style={{
+                                                            fontSize: '11px',
+                                                            fontWeight: 700,
+                                                            fill: 'var(--text-primary, #FAF8F4)',
+                                                            pointerEvents: 'none',
+                                                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                            paintOrder: 'stroke fill'
+                                                        }}
+                                                    >
+                                                        {line}
+                                                    </text>
+                                                ))}
+                                                <text
+                                                    x={labelX}
+                                                    y={labelY + (node.lines.length === 2 ? 18 : 22)}
+                                                    textAnchor={textAnchor}
+                                                    stroke="var(--bg-card, #1c1d1f)"
+                                                    strokeWidth={3}
+                                                    strokeLinejoin="round"
+                                                    fill="var(--text-secondary, #9DA7AE)"
+                                                    style={{
+                                                        fontSize: '10px',
+                                                        fontWeight: 600,
+                                                        fill: 'var(--text-secondary, #9DA7AE)',
+                                                        pointerEvents: 'none',
+                                                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                        paintOrder: 'stroke fill'
+                                                    }}
+                                                >
+                                                    {node.value} ({node.pctOfTotal}%)
+                                                </text>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <text
+                                                    x={labelX}
+                                                    y={labelY - 2}
+                                                    textAnchor={textAnchor}
+                                                    stroke="var(--bg-card, #1c1d1f)"
+                                                    strokeWidth={3.5}
+                                                    strokeLinejoin="round"
+                                                    fill="var(--text-primary, #FAF8F4)"
+                                                    style={{
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        fill: 'var(--text-primary, #FAF8F4)',
+                                                        pointerEvents: 'none',
+                                                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                        paintOrder: 'stroke fill'
+                                                    }}
+                                                >
+                                                    {node.lines?.[0] || node.label}
+                                                </text>
+                                                <text
+                                                    x={labelX}
+                                                    y={labelY + 12}
+                                                    textAnchor={textAnchor}
+                                                    stroke="var(--bg-card, #1c1d1f)"
+                                                    strokeWidth={3}
+                                                    strokeLinejoin="round"
+                                                    fill="var(--text-secondary, #9DA7AE)"
+                                                    style={{
+                                                        fontSize: '10px',
+                                                        fontWeight: 600,
+                                                        fill: 'var(--text-secondary, #9DA7AE)',
+                                                        pointerEvents: 'none',
+                                                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                        paintOrder: 'stroke fill'
+                                                    }}
+                                                >
+                                                    {node.value} ({node.pctOfTotal}%)
+                                                </text>
+                                            </>
+                                        )}
                                     </g>
                                 );
                             })}

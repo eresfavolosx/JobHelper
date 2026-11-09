@@ -11,33 +11,33 @@ import { subDays } from 'date-fns';
 import { safeDate } from './utils.js';
 
 export const SANKEY_STAGE_META = {
-    tracked: { label: 'Tracked Opportunities', shortLabel: 'Tracked', color: '#6366f1' },
-    submitted: { label: 'Submitted Applications', shortLabel: 'Submitted', color: '#6B7E67' },
-    wishlist_entry: { label: 'Saved in Wishlist', shortLabel: 'Wishlist', color: '#9DA7AE' },
-    progressed: { label: 'Reached Screening / Interview', shortLabel: 'Progressed', color: '#0ea5e9' },
-    applied_active: { label: 'Awaiting Reply (Applied)', shortLabel: 'Applied', color: '#6B7E67' },
-    rejected_early: { label: 'Rejected (Resume Screen)', shortLabel: 'Rejected (App)', color: '#ef4444' },
-    archived_early: { label: 'Archived / No Response', shortLabel: 'Archived', color: '#94a3b8' },
-    wishlist_active: { label: 'Active Wishlist', shortLabel: 'Wishlist', color: '#9DA7AE' },
-    wishlist_archived: { label: 'Archived from Wishlist', shortLabel: 'Skipped', color: '#64748b' },
-    screening_active: { label: 'In Initial Screening', shortLabel: 'Screening', color: '#0ea5e9' },
-    interview_reached: { label: 'Advanced to Interviews', shortLabel: 'Interviewed', color: '#D4A373' },
-    screening_closed: { label: 'Ended After Screening', shortLabel: 'Closed (Screen)', color: '#f97316' },
-    interview_active: { label: 'Active Interviewing', shortLabel: 'Interviewing', color: '#D4A373' },
-    offer_reached: { label: 'Advanced to Offer', shortLabel: 'Offer Stage', color: '#10b981' },
-    interview_closed: { label: 'Ended After Interview', shortLabel: 'Closed (Interview)', color: '#ef4444' },
-    offer_pending: { label: 'Pending Offer Decision', shortLabel: 'Pending Offer', color: '#10b981' },
-    accepted_final: { label: 'Offer Accepted 🎉', shortLabel: 'Accepted', color: '#22c55e' },
-    offer_declined: { label: 'Offer Declined / Closed', shortLabel: 'Declined', color: '#f59e0b' },
+    tracked: { label: 'Tracked Opportunities', lines: ['Tracked', 'Opportunities'], shortLabel: 'Tracked', color: '#6366f1' },
+    submitted: { label: 'Submitted Applications', lines: ['Submitted', 'Applications'], shortLabel: 'Submitted', color: '#6B7E67' },
+    wishlist_entry: { label: 'Saved in Wishlist', lines: ['Saved in', 'Wishlist'], shortLabel: 'Wishlist', color: '#9DA7AE' },
+    progressed: { label: 'Reached Screening / Interview', lines: ['Reached Screening', '& Interview'], shortLabel: 'Progressed', color: '#0ea5e9' },
+    applied_active: { label: 'Awaiting Reply (Applied)', lines: ['Awaiting Reply', '(Applied)'], shortLabel: 'Applied', color: '#6B7E67' },
+    rejected_early: { label: 'Rejected (Resume Screen)', lines: ['Rejected', '(Resume Screen)'], color: '#ef4444' },
+    archived_early: { label: 'Archived / No Response', lines: ['Archived', '(No Response)'], color: '#94a3b8' },
+    wishlist_active: { label: 'Active Wishlist', lines: ['Active', 'Wishlist'], shortLabel: 'Wishlist', color: '#9DA7AE' },
+    wishlist_archived: { label: 'Archived from Wishlist', lines: ['Archived from', 'Wishlist'], shortLabel: 'Skipped', color: '#64748b' },
+    screening_active: { label: 'In Initial Screening', lines: ['In Initial', 'Screening'], shortLabel: 'Screening', color: '#0ea5e9' },
+    interview_reached: { label: 'Advanced to Interviews', lines: ['Advanced to', 'Interviews'], shortLabel: 'Interviewed', color: '#D4A373' },
+    screening_closed: { label: 'Ended After Screening', lines: ['Ended After', 'Screening'], shortLabel: 'Closed (Screen)', color: '#f97316' },
+    interview_active: { label: 'Active Interviewing', lines: ['Active', 'Interviewing'], shortLabel: 'Interviewing', color: '#D4A373' },
+    offer_reached: { label: 'Advanced to Offer', lines: ['Advanced to', 'Offer Stage'], shortLabel: 'Offer Stage', color: '#10b981' },
+    interview_closed: { label: 'Ended After Interview', lines: ['Ended After', 'Interview'], shortLabel: 'Closed (Interview)', color: '#ef4444' },
+    offer_pending: { label: 'Pending Offer Decision', lines: ['Pending Offer', 'Decision'], shortLabel: 'Pending Offer', color: '#10b981' },
+    accepted_final: { label: 'Offer Accepted 🎉', lines: ['Offer Accepted', '🎉'], shortLabel: 'Accepted', color: '#22c55e' },
+    offer_declined: { label: 'Offer Declined / Closed', lines: ['Offer Declined', '/ Closed'], shortLabel: 'Declined', color: '#f59e0b' },
     // Direct stage nodes
-    stage_wishlist: { label: 'Wishlist', shortLabel: 'Wishlist', color: '#9DA7AE', boardStage: 'wishlist' },
-    stage_applied: { label: 'Applied', shortLabel: 'Applied', color: '#6B7E67', boardStage: 'applied' },
-    stage_screening: { label: 'Initial Screening', shortLabel: 'Screening', color: '#0ea5e9', boardStage: 'screening' },
-    stage_interviewing: { label: 'Interviewing', shortLabel: 'Interviewing', color: '#D4A373', boardStage: 'interviewing' },
-    stage_offer: { label: 'Offer', shortLabel: 'Offer', color: '#10b981', boardStage: 'offer' },
-    stage_accepted: { label: 'Accepted', shortLabel: 'Accepted', color: '#22c55e', boardStage: 'accepted' },
-    stage_rejected: { label: 'Rejected', shortLabel: 'Rejected', color: '#ef4444', boardStage: 'rejected' },
-    stage_archived: { label: 'Archived', shortLabel: 'Archived', color: '#94a3b8', boardStage: 'archived' }
+    stage_wishlist: { label: 'Wishlist', lines: ['Wishlist'], shortLabel: 'Wishlist', color: '#9DA7AE', boardStage: 'wishlist' },
+    stage_applied: { label: 'Applied', lines: ['Applied'], shortLabel: 'Applied', color: '#6B7E67', boardStage: 'applied' },
+    stage_screening: { label: 'Initial Screening', lines: ['Initial', 'Screening'], shortLabel: 'Screening', color: '#0ea5e9', boardStage: 'screening' },
+    stage_interviewing: { label: 'Interviewing', lines: ['Interviewing'], shortLabel: 'Interviewing', color: '#D4A373', boardStage: 'interviewing' },
+    stage_offer: { label: 'Offer', lines: ['Offer'], shortLabel: 'Offer', color: '#10b981', boardStage: 'offer' },
+    stage_accepted: { label: 'Accepted', lines: ['Accepted'], shortLabel: 'Accepted', color: '#22c55e', boardStage: 'accepted' },
+    stage_rejected: { label: 'Rejected', lines: ['Rejected'], shortLabel: 'Rejected', color: '#ef4444', boardStage: 'rejected' },
+    stage_archived: { label: 'Archived', lines: ['Archived'], shortLabel: 'Archived', color: '#94a3b8', boardStage: 'archived' }
 };
 
 export const SANKEY_TIME_RANGES = [
@@ -387,6 +387,38 @@ export function calculatePipelineStats(jobs, options = {}) {
 }
 
 /**
+ * Splits a stage label into balanced multi-line segments for compact, overlap-free SVG rendering.
+ * @param {string} label
+ * @returns {string[]}
+ */
+export function splitLabel(label) {
+    if (!label) return [''];
+    const str = String(label).trim();
+    if (str.length <= 15) return [str];
+
+    if (str.includes(' / ')) {
+        const parts = str.split(' / ');
+        return [parts[0], `/ ${parts.slice(1).join(' / ')}`];
+    }
+    if (str.includes(' & ')) {
+        const parts = str.split(' & ');
+        return [parts[0], `& ${parts.slice(1).join(' & ')}`];
+    }
+    if (str.includes(' (')) {
+        const idx = str.indexOf(' (');
+        return [str.slice(0, idx), str.slice(idx).trim()];
+    }
+
+    const words = str.split(' ');
+    if (words.length >= 2) {
+        const mid = Math.ceil(words.length / 2);
+        return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+    }
+
+    return [str];
+}
+
+/**
  * Builds the raw nodes and links for the Sankey diagram, then computes exact
  * 2D coordinates (columns, vertical positions, node heights, and cubic-Bézier link paths).
  *
@@ -395,13 +427,13 @@ export function calculatePipelineStats(jobs, options = {}) {
  * @param {'funnel' | 'direct'} [options.mode='funnel']
  * @param {string} [options.range='all']
  * @param {string} [options.companyFilter='all']
- * @param {number} [options.width=860]
- * @param {number} [options.height=380]
+ * @param {number} [options.width=1150]
+ * @param {number} [options.height=460]
  */
 export function buildJobSankeyData(jobs, options = {}) {
     const mode = options.mode || 'funnel';
-    const width = Math.max(480, Number(options.width) || 860);
-    const height = Math.max(260, Number(options.height) || 380);
+    const width = Math.max(540, Number(options.width) || 1150);
+    const height = Math.max(300, Number(options.height) || 460);
     const filtered = filterJobsForSankey(jobs, options);
     const stats = calculatePipelineStats(filtered);
 
@@ -481,10 +513,12 @@ export function buildJobSankeyData(jobs, options = {}) {
     function ensureNode(id, column, jobsList, customMeta = {}) {
         if (!jobsList || jobsList.length === 0) return;
         const meta = SANKEY_STAGE_META[id] || {};
+        const label = customMeta.label || meta.label || id;
         rawNodes.set(id, {
             id,
             column,
-            label: customMeta.label || meta.label || id,
+            label,
+            lines: customMeta.lines || meta.lines || splitLabel(label),
             shortLabel: customMeta.shortLabel || meta.shortLabel || id,
             color: customMeta.color || meta.color || '#6B7E67',
             boardStage: customMeta.boardStage || meta.boardStage || null,
@@ -709,13 +743,13 @@ export function buildJobSankeyData(jobs, options = {}) {
         });
 
         // Resolve vertical label collisions within this column
-        const minLabelSpacing = 28;
+        const minLabelSpacing = 38;
         for (let i = 1; i < colNodes.length; i++) {
             if (colNodes[i].labelY < colNodes[i - 1].labelY + minLabelSpacing) {
                 colNodes[i].labelY = colNodes[i - 1].labelY + minLabelSpacing;
             }
         }
-        const maxLabelY = padTop + usableHeight - 4;
+        const maxLabelY = padTop + usableHeight - 14;
         if (colNodes.length > 0 && colNodes[colNodes.length - 1].labelY > maxLabelY) {
             colNodes[colNodes.length - 1].labelY = maxLabelY;
             for (let i = colNodes.length - 2; i >= 0; i--) {
