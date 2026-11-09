@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '@/lib/store';
 import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown, Send, Trash2, Clock, Plus } from 'lucide-react';
@@ -124,6 +124,20 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
     const [commuteMessage, setCommuteMessage] = useState({ type: '', text: '' });
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
     const [submitError, setSubmitError] = useState('');
+    const mouseDownTargetRef = useRef(null);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        // Only trigger close if both mousedown AND click originated directly on the backdrop itself,
+        // preventing accidental closes when users click and drag to select text inside input fields or textareas.
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            onClose();
+        }
+        mouseDownTargetRef.current = null;
+    };
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -225,7 +239,8 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            onClick={onClose}
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             style={{
                 position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)',
                 backdropFilter: 'blur(8px)',

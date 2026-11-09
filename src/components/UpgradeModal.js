@@ -7,17 +7,30 @@ import { getStripeCheckoutUrl, PRO_MONTHLY_PRICE } from '@/lib/subscription';
 
 export default function UpgradeModal({ isOpen, onClose, triggerReason = 'feature' }) {
     const { user } = useAuth();
+    const mouseDownTargetRef = React.useRef(null);
 
     if (!isOpen) return null;
 
     const checkoutUrl = getStripeCheckoutUrl(user);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            onClose();
+        }
+        mouseDownTargetRef.current = null;
+    };
 
     const modalContent = (
         <div
             role="dialog"
             aria-modal="true"
             aria-label="Upgrade to NovuJobs Pro"
-            onClick={onClose}
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             style={{
                 position: 'fixed',
                 inset: 0,

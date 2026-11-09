@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     Sunrise, Clock, Mail, X, ChevronRight, Send, Target
@@ -208,11 +208,23 @@ Return ONLY a JSON array of status changes:
         }));
     };
 
+    const mouseDownTargetRef = useRef(null);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            onClose();
+        }
+        mouseDownTargetRef.current = null;
+    };
+
     const modalContent = (
         <div
-            onClick={(e) => {
-                if (e.target === e.currentTarget) onClose();
-            }}
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             style={{
                 position: 'fixed',
                 inset: 0,
