@@ -98,7 +98,10 @@ export function calculateJobAlertStatus(job, nowMs = Date.now()) {
         return { type: 'inactive', days: 0, isAlert: false };
     }
 
-    const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
+    const latestFollowUp = Array.isArray(job.followUps) && job.followUps.length > 0
+        ? job.followUps[0].date
+        : null;
+    const refDate = job.lastFollowUpAt || latestFollowUp || job.lastInteraction || job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
     if (!refDate) {
         return { type: 'unknown', days: 0, isAlert: false };
     }

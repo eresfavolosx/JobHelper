@@ -141,6 +141,32 @@ describe('gantt-utils — Job Search Application Gantt & Pipeline Velocity Insig
         assert.equal(openAiItem.durationDays, 25);
         assert.ok(openAiItem.milestones.some(m => m.type === 'offer'));
         assert.ok(openAiItem.milestones.some(m => m.type === 'resolved'));
+
+        // Test Follow-Up Marker functionality on a 20-day-old job
+        const jobWithFollowUp = {
+            id: 'fu-test',
+            company: 'Figma',
+            role: 'Design Engineer',
+            status: 'applied',
+            appliedAt: '2026-10-15T10:00:00Z', // 24 days ago
+            followUps: [
+                {
+                    id: 'fu-1',
+                    date: '2026-11-07T12:00:00Z', // 1 day before fixedNowMs
+                    channel: 'linkedin',
+                    note: 'Messaged recruiting coordinator on LinkedIn'
+                }
+            ]
+        };
+        const fuItem = processJobGanttItem(jobWithFollowUp, fixedNowMs);
+        assert.ok(fuItem);
+        assert.equal(fuItem.isAlert, false, 'Ghost alert should be cleared by follow-up');
+        assert.equal(fuItem.alertType, 'healthy');
+        assert.equal(fuItem.daysSinceActivity, 1, 'Days since activity should reset to 1 day');
+        assert.ok(fuItem.milestones.some(m => m.type === 'followup'));
+        const fuMilestone = fuItem.milestones.find(m => m.type === 'followup');
+        assert.equal(fuMilestone.channel, 'linkedin');
+        assert.ok(fuMilestone.label.includes('Messaged recruiting coordinator'));
     });
 
     test('calculateGanttInsights computes pipeline velocity, averages, alerts, and recommendations', () => {

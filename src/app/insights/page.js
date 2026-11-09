@@ -50,10 +50,9 @@ export default function InsightsPage() {
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState(() => readHashTab());
 
     useEffect(() => {
-        setActiveTab(readHashTab());
         const onHash = () => setActiveTab(readHashTab());
         window.addEventListener('hashchange', onHash);
         return () => window.removeEventListener('hashchange', onHash);

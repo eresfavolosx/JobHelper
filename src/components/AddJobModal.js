@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '@/lib/store';
-import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown } from 'lucide-react';
+import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown, Send, Trash2, Clock, Plus } from 'lucide-react';
 import { getMapsSearchUrl, calculateCommute } from '@/lib/maps-service';
 import { sanitizeUrl } from '@/lib/utils';
 import UpgradeModal from './UpgradeModal';
@@ -22,8 +22,68 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 function AddJobModalDialog({ onClose, initialData = {} }) {
     const addJob = useAppStore((state) => state.addJob);
     const updateJob = useAppStore((state) => state.updateJob);
+    const logJobFollowUp = useAppStore((state) => state.logJobFollowUp);
+    const deleteJobFollowUp = useAppStore((state) => state.deleteJobFollowUp);
     const profile = useAppStore((state) => state.profile);
     const jobs = useAppStore((state) => state.jobs);
+
+    // Follow-ups state
+    const [today] = useState(() => new Date());
+    const [followUps, setFollowUps] = useState(() => initialData?.followUps || []);
+    const [newFollowUpChannel, setNewFollowUpChannel] = useState('email');
+    const [newFollowUpDate, setNewFollowUpDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [newFollowUpNote, setNewFollowUpNote] = useState('');
+
+    const currentNoCommsDays = useMemo(() => {
+        const latestFollowUp = followUps.length > 0 ? followUps[0].date : null;
+        const refDate = initialData?.lastFollowUpAt || latestFollowUp || initialData?.lastInteraction || initialData?.updatedAt || initialData?.appliedAt || initialData?.createdAt;
+        if (!refDate) return 0;
+        const diff = today.getTime() - new Date(refDate).getTime();
+        return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    }, [followUps, initialData, today]);
+
+    const handleQuickFollowUpToday = () => {
+        const nowIso = new Date().toISOString();
+        const newEntry = {
+            id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            date: nowIso,
+            channel: 'email',
+            note: 'Followed up with recruiter / hiring team',
+            createdAt: nowIso
+        };
+        const nextList = [newEntry, ...followUps];
+        nextList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setFollowUps(nextList);
+        if (initialData?.id) {
+            logJobFollowUp(initialData.id, newEntry);
+        }
+    };
+
+    const handleAddCustomFollowUp = () => {
+        const targetDate = newFollowUpDate ? new Date(newFollowUpDate).toISOString() : new Date().toISOString();
+        const newEntry = {
+            id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            date: targetDate,
+            channel: newFollowUpChannel,
+            note: newFollowUpNote.trim() || 'Followed up with recruiter',
+            createdAt: new Date().toISOString()
+        };
+        const nextList = [newEntry, ...followUps];
+        nextList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setFollowUps(nextList);
+        setNewFollowUpNote('');
+        if (initialData?.id) {
+            logJobFollowUp(initialData.id, newEntry);
+        }
+    };
+
+    const handleDeleteFollowUp = (followUpId) => {
+        const nextList = followUps.filter(f => f.id !== followUpId);
+        setFollowUps(nextList);
+        if (initialData?.id) {
+            deleteJobFollowUp(initialData.id, followUpId);
+        }
+    };
 
     // Extract up to 4 recently used resume links/labels so the user can attach a resume in 1 click
     const recentResumes = useMemo(() => {
@@ -120,7 +180,12 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                 ...formData,
                 url: formData.url ? sanitizeUrl(formData.url) || formData.url.trim() : '',
                 resumeUrl: formData.resumeUrl ? sanitizeUrl(formData.resumeUrl) || formData.resumeUrl.trim() : '',
-                resumeName: (formData.resumeName || '').trim()
+                resumeName: (formData.resumeName || '').trim(),
+                followUps,
+                ...(followUps.length > 0 ? {
+                    lastFollowUpAt: followUps[0].date,
+                    lastInteraction: followUps[0].date
+                } : {})
             };
             if (initialData && initialData.id) {
                 // Edit Mode
@@ -514,6 +579,197 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                                 />
                             </div>
                         </div>
+                    </fieldset>
+
+                    {/* Dedicated Outreach & Follow-Up Markers Section */}
+                    <fieldset
+                        style={{
+                            margin: 0,
+                            padding: '14px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid rgba(139, 92, 246, 0.3)',
+                            background: 'rgba(139, 92, 246, 0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px'
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <legend style={{ padding: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Send size={15} color="#8b5cf6" /> Outreach & Follow-Up Markers
+                            </legend>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                Resets the no-communication / ghosting alert counter
+                            </span>
+                        </div>
+
+                        {/* Current Status & 1-Click Today Action */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', background: 'var(--bg-card)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}>
+                                <Clock size={13} color="var(--accent-primary)" />
+                                <span style={{ color: 'var(--text-secondary)' }}>Current Status:</span>
+                                <strong style={{ color: currentNoCommsDays >= 10 ? '#ef4444' : currentNoCommsDays >= 5 ? '#f59e0b' : '#10b981' }}>
+                                    {currentNoCommsDays === 0 ? 'Contacted Today (0d)' : `${currentNoCommsDays} days since last communication`}
+                                </strong>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleQuickFollowUpToday}
+                                className="btn-secondary"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '5px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    color: '#8b5cf6',
+                                    border: '1px solid rgba(139, 92, 246, 0.35)',
+                                    background: 'rgba(139, 92, 246, 0.1)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Send size={11} /> ⚡ Log Follow-Up (Today)
+                            </button>
+                        </div>
+
+                        {/* Custom Follow-Up Entry Form */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-card)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <select
+                                    value={newFollowUpChannel}
+                                    onChange={e => setNewFollowUpChannel(e.target.value)}
+                                    style={{
+                                        padding: '6px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-subtle)',
+                                        background: 'var(--bg-app)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.78rem'
+                                    }}
+                                >
+                                    <option value="email">📧 Email Check-In</option>
+                                    <option value="linkedin">💼 LinkedIn Message</option>
+                                    <option value="phone">📞 Phone Call</option>
+                                    <option value="message">💬 Text / ATS Message</option>
+                                    <option value="in_person">🤝 In-Person / Meetup</option>
+                                    <option value="other">📝 Other Outreach</option>
+                                </select>
+
+                                <input
+                                    type="date"
+                                    value={newFollowUpDate}
+                                    onChange={e => setNewFollowUpDate(e.target.value)}
+                                    style={{
+                                        padding: '5px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-subtle)',
+                                        background: 'var(--bg-app)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.78rem'
+                                    }}
+                                />
+
+                                <input
+                                    type="text"
+                                    value={newFollowUpNote}
+                                    onChange={e => setNewFollowUpNote(e.target.value)}
+                                    placeholder="Outreach note (e.g. Inquired about timeline with recruiter)..."
+                                    style={{
+                                        flex: 1,
+                                        minWidth: '180px',
+                                        padding: '6px 8px',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-subtle)',
+                                        background: 'var(--bg-app)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.78rem'
+                                    }}
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={handleAddCustomFollowUp}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '6px 11px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.76rem',
+                                        fontWeight: 700,
+                                        background: '#8b5cf6',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <Plus size={13} /> Add
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* List of Past Follow-Up Markers */}
+                        {followUps.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    Follow-up history ({followUps.length}):
+                                </span>
+                                {followUps.map((item, idx) => (
+                                    <div
+                                        key={item.id || idx}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: '8px',
+                                            padding: '6px 10px',
+                                            borderRadius: '6px',
+                                            background: 'var(--bg-card)',
+                                            border: '1px solid var(--border-subtle)',
+                                            fontSize: '0.76rem'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                                            <span style={{
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(139, 92, 246, 0.15)',
+                                                color: '#8b5cf6',
+                                                fontWeight: 700,
+                                                fontSize: '0.68rem',
+                                                textTransform: 'capitalize'
+                                            }}>
+                                                {item.channel || 'outreach'}
+                                            </span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>
+                                                {new Date(item.date).toLocaleDateString()}
+                                            </span>
+                                            <span style={{ color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                {item.note || 'Follow-up sent'}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteFollowUp(item.id)}
+                                            title="Delete this follow-up entry"
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                padding: '2px'
+                                            }}
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </fieldset>
 
                     <div>

@@ -145,6 +145,44 @@ describe('QA Test Suite: Role Updates & Email Synchronization', () => {
             assert.equal(alert.type, 'healthy');
         });
 
+        it('should reset no comms counter and clear Ghost Alert when a follow-up marker is logged (lastFollowUpAt)', () => {
+            const followedUpJob = {
+                id: 'ghost-fu',
+                company: 'Stripe',
+                role: 'Staff Engineer',
+                status: 'applied',
+                appliedAt: new Date(NOW - 18 * ONE_DAY).toISOString(),
+                // Followed up 1 day ago
+                lastFollowUpAt: new Date(NOW - 1 * ONE_DAY).toISOString()
+            };
+            const alert = calculateJobAlertStatus(followedUpJob, NOW);
+            assert.equal(alert.isAlert, false, 'Ghost alert should be cleared because a follow-up was logged');
+            assert.equal(alert.type, 'healthy');
+            assert.equal(alert.days, 1);
+        });
+
+        it('should reset no comms counter when followUps array contains recent outreach', () => {
+            const followedUpJobWithList = {
+                id: 'ghost-list',
+                company: 'Linear',
+                role: 'Product Engineer',
+                status: 'applied',
+                appliedAt: new Date(NOW - 25 * ONE_DAY).toISOString(),
+                followUps: [
+                    {
+                        id: 'fu-1',
+                        date: new Date(NOW).toISOString(),
+                        channel: 'email',
+                        note: 'Followed up with hiring manager'
+                    }
+                ]
+            };
+            const alert = calculateJobAlertStatus(followedUpJobWithList, NOW);
+            assert.equal(alert.isAlert, false);
+            assert.equal(alert.type, 'healthy');
+            assert.equal(alert.days, 0);
+        });
+
         it('should never trigger alerts for terminal statuses (offer, rejected, deleted)', () => {
             const rejectedJob = {
                 id: 'rej-1',

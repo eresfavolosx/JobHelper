@@ -180,7 +180,17 @@ export function processJobGanttItem(job, nowMs = Date.now()) {
             if (invMs > latestInterviewMs) latestInterviewMs = invMs;
         }
     }
+    let latestFollowUpMs = 0;
+    if (Array.isArray(job.followUps)) {
+        for (const fu of job.followUps) {
+            const fuDate = fu?.date || fu?.dateTime || fu?.createdAt;
+            const fuMs = getSafeTimestamp(fuDate, 0);
+            if (fuMs > latestFollowUpMs) latestFollowUpMs = fuMs;
+        }
+    }
     const activityCandidates = [
+        latestFollowUpMs,
+        getSafeTimestamp(job.lastFollowUpAt, 0),
         getSafeTimestamp(job.lastInteraction, 0),
         getSafeTimestamp(job.lastActivity, 0),
         getSafeTimestamp(job.offerDate, 0),
@@ -260,6 +270,22 @@ export function processJobGanttItem(job, nowMs = Date.now()) {
         });
     }
 
+    if (Array.isArray(job.followUps)) {
+        job.followUps.forEach((fu, idx) => {
+            const fuMs = getSafeTimestamp(fu?.date || fu?.createdAt, 0);
+            if (fuMs > 0) {
+                milestones.push({
+                    id: fu.id || `fu-${idx}`,
+                    type: 'followup',
+                    dateMs: fuMs,
+                    label: fu.note ? `Follow-Up: ${fu.note.slice(0, 32)}` : 'Follow-Up Logged',
+                    channel: fu.channel || 'email',
+                    color: '#8b5cf6'
+                });
+            }
+        });
+    }
+
     return {
         id: job.id,
         rawJob: job,
@@ -289,6 +315,8 @@ export function processJobGanttItem(job, nowMs = Date.now()) {
         url: job.url || job.link || null,
         notes: job.notes || null,
         resumeName: job.resumeName || null,
+        followUps: job.followUps || [],
+        lastFollowUpAt: job.lastFollowUpAt || null,
         milestones
     };
 }

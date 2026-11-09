@@ -477,6 +477,48 @@ export const useAppStore = create(
                     });
                 }
             },
+            logJobFollowUp: (id, followUpData = {}) => {
+                const existingJob = get().jobs.find(j => j?.id === id);
+                if (!existingJob) return null;
+                const nowIso = new Date().toISOString();
+                const followUpEntry = {
+                    id: followUpData.id || `fu-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    date: followUpData.date || nowIso,
+                    channel: followUpData.channel || followUpData.method || 'email',
+                    note: followUpData.note || followUpData.notes || 'Follow-up outreach sent',
+                    createdAt: nowIso
+                };
+                const followUps = Array.isArray(existingJob.followUps)
+                    ? [followUpEntry, ...existingJob.followUps]
+                    : [followUpEntry];
+
+                followUps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                const latestFollowUpAt = followUps[0].date;
+
+                const updates = {
+                    followUps,
+                    lastFollowUpAt: latestFollowUpAt,
+                    lastInteraction: latestFollowUpAt,
+                    updatedAt: nowIso
+                };
+
+                get().updateJob(id, updates);
+                return followUpEntry;
+            },
+            deleteJobFollowUp: (jobId, followUpId) => {
+                const existingJob = get().jobs.find(j => j?.id === jobId);
+                if (!existingJob) return;
+                const followUps = (existingJob.followUps || []).filter(f => f.id !== followUpId);
+                const nowIso = new Date().toISOString();
+                const latestFollowUpAt = followUps.length > 0 ? followUps[0].date : null;
+                const updates = {
+                    followUps,
+                    lastFollowUpAt: latestFollowUpAt,
+                    lastInteraction: latestFollowUpAt || existingJob.appliedAt || existingJob.createdAt || nowIso,
+                    updatedAt: nowIso
+                };
+                get().updateJob(jobId, updates);
+            },
             archiveJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
                 const previousStatus = (job?.status && job.status !== 'archived' && job.status !== 'deleted')
