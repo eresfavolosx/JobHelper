@@ -12,7 +12,6 @@ import {
     Check,
     Download,
     ExternalLink,
-    Sparkles,
     Table,
     X,
     ArrowRight,
@@ -23,9 +22,12 @@ import {
     Send,
     MessageSquare,
     Users,
-    Briefcase
+    Briefcase,
+    Layers
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
+import { useAppStore } from '@/lib/store';
+import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
 import {
     buildJobSankeyData,
     SANKEY_TIME_RANGES,
@@ -69,6 +71,16 @@ export default function JobSankeyChart({ jobs, compact = false }) {
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
     const openNewJobModal = useUIStore(s => s.openNewJobModal);
     const setBoardFilters = useUIStore(s => s.setBoardFilters);
+
+    const rawJobs = useAppStore(state => state.jobs);
+    const storeCycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const setSelectedCycleId = useAppStore(state => state.setSelectedCycleId);
+
+    // Resolve search cycles and filter jobs
+    const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
+    const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const cycleFilteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
 
     const prefersReducedMotion = useSyncExternalStore(
         subscribeReducedMotion,
@@ -165,20 +177,20 @@ export default function JobSankeyChart({ jobs, compact = false }) {
     const chartWidth = Math.max(980, containerWidth);
 
     const sankey = useMemo(() => {
-        return buildJobSankeyData(jobs, {
+        return buildJobSankeyData(cycleFilteredJobs, {
             mode,
             range,
             width: chartWidth,
             height: chartHeight
         });
-    }, [jobs, mode, range, chartWidth, chartHeight]);
+    }, [cycleFilteredJobs, mode, range, chartWidth, chartHeight]);
 
     // Categorized job roles per funnel stage for mobile cards inspection
     const stageRoles = useMemo(() => {
-        if (!jobs || !Array.isArray(jobs)) {
+        if (!cycleFilteredJobs || !Array.isArray(cycleFilteredJobs)) {
             return { wishlist: [], applied: [], screening: [], interview: [], offer: [] };
         }
-        const filtered = filterJobsForSankey(jobs, { range });
+        const filtered = filterJobsForSankey(cycleFilteredJobs, { range });
         const wishlist = [];
         const applied = [];
         const screening = [];
@@ -197,7 +209,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
             }
         }
         return { wishlist, applied, screening, interview, offer };
-    }, [jobs, range]);
+    }, [cycleFilteredJobs, range]);
 
     const { stats, nodes, links, columns } = sankey;
 
@@ -712,8 +724,12 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                             border: '1px solid rgba(16, 185, 129, 0.3)',
                             fontWeight: 700
                         }}>
-                            <Sparkles size={11} aria-hidden="true" />
-                            {stats.totalTracked} Tracked · {stats.totalApplied} Applied
+                            <Layers size={11} aria-hidden="true" />
+                            <span>
+                                {selectedCycleId === 'all'
+                                    ? `All Cycles · ${stats.totalTracked} Tracked · ${stats.totalApplied} Applied`
+                                    : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${stats.totalTracked} Tracked · ${stats.totalApplied} Applied`}
+                            </span>
                         </span>
                     </div>
                     <p style={{
@@ -733,6 +749,41 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                     gap: '8px',
                     flexWrap: 'wrap'
                 }}>
+                    {/* Search Cycle Selector */}
+                    {cycles.length > 0 && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <Layers size={13} color="var(--accent-primary)" />
+                            <select
+                                value={selectedCycleId}
+                                onChange={e => setSelectedCycleId(e.target.value)}
+                                aria-label="Filter Sankey by job search cycle"
+                                style={{
+                                    padding: '5px 10px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-subtle)',
+                                    background: 'var(--bg-card)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="all" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                    All Cycles ({(rawJobs || sourceJobs).filter(j => j && j.status !== 'deleted').length})
+                                </option>
+                                {cycles.map(c => {
+                                    const count = filterJobsByCycle(rawJobs || sourceJobs, cycles, c.id).length;
+                                    return (
+                                        <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                                            {c.name || `Cycle ${c.cycleNumber || 1}`} ({count})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    )}
+
                     {/* Layout View Format Switcher: Mobile Cards vs Diagram */}
                     <div
                         role="group"
