@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { filterJobsByCycle, calculateCycleStats } from '@/lib/cycle-utils';
-import { Award, CheckCircle2, Sparkles, X, ArrowRight, Layers, Zap, Building2, Briefcase, Calendar, TrendingUp } from 'lucide-react';
+import { Award, CheckCircle2, Sparkles, X, Layers, Zap } from 'lucide-react';
 
 export default function OfferAcceptedCycleModal() {
     const celebration = useAppStore(state => state.offerCelebrationModal);
@@ -11,6 +11,7 @@ export default function OfferAcceptedCycleModal() {
     const setSelectedCycleId = useAppStore(state => state.setSelectedCycleId);
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
+    const mouseDownTargetRef = useRef(null);
 
     const cycle = celebration?.cycle;
     const nextCycle = celebration?.nextCycle;
@@ -21,6 +22,17 @@ export default function OfferAcceptedCycleModal() {
         const cycleJobs = filterJobsByCycle(rawJobs, cycles, cycle.id);
         return calculateCycleStats(cycle, cycleJobs);
     }, [cycle, rawJobs, cycles]);
+
+    const handleBackdropMouseDown = (e) => {
+        mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropClick = (e) => {
+        if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+            closeCelebration();
+        }
+        mouseDownTargetRef.current = null;
+    };
 
     if (!celebration || !celebration.isOpen || !cycle) {
         return null;
@@ -35,6 +47,8 @@ export default function OfferAcceptedCycleModal() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="offer-cycle-title"
+            onMouseDown={handleBackdropMouseDown}
+            onClick={handleBackdropClick}
             style={{
                 position: 'fixed',
                 top: 0,
@@ -49,9 +63,6 @@ export default function OfferAcceptedCycleModal() {
                 justifyContent: 'center',
                 zIndex: 9999,
                 padding: '16px'
-            }}
-            onClick={(e) => {
-                if (e.target === e.currentTarget) closeCelebration();
             }}
         >
             <div

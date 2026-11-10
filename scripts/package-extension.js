@@ -30,5 +30,8 @@ archive.on('error', function (err) {
 });
 
 archive.pipe(output);
-archive.directory(sourceDir, false);
+archive.glob('**/*', {
+    cwd: sourceDir,
+    ignore: ['**/*.test.*', '**/__tests__/**', '*.b64']
+});
 archive.finalize();

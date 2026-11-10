@@ -235,7 +235,7 @@ export const getGeminiModel = (options = {}) => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelConfig = {
-        model: options.model || "gemini-3.8-flash",
+        model: options.model || "gemini-2.5-flash",
     };
     if (options.jsonMode) {
         modelConfig.generationConfig = { responseMimeType: "application/json" };
@@ -380,7 +380,10 @@ async function generateOpenAIContent(safePromptOrParts, options = {}, apiKey, en
             content: 'You are an expert AI assistant. Output ONLY valid, parseable JSON conforming strictly to the requested schema. No markdown formatting.'
         });
     }
-    messages.push({ role: 'user', content: userContent });
+    const finalUserContent = (Array.isArray(userContent) && userContent.length === 1 && userContent[0]?.type === 'text')
+        ? userContent[0].text
+        : userContent;
+    messages.push({ role: 'user', content: finalUserContent });
 
     const modelsToTry = isCustom
         ? [defaultModel || 'gpt-4o-mini']
@@ -440,9 +443,11 @@ async function generateGeminiInternal(safePromptOrParts, options = {}) {
     }
 
     const fallbackModels = [
-        options.model || "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-flash-latest"
+        options.model || "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-flash-latest",
+        "gemini-3.8-flash"
     ];
 
     const genAI = new GoogleGenerativeAI(apiKey);

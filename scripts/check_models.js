@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 async function checkModels() {
     // Read .env.local
@@ -7,9 +7,9 @@ async function checkModels() {
     let apiKey;
     try {
         const envContent = fs.readFileSync(envPath, 'utf8');
-        const match = envContent.match(/GEMINI_API_KEY=(.*)/);
+        const match = envContent.match(/GEMINI_API_KEY=(.*)/) || envContent.match(/NEXT_PUBLIC_GEMINI_API_KEY=(.*)/);
         if (match) apiKey = match[1].trim();
-    } catch (err) {
+    } catch {
         console.error("Could not read .env.local");
         return;
     }
