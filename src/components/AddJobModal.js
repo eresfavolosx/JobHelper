@@ -12,7 +12,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
     return (
         <AddJobModalDialog
-            key={initialData?.id || initialData?.url || initialData?.role || 'new'}
+            key={initialData?.id || `${initialData?.status || 'new'}-${initialData?.role || ''}-${initialData?.company || ''}-${initialData?.url || ''}`}
             onClose={onClose}
             initialData={initialData}
         />

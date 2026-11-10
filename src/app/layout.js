@@ -569,16 +569,26 @@ function NavContent({ onOpenMorningSync }) {
                             <span className="sidebar-label">Dashboard</span>
                         </span>
                         <span
+                            role="button"
+                            tabIndex={0}
                             className="sidebar-label sidebar-goal-pill"
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGoalModalOpen(true);
                             }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setGoalModalOpen(true);
+                                }
+                            }}
                             title={`Application Goal (${goalProgress.cadence}): ${goalProgress.count}/${goalProgress.target}. Click to customize.`}
                             style={{
                                 background: goalProgress.percentage >= 100 ? 'rgba(16, 185, 129, 0.16)' : 'rgba(107, 126, 103, 0.15)',
-                                color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)'
+                                color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)',
+                                cursor: 'pointer'
                             }}
                         >
                             {goalProgress.count}/{goalProgress.target}
