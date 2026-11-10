@@ -188,5 +188,16 @@ test('Agent Mode & Automation Bridge Test Suite', async (t) => {
         assert.equal(AGENT_SELECTORS.jobCard('job-99'), '[data-agent-job-id="job-99"]');
         assert.equal(AGENT_SELECTORS.jobCardEditButton('job-99'), '[data-agent-job-id="job-99"] [data-agent-action="edit-job"]');
         assert.equal(AGENT_SELECTORS.columnAddButton('screening'), '[data-agent-column="screening"] [data-agent-action="column-add-job"]');
+
+        // Stages enumeration contract
+        assert.equal(STAGES.includes('wishlist'), true);
+        assert.equal(STAGES.includes('applied'), true);
+        assert.equal(STAGES.includes('screening'), true);
+        assert.equal(STAGES.includes('interviewing'), true);
+        assert.equal(STAGES.includes('offer'), true);
+        assert.equal(STAGES.includes('accepted'), true);
+        assert.equal(STAGES.includes('rejected'), true);
+        assert.equal(STAGES.includes('archived'), true);
+        assert.equal(STAGES.includes('deleted'), true);
     });
 });

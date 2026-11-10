@@ -116,7 +116,6 @@ function AuthenticatedLayout({ children }) {
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
     const toggleSidebarCollapse = useUIStore(state => state.toggleSidebarCollapse);
-    const isAgentMode = useUIStore(state => state.isAgentMode);
     const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
     const setAgentMode = useUIStore(state => state.setAgentMode);
     const [morningSyncOpen, setMorningSyncOpen] = useState(false);

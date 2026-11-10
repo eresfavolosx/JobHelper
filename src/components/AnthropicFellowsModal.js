@@ -30,6 +30,7 @@ export default function AnthropicFellowsModal({ isOpen, onClose }) {
     const [copiedProof, setCopiedProof] = useState(false);
     const [addedToPipeline, setAddedToPipeline] = useState(false);
     const [expandedQuestion, setExpandedQuestion] = useState(0);
+    const mouseDownTargetRef = useRef(null);
 
     const qualificationData = useMemo(() => {
         return assessAnthropicQualifications(profile || {});
@@ -98,8 +99,6 @@ Architected and evaluated an empirical AI Safety & Alignment subsystem inside th
         setCopiedProof(true);
         setTimeout(() => setCopiedProof(false), 2500);
     };
-
-    const mouseDownTargetRef = useRef(null);
 
     const handleBackdropMouseDown = (e) => {
         mouseDownTargetRef.current = e.target;

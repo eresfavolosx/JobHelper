@@ -19,6 +19,7 @@ export default function AiCareerCoachModal({ job, isOpen, onClose, onOpenUpgrade
     const [copiedIndex, setCopiedIndex] = useState(null);
     const [error, setError] = useState(null);
     const [now] = useState(() => new Date());
+    const mouseDownTargetRef = useRef(null);
 
     const isAuthorized = isOwner(user) || isProUser(user, profile) || Boolean(profile?.geminiApiKey);
 
@@ -187,8 +188,6 @@ Return ONLY valid JSON matching this schema:
         setCopiedIndex(index);
         setTimeout(() => setCopiedIndex(null), 2500);
     };
-
-    const mouseDownTargetRef = useRef(null);
 
     const handleBackdropMouseDown = (e) => {
         mouseDownTargetRef.current = e.target;

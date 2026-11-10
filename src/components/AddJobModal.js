@@ -12,7 +12,6 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
 
     return (
         <AddJobModalDialog
-            isOpen={isOpen}
             key={initialData?.id || initialData?.url || initialData?.role || 'new'}
             onClose={onClose}
             initialData={initialData}
@@ -20,7 +19,7 @@ export default function AddJobModal({ isOpen, onClose, initialData = {} }) {
     );
 }
 
-function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
+function AddJobModalDialog({ onClose, initialData = {} }) {
     const addJob = useAppStore((state) => state.addJob);
     const updateJob = useAppStore((state) => state.updateJob);
     const logJobFollowUp = useAppStore((state) => state.logJobFollowUp);
