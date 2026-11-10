@@ -13,6 +13,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Environment variables configuration
 const USER_ID = process.env.NOVUJOBS_USER_ID || process.env.FIREBASE_USER_ID;
@@ -320,32 +321,74 @@ class JobDatabase {
         return updates;
     }
 
-    parseRestDocument(doc) {
-        const nameParts = (doc.name || '').split('/');
-        const id = nameParts[nameParts.length - 1];
-        const fields = doc.fields || {};
-        const parsed = { id };
-        for (const [k, v] of Object.entries(fields)) {
-            if (v.stringValue !== undefined) parsed[k] = v.stringValue;
-            else if (v.integerValue !== undefined) parsed[k] = parseInt(v.integerValue, 10);
-            else if (v.booleanValue !== undefined) parsed[k] = v.booleanValue;
-            else if (v.timestampValue !== undefined) parsed[k] = v.timestampValue;
-            else if (v.arrayValue !== undefined) {
-                parsed[k] = (v.arrayValue.values || []).map(item => item.stringValue || item);
-            }
+    parseRestValue(v) {
+        if (!v || typeof v !== 'object') return v;
+        if (v.stringValue !== undefined) return v.stringValue;
+        if (v.integerValue !== undefined) return parseInt(v.integerValue, 10);
+        if (v.doubleValue !== undefined) return parseFloat(v.doubleValue);
+        if (v.booleanValue !== undefined) return v.booleanValue;
+        if (v.timestampValue !== undefined) return v.timestampValue;
+        if (v.nullValue !== undefined) return null;
+        if (v.arrayValue !== undefined) {
+            return (v.arrayValue.values || []).map(item => this.parseRestValue(item));
+        }
+        if (v.mapValue !== undefined) {
+            return this.parseRestFields(v.mapValue.fields || {});
+        }
+        return v;
+    }
+
+    parseRestFields(fields) {
+        const parsed = {};
+        for (const [k, v] of Object.entries(fields || {})) {
+            parsed[k] = this.parseRestValue(v);
         }
         return parsed;
     }
 
+    parseRestDocument(doc) {
+        const nameParts = (doc.name || '').split('/');
+        const id = nameParts[nameParts.length - 1];
+        const fields = doc.fields || {};
+        return { id, ...this.parseRestFields(fields) };
+    }
+
+    formatRestValue(val) {
+        if (val === null || val === undefined) {
+            return { nullValue: null };
+        }
+        if (typeof val === 'string') {
+            return { stringValue: val };
+        }
+        if (typeof val === 'number') {
+            return Number.isInteger(val)
+                ? { integerValue: String(val) }
+                : { doubleValue: val };
+        }
+        if (typeof val === 'boolean') {
+            return { booleanValue: val };
+        }
+        if (Array.isArray(val)) {
+            return {
+                arrayValue: {
+                    values: val.map(item => this.formatRestValue(item))
+                }
+            };
+        }
+        if (typeof val === 'object') {
+            return {
+                mapValue: {
+                    fields: this.formatRestFields(val)
+                }
+            };
+        }
+        return { stringValue: String(val) };
+    }
+
     formatRestFields(data) {
         const fields = {};
-        for (const [k, v] of Object.entries(data)) {
-            if (typeof v === 'string') fields[k] = { stringValue: v };
-            else if (typeof v === 'number') fields[k] = { integerValue: String(v) };
-            else if (typeof v === 'boolean') fields[k] = { booleanValue: v };
-            else if (Array.isArray(v)) {
-                fields[k] = { arrayValue: { values: v.map(item => ({ stringValue: String(item) })) } };
-            }
+        for (const [k, v] of Object.entries(data || {})) {
+            fields[k] = this.formatRestValue(v);
         }
         return fields;
     }
@@ -537,25 +580,31 @@ async function handleToolCall(name, args) {
  */
 let buffer = '';
 
-process.stdin.setEncoding('utf8');
+function startStdioServer() {
+    process.stdin.setEncoding('utf8');
 
-process.stdin.on('data', async (chunk) => {
-    buffer += chunk;
-    const lines = buffer.split('\n');
-    buffer = lines.pop(); // Retain remainder in buffer
+    process.stdin.on('data', async (chunk) => {
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Retain remainder in buffer
 
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
 
-        try {
-            const msg = JSON.parse(trimmed);
-            await handleJsonRpcMessage(msg);
-        } catch (err) {
-            console.error('[NovuJobs-MCP] Failed to parse JSON-RPC line:', err);
+            try {
+                const msg = JSON.parse(trimmed);
+                await handleJsonRpcMessage(msg);
+            } catch (err) {
+                console.error('[NovuJobs-MCP] Failed to parse JSON-RPC line:', err);
+            }
         }
-    }
-});
+    });
+
+    // Log startup banner to stderr so stdout remains 100% pure JSON-RPC
+    console.error('[NovuJobs-MCP] NovuJobs MCP Server running on stdio');
+    console.error(`[NovuJobs-MCP] Target Project: ${PROJECT_ID} | User: ${USER_ID || '(pending config)'}`);
+}
 
 async function handleJsonRpcMessage(msg) {
     const { id, method, params } = msg;
@@ -647,6 +696,10 @@ function sendError(id, code, message) {
     process.stdout.write(out + '\n');
 }
 
-// Log startup banner to stderr so stdout remains 100% pure JSON-RPC
-console.error('[NovuJobs-MCP] NovuJobs MCP Server running on stdio');
-console.error(`[NovuJobs-MCP] Target Project: ${PROJECT_ID} | User: ${USER_ID || '(pending config)'}`);
+// Auto-start when executed directly from CLI or client config
+const isDirectRun = Boolean(process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url)));
+if (isDirectRun) {
+    startStdioServer();
+}
+
+export { JobDatabase, TOOLS, handleToolCall, startStdioServer, db };
