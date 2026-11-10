@@ -38,8 +38,18 @@ export const useUIStore = create((set) => ({
         set({ isSidebarCollapsed: !!isSidebarCollapsed });
     },
 
-    // Agent Mode: Optimizes UI for automated AI agents, headless runners & vision OCR
+    /**
+     * Agent Navigation Mode:
+     * - Optimizes application interface for automated browser agents (Playwright, Puppeteer, DevTools MCP, Claude Computer Use).
+     * - Zero motion: disables CSS transitions and keyframe animations to prevent interaction race conditions.
+     * - OCR clarity: strips backdrop-filter blur effects to prevent bounding box distortions.
+     * - Synchronization: reflects state to localStorage ('novujobs_agent_mode') and DOM attribute data-agent-mode="true" on <html>.
+     */
     isAgentMode: false,
+
+    /**
+     * Toggles Agent Mode on or off, synchronizing state to localStorage and document.documentElement.
+     */
     toggleAgentMode: () =>
         set((state) => {
             const next = !state.isAgentMode;
@@ -57,6 +67,11 @@ export const useUIStore = create((set) => ({
             }
             return { isAgentMode: next };
         }),
+
+    /**
+     * Explicitly sets Agent Mode to a given boolean value.
+     * @param {boolean} isAgentMode
+     */
     setAgentMode: (isAgentMode) => {
         const next = !!isAgentMode;
         if (typeof window !== 'undefined') {

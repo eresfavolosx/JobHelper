@@ -138,13 +138,16 @@ function AuthenticatedLayout({ children }) {
     }, [setAgentMode]);
 
     // Register Programmatic Agent Bridge on window for automated browser agents
+    // Exposes structured read/write access to window.__NOVU_AGENT__ for Playwright, Puppeteer, Claude Computer Use, and DevTools
     useEffect(() => {
         if (typeof window === 'undefined') return;
         window.__NOVU_AGENT__ = {
             version: '1.0.0',
+            /** Current Agent Navigation Mode boolean status */
             get isAgentMode() {
                 return useUIStore.getState().isAgentMode;
             },
+            /** Programmatically toggle or set Agent Navigation Mode */
             toggleAgentMode: (val) => {
                 if (typeof val === 'boolean') {
                     useUIStore.getState().setAgentMode(val);
@@ -153,6 +156,7 @@ function AuthenticatedLayout({ children }) {
                 }
                 return useUIStore.getState().isAgentMode;
             },
+            /** Returns a full structured JSON snapshot of user, stats, UI, filters, and jobs */
             getSnapshot: () => {
                 return buildAgentSnapshot({
                     appStoreState: useAppStore.getState(),
@@ -160,18 +164,27 @@ function AuthenticatedLayout({ children }) {
                     user
                 });
             },
+            /** Filter jobs by stage ('wishlist', 'applied', 'interviewing', 'offer', etc.) */
             getJobs: (statusFilter) => {
                 const allJobs = useAppStore.getState().jobs || [];
                 if (!statusFilter || statusFilter === 'all') return allJobs;
                 return allJobs.filter(j => j && j.status === statusFilter);
             },
+            /** Open Add/Edit application modal with optional prefilled data */
             openNewJobModal: (initialData) => useUIStore.getState().openNewJobModal(initialData),
+            /** Close Add/Edit application modal */
             closeJobModal: () => useUIStore.getState().closeJobModal(),
+            /** Open system-wide Role Search command palette (Cmd+K) */
             openGlobalSearch: (q) => useUIStore.getState().openGlobalSearch(q),
+            /** Close Role Search command palette */
             closeGlobalSearch: () => useUIStore.getState().closeGlobalSearch(),
+            /** Set board search query text */
             setBoardSearch: (q) => useUIStore.getState().setBoardSearchQuery(q),
+            /** Update multi-parameter board filters */
             setBoardFilters: (f) => useUIStore.getState().setBoardFilters(f),
+            /** Reset all board filters back to defaults */
             resetBoardFilters: () => useUIStore.getState().resetBoardFilters(),
+            /** Standardized CSS selector dictionary for automated element targeting */
             selectors: AGENT_SELECTORS
         };
         return () => {

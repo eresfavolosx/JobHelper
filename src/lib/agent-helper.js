@@ -4,12 +4,25 @@
  * for AI web agents (Playwright, Puppeteer, Claude Computer Use, Gemini Live, Chrome DevTools MCP).
  */
 
+/**
+ * Agent Mode Bridge & Helpers
+ * 
+ * Provides deterministic CSS selectors, structured state snapshots, and browser
+ * automation utilities for autonomous AI agents (Playwright, Puppeteer, Claude Computer Use,
+ * Gemini Vision/Live, and Chrome DevTools Protocol / MCP).
+ */
+
+/**
+ * Standardized CSS selector catalog.
+ * Use these deterministic selectors across automation scripts and browser agents
+ * instead of fragile XPath or ambiguous text-based locators.
+ */
 export const AGENT_SELECTORS = {
-    // Mode toggles
+    // Mode toggles & indicators
     agentModeToggle: '[data-agent-action="toggle-agent-mode"]',
     agentModeHud: '[data-agent-target="hud"]',
 
-    // Core Actions
+    // Core interactive actions
     newJobButton: '[data-agent-action="new-job"]',
     globalSearchButton: '[data-agent-action="global-search"]',
     toggleSidebarButton: '[data-agent-action="toggle-sidebar"]',
@@ -18,14 +31,14 @@ export const AGENT_SELECTORS = {
     toggleFiltersButton: '[data-agent-action="toggle-filters"]',
     resetFiltersButton: '[data-agent-action="reset-filters"]',
 
-    // Nav Links
+    // Primary sidebar navigation links
     navDashboard: '[data-agent-nav="dashboard"]',
     navBoard: '[data-agent-nav="kanban"]',
     navInsights: '[data-agent-nav="insights"]',
     navRecommendations: '[data-agent-nav="recommendations"]',
     navProfile: '[data-agent-nav="profile"]',
 
-    // Modals & Containers
+    // Add / Edit Job Modal containers and form inputs
     jobModal: '[data-agent-target="add-job-modal"]',
     jobModalRoleInput: '[data-agent-input="job-role"]',
     jobModalCompanyInput: '[data-agent-input="job-company"]',
@@ -36,15 +49,24 @@ export const AGENT_SELECTORS = {
     jobModalSubmitButton: '[data-agent-action="submit-job-modal"]',
     jobModalCloseButton: '[data-agent-action="close-job-modal"]',
 
-    // Dynamic Selectors
+    // Dynamic parameterized selector generators
+    /** Locates the Kanban column container by pipeline stage */
     kanbanColumn: (stage) => `[data-agent-column="${stage}"]`,
+    /** Locates an individual application card by its unique job ID */
     jobCard: (jobId) => `[data-agent-job-id="${jobId}"]`,
+    /** Locates the edit button on a specific job card */
     jobCardEditButton: (jobId) => `[data-agent-job-id="${jobId}"] [data-agent-action="edit-job"]`,
+    /** Locates the archive/restore button on a specific job card */
     jobCardArchiveButton: (jobId) => `[data-agent-job-id="${jobId}"] [data-agent-action="archive-job"]`,
+    /** Locates the delete button on a specific job card */
     jobCardDeleteButton: (jobId) => `[data-agent-job-id="${jobId}"] [data-agent-action="delete-job"]`,
+    /** Locates the quick-add application button in a column header */
     columnAddButton: (stage) => `[data-agent-column="${stage}"] [data-agent-action="column-add-job"]`
 };
 
+/**
+ * Complete list of supported application lifecycle stages in canonical pipeline order.
+ */
 export const STAGES = [
     'wishlist',
     'applied',
@@ -58,7 +80,14 @@ export const STAGES = [
 ];
 
 /**
- * Builds a structured, machine-readable snapshot of the application state.
+ * Builds a structured, machine-readable snapshot of the entire application state.
+ * Designed for immediate serialization to JSON when automated agents or LLMs inspect the browser.
+ * 
+ * @param {Object} options
+ * @param {Object|null} options.appStoreState - State from useAppStore.getState()
+ * @param {Object|null} options.uiStoreState - State from useUIStore.getState()
+ * @param {Object|null} options.user - Current authenticated Firebase user or null
+ * @returns {Object} Structured snapshot containing route, stats, UI filters, and application cards.
  */
 export function buildAgentSnapshot({ appStoreState, uiStoreState, user }) {
     const jobs = Array.isArray(appStoreState?.jobs) ? appStoreState.jobs : [];
