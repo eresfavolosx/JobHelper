@@ -1832,3 +1832,190 @@ textarea:focus {
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
+
+/* ==========================================================================
+   AGENT NAVIGATION MODE (Zero Motion, OCR Contrast & Deterministic Selectors)
+   Optimized for automated browser agents (Playwright, DevTools MCP, Claude CU)
+   ========================================================================== */
+
+/* 1. Eliminate all animations, transitions & smooth scrolling race conditions */
+html[data-agent-mode="true"],
+html[data-agent-mode="true"] *,
+html[data-agent-mode="true"] *::before,
+html[data-agent-mode="true"] *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
+}
+
+/* 2. Eliminate backdrop blur noise for OCR & computer vision models */
+html[data-agent-mode="true"] *,
+html[data-agent-mode="true"] *::backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 3. High-contrast deterministic focus rings for automated click verification */
+html[data-agent-mode="true"] :focus-visible {
+  outline: 2px solid #10b981 !important;
+  outline-offset: 2px !important;
+}
+
+/* 4. Subtle deterministic target outlines when hovering or targeting */
+html[data-agent-mode="true"] [data-agent-action]:hover {
+  outline: 1.5px dashed #10b981;
+}
+
+/* Floating Agent Mode HUD */
+.agent-mode-hud {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100000;
+  pointer-events: auto;
+  max-width: 92vw;
+}
+
+.agent-mode-hud-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: #0f172a;
+  border: 1px solid #10b981;
+  border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(16, 185, 129, 0.25);
+  color: #f8fafc;
+  font-size: 0.78rem;
+}
+
+.agent-mode-hud-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.agent-mode-hud-icon {
+  color: #10b981;
+}
+
+.agent-mode-hud-title {
+  color: #f1f5f9;
+}
+
+.agent-mode-hud-status {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.agent-mode-hud-info {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .agent-mode-hud-info {
+    display: inline;
+  }
+}
+
+.agent-mode-hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-mode-hud-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agent-mode-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.agent-mode-hud-kbd {
+  font-size: 0.65rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-family: inherit;
+}
+
+.agent-mode-hud-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.agent-mode-hud-close:hover {
+  color: #f87171;
+}
+
+/* Sidebar Agent Mode Toggle Button */
+.sidebar-agent-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar-agent-toggle-btn.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.sidebar-agent-toggle-btn-collapsed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sidebar-agent-toggle-btn-collapsed.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.16);
+  color: #10b981;
+}
+
