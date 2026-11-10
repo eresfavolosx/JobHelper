@@ -27,6 +27,7 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
         emailUpdates: []
     });
     const [appliedEmailUpdates, setAppliedEmailUpdates] = useState(new Set());
+    const mouseDownTargetRef = useRef(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -207,8 +208,6 @@ Return ONLY a JSON array of status changes:
             followUpAlerts: prev.followUpAlerts.filter(f => f.id !== item.matchedJobId)
         }));
     };
-
-    const mouseDownTargetRef = useRef(null);
 
     const handleBackdropMouseDown = (e) => {
         mouseDownTargetRef.current = e.target;

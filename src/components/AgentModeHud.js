@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { Bot, Copy, Check, X, ShieldAlert, Cpu } from 'lucide-react';
+import { Bot, Copy, Check, X } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';

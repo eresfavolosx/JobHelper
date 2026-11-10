@@ -27,6 +27,7 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     const [appliedUpdates, setAppliedUpdates] = useState(new Set());
     const [error, setError] = useState('');
     const [apiDisabledInfo, setApiDisabledInfo] = useState(null);
+    const mouseDownTargetRef = useRef(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -290,8 +291,6 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
             setError(err?.message || 'Could not add job to board.');
         }
     };
-
-    const mouseDownTargetRef = useRef(null);
 
     const handleBackdropMouseDown = (e) => {
         mouseDownTargetRef.current = e.target;
