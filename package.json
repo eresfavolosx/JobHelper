@@ -8,7 +8,7 @@
     "build": "node scripts/package-extension.js && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/utils.test.js src/components/ApplicationHistoryChart.test.mjs src/lib/qa-role-updates.test.mjs src/lib/goal-tracker.test.mjs src/lib/credit-protection.test.mjs src/lib/ai-safety.test.mjs src/lib/job-search.test.mjs src/lib/theme.test.mjs src/lib/sidebar.test.mjs src/lib/multi-provider.test.mjs src/lib/sankey-utils.test.mjs src/lib/gantt-utils.test.mjs src/lib/benchmark-analytics.test.mjs src/lib/cycle-utils.test.mjs src/lib/cycle-store.test.mjs src/lib/agent-mode.test.mjs"
+    "test": "node --test src/lib/utils.test.js src/components/ApplicationHistoryChart.test.mjs src/lib/qa-role-updates.test.mjs src/lib/goal-tracker.test.mjs src/lib/credit-protection.test.mjs src/lib/ai-safety.test.mjs src/lib/job-search.test.mjs src/lib/theme.test.mjs src/lib/sidebar.test.mjs src/lib/multi-provider.test.mjs src/lib/sankey-utils.test.mjs src/lib/gantt-utils.test.mjs src/lib/benchmark-analytics.test.mjs src/lib/cycle-utils.test.mjs src/lib/cycle-store.test.mjs src/lib/agent-mode.test.mjs mcp/test-mcp.mjs"
   },
   "engines": {
     "node": "18"
