@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useAppStore } from './store.js';
-import { filterJobsByCycle, calculateCycleStats } from './cycle-utils.js';
+import { filterJobsByCycle } from './cycle-utils.js';
 
 test('Store Job Search Cycles Lifecycle Engine', async (t) => {
     // Reset store state

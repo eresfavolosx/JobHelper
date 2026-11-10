@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { resolveCyclesFromJobs, getActiveCycle, filterJobsByCycle, calculateCycleStats } from '@/lib/cycle-utils';
-import { CheckCircle2, Zap, Plus, Layers, Calendar, ChevronRight, X, Sparkles, Building2, Flag } from 'lucide-react';
+import { CheckCircle2, Zap, Plus, Layers, X } from 'lucide-react';
 
 export default function CycleFilterBar({ className = '', style = {} }) {
     const rawJobs = useAppStore(state => state.jobs);

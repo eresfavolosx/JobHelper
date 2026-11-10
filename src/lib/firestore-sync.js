@@ -82,6 +82,10 @@ export async function deleteAllUserData(userId) {
     const profileRef = doc(db, "users", userId, "data", "profile");
     deletePromises.push(deleteDoc(profileRef));
 
+    // Delete cycles
+    const cyclesRef = doc(db, "users", userId, "data", "cycles");
+    deletePromises.push(deleteDoc(cyclesRef));
+
     await Promise.all(deletePromises);
     console.log("All user data deleted for:", userId);
     return { success: true };

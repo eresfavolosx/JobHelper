@@ -185,8 +185,7 @@ export function reopenCycleForRevertedOffer(cycles = [], revertedJobId, jobs = [
         updatedAt: new Date().toISOString()
     };
 
-    // Find any subsequent empty cycles created after this one
-    const subsequentCycles = cycles.filter(c => c.cycleNumber > targetCycle.cycleNumber);
+    // Find any subsequent empty cycles created after this one and clean them up
     const cyclesToKeep = [];
 
     for (const c of cycles) {

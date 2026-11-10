@@ -166,7 +166,7 @@ export default function KanbanBoard() {
 
     const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
-    const { columnsData, jobsMap, filteredCount, matchedJobs } = useMemo(() => {
+    const { columnsData, jobsMap, filteredCount } = useMemo(() => {
         const data = {};
         const map = new Map();
         const matchedList = [];
