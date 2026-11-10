@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef, useMemo, useSyncExternalStore, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe } from 'lucide-react';
+import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe, Copy, Terminal } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
@@ -682,7 +682,11 @@ function ProfileContent() {
                     </h3>
                     <SubscriptionManager />
                 </div>
-                {/* 2. Data Management */}
+
+                {/* 2. MCP & External AI Assistant Integration */}
+                <McpIntegrationCard />
+
+                {/* 3. Data Management */}
                 <div className="card animate-slide-up delay-300">
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>Data Management</h3>
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
@@ -699,6 +703,133 @@ function ProfileContent() {
                 isOpen={isGoalModalOpen}
                 onClose={() => setIsGoalModalOpen(false)}
             />
+        </div>
+    );
+}
+
+function McpIntegrationCard() {
+    const { user } = useAuth();
+    const [copiedUid, setCopiedUid] = useState(false);
+    const [copiedConfig, setCopiedConfig] = useState(false);
+
+    if (!user) return null;
+
+    const mcpConfigJson = JSON.stringify({
+        mcpServers: {
+            novujobs: {
+                command: "node",
+                args: [
+                    "/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/mcp/server.js"
+                ],
+                env: {
+                    NOVUJOBS_USER_ID: user.uid,
+                    FIREBASE_PROJECT_ID: "jobhelper-c3cd7"
+                }
+            }
+        }
+    }, null, 2);
+
+    const handleCopyUid = async () => {
+        try {
+            await navigator.clipboard.writeText(user.uid);
+            setCopiedUid(true);
+            setTimeout(() => setCopiedUid(false), 2000);
+        } catch (e) {
+            console.error('Failed to copy UID:', e);
+        }
+    };
+
+    const handleCopyConfig = async () => {
+        try {
+            await navigator.clipboard.writeText(mcpConfigJson);
+            setCopiedConfig(true);
+            setTimeout(() => setCopiedConfig(false), 2000);
+        } catch (e) {
+            console.error('Failed to copy config:', e);
+        }
+    };
+
+    return (
+        <div className="card animate-slide-up delay-200" id="mcp-section">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        <Terminal size={20} color="var(--accent-primary)" /> Model Context Protocol (MCP) & ChatGPT Connection
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px', lineHeight: 1.5 }}>
+                        Connect ChatGPT Desktop, Claude Desktop, Cursor, or AI agents directly to your NovuJobs application pipeline over secure local stdio.
+                    </p>
+                </div>
+                <a
+                    href="https://github.com/eresfavolosx/JobHelper/tree/main/mcp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}
+                >
+                    View MCP Repo & Docs <ExternalLink size={13} />
+                </a>
+            </div>
+
+            {/* User ID Section */}
+            <div style={{
+                background: 'var(--bg-panel)',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-subtle)',
+                marginBottom: '14px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Your Firebase User ID (UID)
+                        </span>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.92rem', color: 'var(--text-primary)', fontWeight: 600, marginTop: '2px', wordBreak: 'break-all' }}>
+                            {user.uid}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleCopyUid}
+                        className="btn-secondary"
+                        style={{ fontSize: '0.78rem', padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                        {copiedUid ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                        <span>{copiedUid ? 'Copied UID!' : 'Copy UID'}</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Desktop MCP Config Snippet */}
+            <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Client Configuration (Claude Desktop / ChatGPT Desktop)
+                    </span>
+                    <button
+                        type="button"
+                        onClick={handleCopyConfig}
+                        className="btn-primary"
+                        style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                    >
+                        {copiedConfig ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{copiedConfig ? 'Copied JSON!' : 'Copy Config'}</span>
+                    </button>
+                </div>
+                <pre style={{
+                    margin: 0,
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: '#0d1117',
+                    color: '#e6edf3',
+                    fontSize: '0.78rem',
+                    fontFamily: 'monospace',
+                    overflowX: 'auto',
+                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                    {mcpConfigJson}
+                </pre>
+            </div>
         </div>
     );
 }
