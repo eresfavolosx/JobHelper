@@ -251,6 +251,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
             }}
         >
             <div
+                data-agent-target="add-job-modal"
                 onClick={(e) => e.stopPropagation()}
                 className="card animate-scale-in"
                 style={{
@@ -272,6 +273,8 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                         {(initialData && initialData.id) ? 'Edit Application' : 'Add Application'}
                     </h2>
                     <button
+                        type="button"
+                        data-agent-action="close-job-modal"
                         onClick={onClose}
                         aria-label="Close modal (Esc)"
                         title="Close modal (Esc)"
@@ -301,6 +304,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                         <input
                             id="job-company"
                             name="company"
+                            data-agent-input="job-company"
                             required
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.company}
@@ -316,6 +320,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                         <input
                             id="job-role"
                             name="role"
+                            data-agent-input="job-role"
                             required
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             value={formData.role}
@@ -345,6 +350,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                             <input
                                 id="job-location"
                                 name="location"
+                                data-agent-input="job-location"
                                 style={{ flex: 1, padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 value={formData.location || ''}
                                 onChange={e => setFormData({ ...formData, location: e.target.value })}
@@ -421,6 +427,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                             <input
                                 id="job-salary"
                                 name="salary"
+                                data-agent-input="job-salary"
                                 style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
                                 value={formData.salary || ''}
                                 onChange={e => setFormData({ ...formData, salary: e.target.value })}
@@ -434,6 +441,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                                 <select
                                     id="job-status"
                                     name="status"
+                                    data-agent-input="job-status"
                                     style={{
                                         width: '100%',
                                         padding: '10px 34px 10px 12px',
@@ -791,6 +799,7 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                         <textarea
                             id="job-notes"
                             name="notes"
+                            data-agent-input="job-notes"
                             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)', height: '90px' }}
                             value={formData.notes || ''}
                             onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -804,7 +813,12 @@ function AddJobModalDialog({ isOpen = true, onClose, initialData = {} }) {
                         </div>
                     )}
 
-                    <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+                    <button
+                        type="submit"
+                        data-agent-action="submit-job-modal"
+                        className="btn-primary"
+                        style={{ marginTop: '10px' }}
+                    >
                         {(initialData && initialData.id) ? 'Save Changes' : 'Add Application'}
                     </button>
                 </form>

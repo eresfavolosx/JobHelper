@@ -38,6 +38,42 @@ export const useUIStore = create((set) => ({
         set({ isSidebarCollapsed: !!isSidebarCollapsed });
     },
 
+    // Agent Mode: Optimizes UI for automated AI agents, headless runners & vision OCR
+    isAgentMode: false,
+    toggleAgentMode: () =>
+        set((state) => {
+            const next = !state.isAgentMode;
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('novujobs_agent_mode', String(next));
+                    if (next) {
+                        document.documentElement.setAttribute('data-agent-mode', 'true');
+                    } else {
+                        document.documentElement.removeAttribute('data-agent-mode');
+                    }
+                } catch {
+                    // Ignore storage access errors
+                }
+            }
+            return { isAgentMode: next };
+        }),
+    setAgentMode: (isAgentMode) => {
+        const next = !!isAgentMode;
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('novujobs_agent_mode', String(next));
+                if (next) {
+                    document.documentElement.setAttribute('data-agent-mode', 'true');
+                } else {
+                    document.documentElement.removeAttribute('data-agent-mode');
+                }
+            } catch {
+                // Ignore storage access errors
+            }
+        }
+        set({ isAgentMode: next });
+    },
+
     // Global Search Command Palette state
     isGlobalSearchOpen: false,
     globalSearchInitialQuery: '',

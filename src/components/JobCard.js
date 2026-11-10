@@ -212,6 +212,8 @@ const JobCard = memo(function JobCard({ job }) {
         <>
         <div
             id={`job-card-${job.id}`}
+            data-agent-job-id={job.id}
+            data-agent-stage={job.status}
             ref={setNodeRef}
             style={style}
             className="card interactive-card group"
@@ -227,6 +229,8 @@ const JobCard = memo(function JobCard({ job }) {
                             ref={setActivatorNodeRef}
                             {...attributes}
                             {...listeners}
+                            data-agent-action="drag-handle"
+                            data-agent-job-id={job.id}
                             aria-label={`Drag ${job.role} at ${job.company} to another stage, or use arrow keys`}
                             title="Drag card to move between stages"
                             className={`job-action-btn job-drag-handle ${isDragging ? 'dragging' : ''}`}
@@ -235,6 +239,8 @@ const JobCard = memo(function JobCard({ job }) {
                         </button>
                         <button
                             type="button"
+                            data-agent-action="edit-job"
+                            data-agent-job-id={job.id}
                             aria-label={`Edit ${job.role} at ${job.company}`}
                             title="Edit Application"
                             onClick={handleEdit}
@@ -244,6 +250,8 @@ const JobCard = memo(function JobCard({ job }) {
                         </button>
                         <button
                             type="button"
+                            data-agent-action="archive-job"
+                            data-agent-job-id={job.id}
                             aria-label={
                                 job.status === 'archived' || job.status === 'deleted'
                                     ? `Restore ${job.role} at ${job.company}`
@@ -265,6 +273,8 @@ const JobCard = memo(function JobCard({ job }) {
                         </button>
                         <button
                             type="button"
+                            data-agent-action="delete-job"
+                            data-agent-job-id={job.id}
                             aria-label={`Delete ${job.role} at ${job.company}`}
                             title="Delete Application"
                             onClick={handleDelete}

@@ -1,7 +1,7 @@
 "use client";
 import './globals.css';
 import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
-import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, BarChart3 } from 'lucide-react';
+import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, BarChart3, Bot } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
 import AddJobModal from '@/components/AddJobModal';
@@ -25,6 +25,8 @@ import AiSafetyBadge from '@/components/AiSafetyBadge';
 import GlobalJobSearchModal from '@/components/GlobalJobSearchModal';
 import GoalCelebrationOverlay from '@/components/GoalCelebrationOverlay';
 import OfferAcceptedCycleModal from '@/components/OfferAcceptedCycleModal';
+import AgentModeHud from '@/components/AgentModeHud';
+import { AGENT_SELECTORS, buildAgentSnapshot } from '@/lib/agent-helper';
 
 
 
@@ -114,6 +116,9 @@ function AuthenticatedLayout({ children }) {
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const openGlobalSearch = useUIStore(state => state.openGlobalSearch);
     const toggleSidebarCollapse = useUIStore(state => state.toggleSidebarCollapse);
+    const isAgentMode = useUIStore(state => state.isAgentMode);
+    const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
+    const setAgentMode = useUIStore(state => state.setAgentMode);
     const [morningSyncOpen, setMorningSyncOpen] = useState(false);
     const [coachJob, setCoachJob] = useState(null);
 
@@ -121,13 +126,73 @@ function AuthenticatedLayout({ children }) {
         ? jobs.filter(j => j && j.status !== 'deleted').length
         : 0;
 
+    // Sync saved agent mode preference on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('novujobs_agent_mode');
+            if (saved !== null) {
+                setAgentMode(saved === 'true');
+            }
+        } catch {
+            // Ignore storage access errors
+        }
+    }, [setAgentMode]);
+
+    // Register Programmatic Agent Bridge on window for automated browser agents
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.__NOVU_AGENT__ = {
+            version: '1.0.0',
+            get isAgentMode() {
+                return useUIStore.getState().isAgentMode;
+            },
+            toggleAgentMode: (val) => {
+                if (typeof val === 'boolean') {
+                    useUIStore.getState().setAgentMode(val);
+                } else {
+                    useUIStore.getState().toggleAgentMode();
+                }
+                return useUIStore.getState().isAgentMode;
+            },
+            getSnapshot: () => {
+                return buildAgentSnapshot({
+                    appStoreState: useAppStore.getState(),
+                    uiStoreState: useUIStore.getState(),
+                    user
+                });
+            },
+            getJobs: (statusFilter) => {
+                const allJobs = useAppStore.getState().jobs || [];
+                if (!statusFilter || statusFilter === 'all') return allJobs;
+                return allJobs.filter(j => j && j.status === statusFilter);
+            },
+            openNewJobModal: (initialData) => useUIStore.getState().openNewJobModal(initialData),
+            closeJobModal: () => useUIStore.getState().closeJobModal(),
+            openGlobalSearch: (q) => useUIStore.getState().openGlobalSearch(q),
+            closeGlobalSearch: () => useUIStore.getState().closeGlobalSearch(),
+            setBoardSearch: (q) => useUIStore.getState().setBoardSearchQuery(q),
+            setBoardFilters: (f) => useUIStore.getState().setBoardFilters(f),
+            resetBoardFilters: () => useUIStore.getState().resetBoardFilters(),
+            selectors: AGENT_SELECTORS
+        };
+        return () => {
+            delete window.__NOVU_AGENT__;
+        };
+    }, [user]);
+
     // Global keyboard shortcuts:
+    // - Cmd+Shift+A / Ctrl+Shift+A toggles Agent Navigation Mode
     // - Cmd+K / Ctrl+K from anywhere opens Global Role Search
     // - Cmd+B / Ctrl+B toggles desktop sidebar collapse into icons
     // - 'N' (when not typing in a form field) quickly logs a new job
     useEffect(() => {
         if (!user) return;
         const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+                e.preventDefault();
+                toggleAgentMode();
+                return;
+            }
             if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
                 e.preventDefault();
                 openGlobalSearch();
@@ -148,7 +213,7 @@ function AuthenticatedLayout({ children }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [user, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse]);
+    }, [user, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse, toggleAgentMode]);
 
     // Auto-launch Morning Career Radar on the first login of each day
     // Only auto-launch when the user already has tracked jobs and is not mid-save from the Chrome Extension
@@ -178,6 +243,7 @@ function AuthenticatedLayout({ children }) {
     // User is authenticated - show full layout
     return (
         <>
+            <AgentModeHud />
             <NavContent onOpenMorningSync={() => setMorningSyncOpen(true)} />
             <main className="main-content">
                 {children}
@@ -224,6 +290,10 @@ export default function RootLayout({ children }) {
                         __html: `
                         (function() {
                             try {
+                                var agentStored = localStorage.getItem('novujobs_agent_mode');
+                                if (agentStored === 'true') {
+                                    document.documentElement.setAttribute('data-agent-mode', 'true');
+                                }
                                 var stored = localStorage.getItem('novujobs_theme');
                                 if (stored === 'light' || stored === 'dark') {
                                     document.documentElement.setAttribute('data-theme', stored);
@@ -256,6 +326,8 @@ function NavContent({ onOpenMorningSync }) {
     const isSidebarCollapsed = useUIStore(state => state.isSidebarCollapsed);
     const toggleSidebarCollapse = useUIStore(state => state.toggleSidebarCollapse);
     const setSidebarCollapsed = useUIStore(state => state.setSidebarCollapsed);
+    const isAgentMode = useUIStore(state => state.isAgentMode);
+    const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
     const { user } = useAuth();
     const profile = useAppStore((state) => state.profile);
     const jobs = useAppStore((state) => state.jobs);
@@ -301,6 +373,7 @@ function NavContent({ onOpenMorningSync }) {
             {/* Mobile Menu Button */}
             <button
                 className="mobile-menu-btn"
+                data-agent-action="toggle-mobile-menu"
                 onClick={toggleMobileMenu}
                 aria-label="Toggle menu"
                 title="Toggle menu"
@@ -317,6 +390,7 @@ function NavContent({ onOpenMorningSync }) {
             {/* FAB for adding jobs (Mobile Only via CSS) */}
             <button
                 className="fab-btn"
+                data-agent-action="mobile-new-job"
                 onClick={openNewJobModal}
                 aria-label="Add New Job"
                 title="Add New Job"
@@ -328,6 +402,7 @@ function NavContent({ onOpenMorningSync }) {
             <nav className="mobile-bottom-nav" aria-label="Primary">
                 <Link
                     href="/"
+                    data-agent-nav="dashboard"
                     onClick={closeMobileMenu}
                     className={`mobile-bottom-link ${mounted && pathname === '/' ? 'active' : ''}`}
                     aria-current={mounted && pathname === '/' ? 'page' : undefined}
@@ -337,6 +412,7 @@ function NavContent({ onOpenMorningSync }) {
                 </Link>
                 <Link
                     href="/kanban"
+                    data-agent-nav="kanban"
                     onClick={closeMobileMenu}
                     className={`mobile-bottom-link ${mounted && pathname === '/kanban' ? 'active' : ''}`}
                     aria-current={mounted && pathname === '/kanban' ? 'page' : undefined}
@@ -347,6 +423,7 @@ function NavContent({ onOpenMorningSync }) {
                 <button
                     type="button"
                     className="mobile-bottom-add"
+                    data-agent-action="mobile-tab-new-job"
                     onClick={() => { closeMobileMenu(); openNewJobModal(); }}
                     aria-label="Add New Job"
                 >
@@ -354,6 +431,7 @@ function NavContent({ onOpenMorningSync }) {
                 </button>
                 <Link
                     href="/insights"
+                    data-agent-nav="insights"
                     onClick={closeMobileMenu}
                     className={`mobile-bottom-link ${mounted && pathname?.startsWith('/insights') ? 'active' : ''}`}
                     aria-current={mounted && pathname?.startsWith('/insights') ? 'page' : undefined}
@@ -383,6 +461,7 @@ function NavContent({ onOpenMorningSync }) {
                         <NotificationCenter onOpenMorningSync={onOpenMorningSync} />
                         <button
                             type="button"
+                            data-agent-action="toggle-sidebar"
                             onClick={toggleSidebarCollapse}
                             aria-label="Collapse sidebar"
                             title="Collapse sidebar into icons (⌘B)"
@@ -397,6 +476,7 @@ function NavContent({ onOpenMorningSync }) {
                 <div className="sidebar-collapsed-only" style={{ flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' }}>
                     <button
                         type="button"
+                        data-agent-action="toggle-sidebar"
                         onClick={toggleSidebarCollapse}
                         aria-label="Expand sidebar"
                         title="Expand sidebar (⌘B)"
@@ -410,6 +490,7 @@ function NavContent({ onOpenMorningSync }) {
                 {/* Add New Job Action Button */}
                 <button
                     type="button"
+                    data-agent-action="new-job"
                     onClick={() => {
                         openNewJobModal();
                         closeMobileMenu();
@@ -426,6 +507,7 @@ function NavContent({ onOpenMorningSync }) {
                 {/* Global Role Search Action Button */}
                 <button
                     type="button"
+                    data-agent-action="global-search"
                     onClick={() => {
                         closeMobileMenu();
                         openGlobalSearch();
@@ -464,6 +546,7 @@ function NavContent({ onOpenMorningSync }) {
                 <div className="sidebar-nav-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
                     <Link
                         href="/"
+                        data-agent-nav="dashboard"
                         onClick={closeMobileMenu}
                         className={`sidebar-nav-link ${mounted && pathname === '/' ? 'active' : ''}`}
                         title={`Dashboard — Goal: ${goalProgress.count}/${goalProgress.target}`}
@@ -492,6 +575,7 @@ function NavContent({ onOpenMorningSync }) {
 
                     <Link
                         href="/kanban"
+                        data-agent-nav="kanban"
                         onClick={closeMobileMenu}
                         className={`sidebar-nav-link ${mounted && pathname === '/kanban' ? 'active' : ''}`}
                         title={`Kanban Board (${jobs?.length || 0} applications)`}
@@ -511,6 +595,7 @@ function NavContent({ onOpenMorningSync }) {
 
                     <Link
                         href="/insights"
+                        data-agent-nav="insights"
                         onClick={closeMobileMenu}
                         className={`sidebar-nav-link ${mounted && pathname?.startsWith('/insights') ? 'active' : ''}`}
                         title="Insights — pipeline flow, timeline, benchmarks & trends"
@@ -524,6 +609,7 @@ function NavContent({ onOpenMorningSync }) {
 
                     <Link
                         href="/recommendations"
+                        data-agent-nav="recommendations"
                         onClick={closeMobileMenu}
                         className={`sidebar-nav-link ${mounted && pathname === '/recommendations' ? 'active' : ''}`}
                         title="AI Job Recommendations"
@@ -537,6 +623,7 @@ function NavContent({ onOpenMorningSync }) {
 
                     <Link
                         href="/profile"
+                        data-agent-nav="profile"
                         onClick={closeMobileMenu}
                         className={`sidebar-nav-link ${mounted && pathname === '/profile' ? 'active' : ''}`}
                         title="Job & Profile Settings"
@@ -702,6 +789,62 @@ function NavContent({ onOpenMorningSync }) {
                     </div>
                     <div className="sidebar-collapsed-only" style={{ justifyContent: 'center', width: '100%' }}>
                         <ThemeSwitcher collapsed={true} />
+                    </div>
+                </div>
+
+                {/* Agent Mode Navigation Toggle */}
+                <div className="sidebar-agent-section" style={{ width: '100%', padding: '0 4px', margin: '4px 0 8px 0' }}>
+                    <div className="sidebar-expanded-only" style={{ flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <button
+                            type="button"
+                            data-agent-action="toggle-agent-mode"
+                            onClick={toggleAgentMode}
+                            className={`sidebar-agent-toggle-btn ${isAgentMode ? 'active' : ''}`}
+                            aria-pressed={isAgentMode}
+                            aria-label="Toggle Agent Mode (Command+Shift+A)"
+                            title="Toggle Agent Navigation Mode: Zero animations, high contrast & OCR-optimized (⌘⇧A)"
+                        >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Bot size={16} color={isAgentMode ? '#10b981' : 'var(--accent-primary)'} />
+                                <span>Agent Mode</span>
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <kbd className="sidebar-kbd" style={{
+                                    fontSize: '0.65rem',
+                                    padding: '2px 5px',
+                                    borderRadius: '4px',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-subtle)',
+                                    color: 'var(--text-secondary)',
+                                    fontFamily: 'inherit'
+                                }}>
+                                    ⌘⇧A
+                                </kbd>
+                                <span style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    background: isAgentMode ? '#10b981' : 'var(--bg-panel)',
+                                    color: isAgentMode ? '#000' : 'var(--text-secondary)'
+                                }}>
+                                    {isAgentMode ? 'ON' : 'OFF'}
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+                    <div className="sidebar-collapsed-only" style={{ justifyContent: 'center', width: '100%' }}>
+                        <button
+                            type="button"
+                            data-agent-action="toggle-agent-mode"
+                            onClick={toggleAgentMode}
+                            className={`sidebar-agent-toggle-btn-collapsed ${isAgentMode ? 'active' : ''}`}
+                            aria-pressed={isAgentMode}
+                            aria-label="Toggle Agent Mode (Command+Shift+A)"
+                            title={`Agent Mode: ${isAgentMode ? 'ON' : 'OFF'} (⌘⇧A)`}
+                        >
+                            <Bot size={17} color={isAgentMode ? '#10b981' : 'currentColor'} />
+                        </button>
                     </div>
                 </div>
 

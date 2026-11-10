@@ -369,6 +369,7 @@ export default function KanbanBoard() {
                                     ref={searchInputRef}
                                     id="kanban-board-search-input"
                                     name="board-search"
+                                    data-agent-action="board-search-input"
                                     type="search"
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
@@ -398,6 +399,7 @@ export default function KanbanBoard() {
                                 {searchQuery && (
                                     <button
                                         type="button"
+                                        data-agent-action="clear-board-search"
                                         aria-label="Clear board search"
                                         onClick={() => {
                                             setSearchQuery('');

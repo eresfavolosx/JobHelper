@@ -103,6 +103,7 @@ const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed
     return (
         <div
             id={column.id}
+            data-agent-column={column.id}
             className={`glass-panel kanban-column animate-scale-in ${isStacked ? 'kanban-column-stacked' : ''} ${isCollapsed ? 'kanban-column-collapsed' : ''}`}
             style={{
                 animationDelay: `${index * 60}ms`
@@ -150,6 +151,8 @@ const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed
                     {!column.isArchive && !column.isTrash && (
                         <button
                             type="button"
+                            data-agent-action="column-add-job"
+                            data-agent-stage={column.id}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 openNewJobModal(column.id);
@@ -177,6 +180,8 @@ const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed
                     {onToggleCollapse && (
                         <button
                             type="button"
+                            data-agent-action="column-toggle-collapse"
+                            data-agent-stage={column.id}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleCollapse(column.id);
