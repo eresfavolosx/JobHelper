@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Copy, Check, X } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
@@ -23,7 +23,16 @@ export default function AgentModeHud() {
     const isAgentMode = useUIStore(state => state.isAgentMode);
     const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
     const [copied, setCopied] = useState(false);
+    const copyTimerRef = useRef(null);
     const { user } = useAuth();
+
+    useEffect(() => {
+        return () => {
+            if (copyTimerRef.current) {
+                clearTimeout(copyTimerRef.current);
+            }
+        };
+    }, []);
 
     // Do not mount or render anything into the DOM when Agent Mode is inactive
     if (!isAgentMode) return null;
@@ -40,7 +49,8 @@ export default function AgentModeHud() {
             });
             await navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+            copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
         } catch (e) {
             console.error('Failed to copy agent snapshot:', e);
         }

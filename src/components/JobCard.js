@@ -1,6 +1,6 @@
 "use client";
 import { formatDistanceToNow } from 'date-fns';
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -92,14 +92,25 @@ const JobCard = memo(function JobCard({ job }) {
     const [followUpSuccess, setFollowUpSuccess] = useState(false);
 
     const [today] = useState(() => new Date());
+    const followUpTimerRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (followUpTimerRef.current) {
+                clearTimeout(followUpTimerRef.current);
+            }
+        };
+    }, []);
+
     const daysSince = useMemo(() => {
         const latestFollowUp = Array.isArray(job.followUps) && job.followUps.length > 0
             ? job.followUps[0].date
             : null;
         const refDate = job.lastFollowUpAt || latestFollowUp || job.lastInteraction || job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
         if (!refDate) return 0;
-        const diff = today.getTime() - new Date(refDate).getTime();
-        return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+        const diff = today.getTime() - safeDate(refDate).getTime();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        return isNaN(days) ? 0 : Math.max(0, days);
     }, [job, today]);
 
     const handleLogFollowUp = (e, quick = false) => {
@@ -111,7 +122,8 @@ const JobCard = memo(function JobCard({ job }) {
             note: quick ? 'Followed up with recruiter' : (followUpNote.trim() || 'Followed up with recruiter')
         });
         setFollowUpSuccess(true);
-        setTimeout(() => {
+        if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current);
+        followUpTimerRef.current = setTimeout(() => {
             setFollowUpSuccess(false);
             setFollowUpOpen(false);
             setFollowUpNote('');
@@ -699,7 +711,7 @@ const JobCard = memo(function JobCard({ job }) {
 
                     {Array.isArray(job.followUps) && job.followUps.length > 0 && (
                         <span
-                            title={`Logged ${job.followUps.length} follow-up${job.followUps.length > 1 ? 's' : ''}. Latest: ${new Date(job.followUps[0].date).toLocaleDateString()} (${job.followUps[0].channel || 'outreach'})`}
+                            title={`Logged ${job.followUps.length} follow-up${job.followUps.length > 1 ? 's' : ''}. Latest: ${safeDate(job.followUps[0].date).toLocaleDateString()} (${job.followUps[0].channel || 'outreach'})`}
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',

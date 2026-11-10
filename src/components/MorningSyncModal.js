@@ -9,6 +9,7 @@ import { getStoredGmailToken, fetchRecentJobEmails } from '@/lib/gmail-service';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
+import { safeDate } from '@/lib/utils';
 
 export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLaunched = false }) {
     const jobs = useAppStore(state => state.jobs);
@@ -67,10 +68,13 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
                         : null;
                     const refDate = job.lastFollowUpAt || latestFollowUp || job.lastInteraction || job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
                     if (!refDate) return;
-                    const diff = Date.now() - new Date(refDate).getTime();
-                    const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
-                    if (days >= 10) ghosts.push({ ...job, days });
-                    else if (days >= 5) followUps.push({ ...job, days });
+                    const diff = Date.now() - safeDate(refDate).getTime();
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    if (!isNaN(days)) {
+                        const cleanDays = Math.max(0, days);
+                        if (cleanDays >= 10) ghosts.push({ ...job, days: cleanDays });
+                        else if (cleanDays >= 5) followUps.push({ ...job, days: cleanDays });
+                    }
                 }
             });
 
