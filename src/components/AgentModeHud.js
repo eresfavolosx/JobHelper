@@ -6,14 +6,31 @@ import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { buildAgentSnapshot } from '@/lib/agent-helper';
 
+/**
+ * AgentModeHud Component
+ * 
+ * Floating Heads-Up Display (HUD) visible exclusively when Agent Navigation Mode is active.
+ * 
+ * Features:
+ * - Persistent floating indicator informing human observers and AI vision agents that zero-motion mode is active.
+ * - One-click "Copy State" action that serializes current application, pipeline, and filter state into clean JSON.
+ * - Keyboard shortcut reminder (⌘⇧A / Ctrl+Shift+A) for immediate toggling.
+ * - Dedicated disable button allowing instantaneous return to standard UI.
+ * - Accessible landmark region semantics (role="region" with aria-label).
+ */
+
 export default function AgentModeHud() {
     const isAgentMode = useUIStore(state => state.isAgentMode);
     const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
     const [copied, setCopied] = useState(false);
     const { user } = useAuth();
 
+    // Do not mount or render anything into the DOM when Agent Mode is inactive
     if (!isAgentMode) return null;
 
+    /**
+     * Serializes the application snapshot to clipboard for LLM context or automated agent inspection.
+     */
     const handleCopySnapshot = async () => {
         try {
             const snapshot = buildAgentSnapshot({
@@ -37,16 +54,19 @@ export default function AgentModeHud() {
             aria-label="Agent Navigation Mode HUD"
         >
             <div className="agent-mode-hud-inner">
+                {/* Visual Status Indicator Badge */}
                 <div className="agent-mode-hud-badge">
                     <Bot size={15} className="agent-mode-hud-icon" />
                     <span className="agent-mode-hud-title">AGENT MODE</span>
                     <span className="agent-mode-hud-status">ACTIVE</span>
                 </div>
 
+                {/* Subtitle / Optimization Description */}
                 <div className="agent-mode-hud-info">
                     <span>Zero animations · OCR contrast · Programmatic bridge enabled</span>
                 </div>
 
+                {/* Action Controls: Copy State, Keyboard Badge, and Dismiss */}
                 <div className="agent-mode-hud-actions">
                     <button
                         type="button"
