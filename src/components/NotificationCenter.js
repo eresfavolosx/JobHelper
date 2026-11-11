@@ -6,6 +6,7 @@ import {
     X, ChevronRight, Send, Sunrise, Mail, Shield
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { useAuth } from '@/lib/auth-context';
 import { isOwner } from '@/lib/subscription';
 import AnthropicFellowsModal from './AnthropicFellowsModal';
@@ -13,8 +14,14 @@ import Link from 'next/link';
 
 const emptySubscribe = () => () => {};
 
-export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningSync, onOpenGmailSync }) {
-    const jobs = useAppStore(state => state.jobs);
+export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningSync, onOpenGmailSync, jobs: propJobs }) {
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => {
+        if (propJobs) return propJobs;
+        return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
+    }, [propJobs, rawJobs, cycles, selectedCycleId]);
     const { user } = useAuth();
     const isPlatformOwner = isOwner(user);
     const [isAnthropicModalOpen, setIsAnthropicModalOpen] = useState(false);

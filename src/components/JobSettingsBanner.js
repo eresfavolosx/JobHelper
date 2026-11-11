@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Sliders, Target, Briefcase, MapPin, DollarSign, Sparkles,
     Check, ChevronDown, ChevronUp, Plus, CheckCircle2, ExternalLink, FileText, PartyPopper
@@ -7,6 +7,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { sanitizeUrl } from '@/lib/utils';
 import GoalCustomizationModal from './GoalCustomizationModal';
 
@@ -39,6 +40,7 @@ function formatMultiSelect(selectedArray, validOptions, fallbackDefault) {
 }
 
 export default function JobSettingsBanner({
+    jobs: propJobs,
     onSettingsSaved,
     showGoalSummary = true,
     showAddJobButton = true,
@@ -47,7 +49,13 @@ export default function JobSettingsBanner({
 }) {
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => {
+        if (propJobs) return propJobs;
+        return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
+    }, [propJobs, rawJobs, cycles, selectedCycleId]);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
     const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
 

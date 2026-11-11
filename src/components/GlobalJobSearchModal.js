@@ -8,6 +8,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { evaluateJobMatch, extractJobFacets, STAGE_LABELS } from '@/lib/job-search';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { sanitizeUrl } from '@/lib/utils';
 
 const STAGE_OPTIONS = [
@@ -39,7 +40,10 @@ const SYNTAX_CHIPS = [
 ];
 
 export default function GlobalJobSearchModal() {
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const isGlobalSearchOpen = useUIStore(state => state.isGlobalSearchOpen);
     const globalSearchInitialQuery = useUIStore(state => state.globalSearchInitialQuery);
     const closeGlobalSearch = useUIStore(state => state.closeGlobalSearch);

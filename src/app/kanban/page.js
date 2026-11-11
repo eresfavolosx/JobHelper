@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef, useSyncExternalStore } from 'react';
+import React, { useEffect, useState, useRef, useSyncExternalStore, useMemo } from 'react';
 import KanbanBoard from '@/components/KanbanBoard';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
@@ -13,12 +13,16 @@ import NotificationCenter from '@/components/NotificationCenter';
 import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import { useUIStore } from '@/lib/uiStore';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 
 const emptySubscribe = () => () => {};
 
 export default function KanbanPage() {
     const { user, loading } = useAuth();
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const profile = useAppStore(state => state.profile);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
 

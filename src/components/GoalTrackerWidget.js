@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
     Target, Sliders, CheckCircle2, TrendingUp, AlertCircle,
@@ -8,6 +8,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { sanitizeUrl } from '@/lib/utils';
 import GoalCustomizationModal from './GoalCustomizationModal';
 
@@ -29,8 +30,14 @@ function formatRoleTimestamp(isoString, isAppliedToday) {
     return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export default function GoalTrackerWidget() {
-    const jobs = useAppStore(state => state.jobs);
+export default function GoalTrackerWidget({ jobs: propJobs }) {
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => {
+        if (propJobs) return propJobs;
+        return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
+    }, [propJobs, rawJobs, cycles, selectedCycleId]);
     const profile = useAppStore(state => state.profile);
     const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);

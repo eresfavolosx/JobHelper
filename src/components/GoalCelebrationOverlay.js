@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useRef, useState, useCallback, useSyncExternalStore } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useSyncExternalStore, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Trophy, Sparkles, Check, Share2, X, PartyPopper, RefreshCw, Flame, Target } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { calculateGoalProgress, DEFAULT_GOAL, shouldTriggerGoalCelebration } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 
 const CELEBRATION_STORAGE_KEY = 'novujobs_last_celebrated_goal_cycle';
 const DAILY_CELEBRATION_STORAGE_KEY = 'novujobs_last_celebrated_daily_milestone';
@@ -74,7 +75,10 @@ class ConfettiParticle {
 }
 
 export default function GoalCelebrationOverlay() {
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const profile = useAppStore(state => state.profile);
     const isGoalCelebrationOpen = useUIStore(state => state.isGoalCelebrationOpen);
     const goalCelebrationBurstId = useUIStore(state => state.goalCelebrationBurstId);
