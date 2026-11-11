@@ -150,7 +150,7 @@ export default function Home() {
             <CycleFilterBar style={{ marginBottom: '16px' }} />
 
             {/* Full-Width Job Search & Target Settings Bar */}
-            <JobSettingsBanner showGoalSummary={false} />
+            <JobSettingsBanner jobs={jobs} showGoalSummary={false} />
 
             {/* Quick Company & Role Finder Strip on Dashboard */}
             {facets.companies.length > 0 && (
@@ -314,7 +314,7 @@ export default function Home() {
             </div>
 
             {/* Application Output Goal & Cadence Command Center */}
-            <GoalTrackerWidget />
+            <GoalTrackerWidget jobs={jobs} />
 
             {/* Shortcuts into the consolidated Insights hub */}
             <div className="dashboard-insights-strip">

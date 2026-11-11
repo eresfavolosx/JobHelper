@@ -9,6 +9,7 @@ import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaud
 import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
 import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 
 const emptySubscribe = () => () => {};
@@ -326,7 +327,10 @@ function MultiSelectDropdown({ id, label, name, options, value, fallbackDefault,
 function ProfileContent() {
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const { user, loading } = useAuth();
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
     const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 import './globals.css';
-import { useState, useEffect, Suspense, useSyncExternalStore } from 'react';
+import { useState, useEffect, Suspense, useSyncExternalStore, useMemo } from 'react';
 import { Plus, LogOut, LayoutDashboard, Columns, User, Download, Menu, X, Shield, Sparkles, Target, Search, PanelLeftClose, PanelLeftOpen, BarChart3, Bot } from 'lucide-react';
 
 const emptySubscribe = () => () => {};
@@ -19,6 +19,7 @@ import { isOwner, isProUser } from '@/lib/subscription';
 import NotificationCenter from '@/components/NotificationCenter';
 import MorningSyncModal from '@/components/MorningSyncModal';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import AiSafetyBadge from '@/components/AiSafetyBadge';
@@ -342,7 +343,10 @@ function NavContent({ onOpenMorningSync }) {
     const toggleAgentMode = useUIStore(state => state.toggleAgentMode);
     const { user } = useAuth();
     const profile = useAppStore((state) => state.profile);
-    const jobs = useAppStore((state) => state.jobs);
+    const rawJobs = useAppStore((state) => state.jobs);
+    const cycles = useAppStore((state) => state.cycles);
+    const selectedCycleId = useAppStore((state) => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const router = useRouter();
     const pathname = usePathname();
 

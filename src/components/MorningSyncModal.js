@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     Sunrise, Clock, Mail, X, ChevronRight, Send, Target
@@ -10,9 +10,16 @@ import { generateWithFallback, extractJson } from '@/lib/gemini-client';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
 import { safeDate } from '@/lib/utils';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 
-export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLaunched = false }) {
-    const jobs = useAppStore(state => state.jobs);
+export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLaunched = false, jobs: propJobs }) {
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => {
+        if (propJobs) return propJobs;
+        return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
+    }, [propJobs, rawJobs, cycles, selectedCycleId]);
     const moveJob = useAppStore(state => state.moveJob);
     const updateJob = useAppStore(state => state.updateJob);
     const profile = useAppStore(state => state.profile);

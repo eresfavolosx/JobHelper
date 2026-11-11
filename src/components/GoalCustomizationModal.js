@@ -1,10 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Target, X, Check, CheckCircle2, Sliders, Minus, Plus, Briefcase, PartyPopper } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { CADENCE_OPTIONS, DEFAULT_GOAL, calculateGoalProgress } from '@/lib/goal-tracker';
+import { filterJobsByCycle } from '@/lib/cycle-utils';
 
 export default function GoalCustomizationModal({ isOpen, onClose }) {
     if (!isOpen || typeof document === 'undefined') return null;
@@ -13,7 +14,10 @@ export default function GoalCustomizationModal({ isOpen, onClose }) {
 
 function GoalFormModalBody({ onClose }) {
     const profile = useAppStore(state => state.profile);
-    const jobs = useAppStore(state => state.jobs);
+    const rawJobs = useAppStore(state => state.jobs);
+    const cycles = useAppStore(state => state.cycles);
+    const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const updateProfile = useAppStore(state => state.updateProfile);
     const triggerGoalCelebration = useUIStore(state => state.triggerGoalCelebration);
 
