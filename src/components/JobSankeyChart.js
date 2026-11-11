@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
-import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
+import { resolveCyclesFromJobs, filterJobsByCycle, getActiveCycle } from '@/lib/cycle-utils';
 import {
     buildJobSankeyData,
     SANKEY_TIME_RANGES,
@@ -80,6 +80,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
     // Resolve search cycles and filter jobs
     const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
     const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const activeCycle = useMemo(() => getActiveCycle(cycles), [cycles]);
     const cycleFilteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
 
     const prefersReducedMotion = useSyncExternalStore(
@@ -728,7 +729,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                             <span>
                                 {selectedCycleId === 'all'
                                     ? `All Cycles · ${stats.totalTracked} Tracked · ${stats.totalApplied} Applied`
-                                    : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${stats.totalTracked} Tracked · ${stats.totalApplied} Applied`}
+                                    : `${(cycles.find(c => c.id === selectedCycleId) || (selectedCycleId === 'active' ? activeCycle : null))?.name || 'Active Cycle'} · ${stats.totalTracked} Tracked · ${stats.totalApplied} Applied`}
                             </span>
                         </span>
                     </div>
@@ -754,7 +755,7 @@ export default function JobSankeyChart({ jobs, compact = false }) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                             <Layers size={13} color="var(--accent-primary)" />
                             <select
-                                value={selectedCycleId}
+                                value={selectedCycleId === 'active' && activeCycle ? activeCycle.id : selectedCycleId}
                                 onChange={e => setSelectedCycleId(e.target.value)}
                                 aria-label="Filter Sankey by job search cycle"
                                 style={{

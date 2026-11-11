@@ -10,7 +10,7 @@ import JobGanttChart from '@/components/JobGanttChart';
 import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import CycleFilterBar from '@/components/CycleFilterBar';
-import { filterJobsByCycle, calculateCycleStats, resolveCyclesFromJobs } from '@/lib/cycle-utils';
+import { filterJobsByCycle, calculateCycleStats, resolveCyclesFromJobs, getActiveCycle } from '@/lib/cycle-utils';
 
 const emptySubscribe = () => () => {};
 
@@ -80,7 +80,7 @@ export default function InsightsPage() {
 
     const overview = useMemo(() => {
         const visible = jobs.filter(j => j && j.status !== 'archived');
-        let cycle = cycles.find(c => c.id === selectedCycleId);
+        let cycle = selectedCycleId === 'active' ? getActiveCycle(cycles) : cycles.find(c => c.id === selectedCycleId);
         if (!cycle) {
             const earliest = visible.reduce((min, j) => {
                 const d = j.appliedAt || j.dateAdded || j.createdAt;

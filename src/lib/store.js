@@ -214,7 +214,7 @@ export const useAppStore = create(
         (set, get) => ({
             jobs: [],
             cycles: [],
-            selectedCycleId: 'all',
+            selectedCycleId: 'active',
             offerCelebrationModal: null,
             currentUserId: null, // Track which user's data this is
 
@@ -274,7 +274,7 @@ export const useAppStore = create(
                 set({
                     jobs: [],
                     cycles: [],
-                    selectedCycleId: 'all',
+                    selectedCycleId: 'active',
                     offerCelebrationModal: null,
                     profile: {
                         fullName: '',
@@ -309,7 +309,7 @@ export const useAppStore = create(
                 set({
                     jobs: [],
                     cycles: [],
-                    selectedCycleId: 'all',
+                    selectedCycleId: 'active',
                     offerCelebrationModal: null,
                     currentUserId: null,
                     profile: {

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
 import { useAppStore } from '@/lib/store';
-import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
+import { resolveCyclesFromJobs, filterJobsByCycle, getActiveCycle } from '@/lib/cycle-utils';
 import {
     GANTT_STAGE_META,
     GANTT_TIME_RANGES,
@@ -79,6 +79,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
     // Resolve search cycles and filter jobs
     const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
     const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const activeCycle = useMemo(() => getActiveCycle(cycles), [cycles]);
     const cycleFilteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
 
     const prefersReducedMotion = useSyncExternalStore(
@@ -521,7 +522,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
                                 <span>
                                     {selectedCycleId === 'all'
                                         ? `All Cycles · ${totalVisible} ${totalVisible === 1 ? 'role' : 'roles'}`
-                                        : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${totalVisible} ${totalVisible === 1 ? 'role' : 'roles'}`}
+                                        : `${(cycles.find(c => c.id === selectedCycleId) || (selectedCycleId === 'active' ? activeCycle : null))?.name || 'Active Cycle'} · ${totalVisible} ${totalVisible === 1 ? 'role' : 'roles'}`}
                                 </span>
                             </span>
                         </div>
@@ -673,7 +674,7 @@ export default function JobGanttChart({ jobs, compact = false }) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                             <Layers size={13} color="var(--accent-primary)" />
                             <select
-                                value={selectedCycleId}
+                                value={selectedCycleId === 'active' && activeCycle ? activeCycle.id : selectedCycleId}
                                 onChange={e => setSelectedCycleId(e.target.value)}
                                 aria-label="Filter Gantt timeline by job search cycle"
                                 style={{

@@ -154,6 +154,11 @@ describe('cycle-utils — Job Search Cycles & Cohort Filtering Engine', () => {
 
             const allJobs = filterJobsByCycle(jobs, cycles, 'all');
             assert.equal(allJobs.length, 3);
+
+            // Default filter without 3rd parameter defaults to active cycle
+            const defaultJobs = filterJobsByCycle(jobs, cycles);
+            assert.equal(defaultJobs.length, 2);
+            assert.deepEqual(defaultJobs.map(j => j.company), ['Netflix', 'Amazon']);
         });
     });
 

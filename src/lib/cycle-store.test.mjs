@@ -8,7 +8,7 @@ test('Store Job Search Cycles Lifecycle Engine', async (t) => {
     useAppStore.setState({
         jobs: [],
         cycles: [],
-        selectedCycleId: 'all',
+        selectedCycleId: 'active',
         offerCelebrationModal: null,
         currentUserId: 'test-user-cycle-1'
     });
@@ -117,5 +117,25 @@ test('Store Job Search Cycles Lifecycle Engine', async (t) => {
         const updatedCycle1 = state.cycles.find(c => c.id === cycle1.id);
         assert.strictEqual(updatedCycle1.status, 'active');
         assert.strictEqual(updatedCycle1.endedAt, null);
+    });
+
+    await t.test('7. default view is prefiltered to active search cycle across state resets', () => {
+        // clearUserData resets selectedCycleId to 'active'
+        useAppStore.getState().clearUserData();
+        assert.strictEqual(useAppStore.getState().selectedCycleId, 'active');
+
+        // filterJobsByCycle defaults to 'active'
+        const testCycles = [
+            { id: 'cycle-1', cycleNumber: 1, status: 'completed' },
+            { id: 'cycle-2', cycleNumber: 2, status: 'active' }
+        ];
+        const testJobs = [
+            { id: 'j1', cycleId: 'cycle-1', company: 'Old Corp' },
+            { id: 'j2', cycleId: 'cycle-2', company: 'New Corp' }
+        ];
+
+        const defaultFiltered = filterJobsByCycle(testJobs, testCycles);
+        assert.strictEqual(defaultFiltered.length, 1);
+        assert.strictEqual(defaultFiltered[0].company, 'New Corp');
     });
 });
