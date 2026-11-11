@@ -10,11 +10,18 @@ import {
     closeCycleWithAcceptedOffer,
     reopenCycleForRevertedOffer,
     getActiveCycle,
-    createCycle
+    createCycle,
+    splitCycleAtDate as splitCycleAtDateUtil,
+    updateCyclePeriod as updateCyclePeriodUtil,
+    createTransitionEvent,
+    reconcileOctoberSpikeIfNeeded,
+    normalizeToDayStartIso
 } from './cycle-utils.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
+const OCT1_RECONCILE_KEY = 'novujobs_oct1_cycle_reconciled_v1';
 const appliedAtCleanupInFlight = new Set();
+const oct1ReconcileInFlight = new Set();
 
 /**
  * Runs the one-time appliedAt repair for a user (once per device; safe to re-run because
@@ -58,13 +65,34 @@ function runAppliedAtCleanupOnce(userId, cloudJobs, applyLocal) {
     });
 }
 
-function saveCyclesToFirestore(userId, cycles) {
+function saveCyclesToFirestore(userId, cycles, extra = {}) {
     if (typeof window === 'undefined' || !userId || !Array.isArray(cycles)) return;
     import('firebase/firestore').then(({ setDoc, doc }) => {
         const cyclesRef = doc(db, "users", userId, "data", "cycles");
-        setDoc(cyclesRef, { list: cycles, updatedAt: new Date().toISOString() }, { merge: true })
+        const payload = cleanObject({
+            list: cycles,
+            updatedAt: new Date().toISOString(),
+            ...extra
+        });
+        setDoc(cyclesRef, payload, { merge: true })
             .catch(e => console.error("[Store] Failed to save cycles:", e));
     }).catch(e => console.error("[Store] Import failed for saveCyclesToFirestore:", e));
+}
+
+function saveJobCycleAssignmentsToFirestore(userId, jobs, changedJobIds) {
+    if (typeof window === 'undefined' || !userId || !Array.isArray(changedJobIds) || changedJobIds.length === 0) return;
+    const byId = new Map((jobs || []).map(j => [j?.id, j]));
+    import('firebase/firestore').then(({ setDoc, doc }) => {
+        changedJobIds.forEach(jobId => {
+            const job = byId.get(jobId);
+            if (!job) return;
+            const jobRef = doc(db, "users", userId, "jobs", jobId);
+            setDoc(jobRef, {
+                cycleId: job.cycleId || null,
+                cycleNumber: Number.isInteger(job.cycleNumber) ? job.cycleNumber : Number(job.cycleNumber) || 1
+            }, { merge: true }).catch(e => console.error("[Store] Failed to reassign job cycle:", e));
+        });
+    }).catch(e => console.error("[Store] Import failed for saveJobCycleAssignmentsToFirestore:", e));
 }
 
 const ALLOWED_PROFILE_KEYS = new Set([
@@ -215,6 +243,9 @@ export const useAppStore = create(
             jobs: [],
             cycles: [],
             selectedCycleId: 'active',
+            jobSearchMode: true,
+            transitionLog: [],
+            oct1Reconciled: false,
             offerCelebrationModal: null,
             currentUserId: null, // Track which user's data this is
 
@@ -222,23 +253,53 @@ export const useAppStore = create(
             setSelectedCycleId: (cycleId) => set({ selectedCycleId: cycleId }),
             closeOfferCelebrationModal: () => set({ offerCelebrationModal: null }),
             setCycles: (cycles) => set({ cycles: Array.isArray(cycles) ? cycles : [] }),
-            startNewCycle: (name) => {
+            startNewCycle: (name, options = {}) => {
                 const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
                 const maxNum = Math.max(...currentCycles.map(c => Number(c?.cycleNumber) || 1), 0);
                 const nextNum = maxNum + 1;
                 const nowIso = new Date().toISOString();
+                const startedAtIso = options.startedAt ? normalizeToDayStartIso(options.startedAt) : nowIso;
+                const startedMs = new Date(startedAtIso).getTime();
+                const endedPrevIso = !isNaN(startedMs) && startedAtIso !== nowIso
+                    ? new Date(startedMs - 1).toISOString()
+                    : nowIso;
+
                 const newCycle = createCycle(nextNum, {
                     name: name || `Search Cycle ${nextNum}`,
                     status: 'active',
-                    startedAt: nowIso
+                    startedAt: startedAtIso,
+                    triggerType: options.triggerType || 'manual',
+                    notes: options.notes || null
                 });
                 const updatedCycles = [
-                    ...currentCycles.map(c => c.status === 'active' ? { ...c, status: 'completed', endedAt: nowIso, updatedAt: nowIso } : c),
+                    ...currentCycles.map(c => c.status === 'active' ? { ...c, status: 'completed', endedAt: endedPrevIso, updatedAt: nowIso } : c),
                     newCycle
                 ];
-                set({ cycles: updatedCycles, selectedCycleId: newCycle.id });
+                const transitionLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                const nextLog = options.skipLog
+                    ? transitionLog
+                    : [
+                        createTransitionEvent({
+                            type: options.triggerType || 'new_search',
+                            date: startedAtIso,
+                            note: options.notes || `Opened ${newCycle.name}`,
+                            cycleId: newCycle.id,
+                            cycleNumber: newCycle.cycleNumber
+                        }),
+                        ...transitionLog
+                    ];
+
+                set({
+                    cycles: updatedCycles,
+                    selectedCycleId: newCycle.id,
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
                 const userId = get().currentUserId || auth?.currentUser?.uid;
-                saveCyclesToFirestore(userId, updatedCycles);
+                saveCyclesToFirestore(userId, updatedCycles, {
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
                 return newCycle;
             },
             reopenCycle: (cycleId) => {
@@ -254,9 +315,174 @@ export const useAppStore = create(
                     }
                     return c;
                 });
-                set({ cycles: updatedCycles, selectedCycleId: cycleId });
+                set({ cycles: updatedCycles, selectedCycleId: cycleId, jobSearchMode: true });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, updatedCycles, { jobSearchMode: true });
+            },
+            splitCycleAtDate: (splitDate, options = {}) => {
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const result = splitCycleAtDateUtil(
+                    currentCycles,
+                    get().jobs,
+                    options.targetCycleId || null,
+                    splitDate,
+                    options
+                );
+                if (!result.newCycle) return null;
+
+                const transitionLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                const nextLog = options.skipLog
+                    ? transitionLog
+                    : [
+                        createTransitionEvent({
+                            type: options.triggerType || 'activity_spike',
+                            date: result.newCycle.startedAt,
+                            note: options.notes || `Started ${result.newCycle.name}`,
+                            cycleId: result.newCycle.id,
+                            cycleNumber: result.newCycle.cycleNumber
+                        }),
+                        ...transitionLog
+                    ];
+
+                set({
+                    cycles: result.updatedCycles,
+                    jobs: result.updatedJobs,
+                    selectedCycleId: result.newCycle.id,
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, result.updatedCycles, {
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
+                saveJobCycleAssignmentsToFirestore(userId, result.updatedJobs, result.changedJobIds);
+                return result;
+            },
+            updateCyclePeriod: (cycleId, updates = {}) => {
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const updatedCycles = updateCyclePeriodUtil(currentCycles, cycleId, updates);
+                set({ cycles: updatedCycles });
                 const userId = get().currentUserId || auth?.currentUser?.uid;
                 saveCyclesToFirestore(userId, updatedCycles);
+                return updatedCycles.find(c => c.id === cycleId) || null;
+            },
+            setJobSearchMode: (enabled, options = {}) => {
+                const isActive = Boolean(enabled);
+                const currentLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                const dateIso = options.date ? normalizeToDayStartIso(options.date) : new Date().toISOString();
+
+                if (isActive && options.openNewCycle) {
+                    return get().startNewCycle(options.cycleName, {
+                        startedAt: dateIso,
+                        triggerType: options.triggerType || 'manual_toggle',
+                        notes: options.note || 'Manually activated Job Search Mode & opened new cycle'
+                    });
+                }
+
+                const evt = createTransitionEvent({
+                    type: isActive ? 'new_search' : 'search_paused',
+                    date: dateIso,
+                    note: options.note || (isActive ? 'Activated Job Search Mode' : 'Paused Job Search Mode (Standby / Employed)')
+                });
+                const nextLog = options.skipLog ? currentLog : [evt, ...currentLog];
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+
+                set({ jobSearchMode: isActive, transitionLog: nextLog });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, currentCycles, {
+                    jobSearchMode: isActive,
+                    transitionLog: nextLog
+                });
+                return evt;
+            },
+            logJobLossAndStartSearch: ({ date, company, role, note, cycleName } = {}) => {
+                const effectiveIso = date ? normalizeToDayStartIso(date) : normalizeToDayStartIso(new Date().toISOString());
+                const effectiveMs = new Date(effectiveIso).getTime();
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                const currentJobs = get().jobs || [];
+                const shortLabel = effectiveIso.slice(0, 10);
+                const resolvedName = (cycleName && String(cycleName).trim()) || `New Search (${shortLabel})`;
+                const resolvedNote = (note && String(note).trim()) || (company ? `Role ended at ${company} — activated active search cycle` : 'Logged role transition — activated Job Search Mode');
+
+                // Split or open new cycle at effective date so jobs from effective date onward track in new cycle
+                const hasJobsFromEffectiveDate = currentJobs.some(j => {
+                    if (!j || j.status === 'deleted') return false;
+                    const ms = new Date(j.appliedAt || j.dateAdded || j.createdAt || 0).getTime();
+                    return !isNaN(ms) && ms >= effectiveMs;
+                });
+
+                let nextCycles;
+                let nextJobs = currentJobs;
+                let changedJobIds = [];
+                let newCycle;
+
+                if (hasJobsFromEffectiveDate) {
+                    const splitRes = splitCycleAtDateUtil(currentCycles, currentJobs, null, effectiveIso, {
+                        name: resolvedName,
+                        triggerType: 'job_loss',
+                        notes: resolvedNote
+                    });
+                    nextCycles = splitRes.updatedCycles;
+                    nextJobs = splitRes.updatedJobs;
+                    changedJobIds = splitRes.changedJobIds;
+                    newCycle = splitRes.newCycle;
+                } else {
+                    const maxNum = Math.max(...currentCycles.map(c => Number(c?.cycleNumber) || 1), 0);
+                    const nextNum = maxNum + 1;
+                    newCycle = createCycle(nextNum, {
+                        name: resolvedName,
+                        status: 'active',
+                        startedAt: effectiveIso,
+                        triggerType: 'job_loss',
+                        notes: resolvedNote
+                    });
+                    const prevEndIso = new Date(effectiveMs - 1).toISOString();
+                    nextCycles = [
+                        ...currentCycles.map(c => c.status === 'active' ? { ...c, status: 'completed', endedAt: prevEndIso, updatedAt: new Date().toISOString() } : c),
+                        newCycle
+                    ];
+                }
+
+                const evt = createTransitionEvent({
+                    type: 'job_loss',
+                    date: effectiveIso,
+                    company: company || null,
+                    role: role || null,
+                    note: resolvedNote,
+                    cycleId: newCycle?.id || null,
+                    cycleNumber: newCycle?.cycleNumber || null
+                });
+                const currentLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                const nextLog = [evt, ...currentLog];
+
+                set({
+                    cycles: nextCycles,
+                    jobs: nextJobs,
+                    selectedCycleId: newCycle?.id || 'active',
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
+
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                saveCyclesToFirestore(userId, nextCycles, {
+                    jobSearchMode: true,
+                    transitionLog: nextLog
+                });
+                if (changedJobIds.length > 0) {
+                    saveJobCycleAssignmentsToFirestore(userId, nextJobs, changedJobIds);
+                }
+
+                return { newCycle, event: evt };
+            },
+            deleteTransitionEvent: (eventId) => {
+                if (!eventId) return;
+                const currentLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                const nextLog = currentLog.filter(e => e && e.id !== eventId);
+                set({ transitionLog: nextLog });
+                const userId = get().currentUserId || auth?.currentUser?.uid;
+                const currentCycles = resolveCyclesFromJobs(get().jobs, get().cycles);
+                saveCyclesToFirestore(userId, currentCycles, { transitionLog: nextLog });
             },
 
             // Set the current user ID and clear data if user changed
@@ -275,6 +501,9 @@ export const useAppStore = create(
                     jobs: [],
                     cycles: [],
                     selectedCycleId: 'active',
+                    jobSearchMode: true,
+                    transitionLog: [],
+                    oct1Reconciled: false,
                     offerCelebrationModal: null,
                     profile: {
                         fullName: '',
@@ -310,6 +539,9 @@ export const useAppStore = create(
                     jobs: [],
                     cycles: [],
                     selectedCycleId: 'active',
+                    jobSearchMode: true,
+                    transitionLog: [],
+                    oct1Reconciled: false,
                     offerCelebrationModal: null,
                     currentUserId: null,
                     profile: {
@@ -843,6 +1075,54 @@ export const useAppStore = create(
                     }
                 );
 
+                const maybeRunOct1CycleReconciliation = () => {
+                    if (typeof window === 'undefined' || !userId) return;
+                    if (!isOwner(auth?.currentUser)) return;
+                    if (get().oct1Reconciled) return;
+                    const flagKey = `${OCT1_RECONCILE_KEY}_${userId}`;
+                    if (oct1ReconcileInFlight.has(flagKey)) return;
+                    try {
+                        if (localStorage.getItem(flagKey)) return;
+                    } catch {
+                        return;
+                    }
+                    const currentJobs = get().jobs || [];
+                    const currentCycles = get().cycles || [];
+                    if (currentJobs.length === 0 || currentCycles.length === 0) return;
+
+                    oct1ReconcileInFlight.add(flagKey);
+                    const rec = reconcileOctoberSpikeIfNeeded(currentJobs, currentCycles);
+                    try { localStorage.setItem(flagKey, new Date().toISOString()); } catch { /* ignore */ }
+                    oct1ReconcileInFlight.delete(flagKey);
+
+                    if (rec.applied) {
+                        const existingLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
+                        const octEvt = createTransitionEvent({
+                            type: 'activity_spike',
+                            date: '2026-10-01T00:00:00.000Z',
+                            note: 'Current search period started October 1, 2026 following application activity spike.',
+                            cycleId: rec.newCycle.id,
+                            cycleNumber: rec.newCycle.cycleNumber
+                        });
+                        const nextLog = [octEvt, ...existingLog];
+                        set({
+                            cycles: rec.updatedCycles,
+                            jobs: rec.updatedJobs,
+                            selectedCycleId: 'active',
+                            oct1Reconciled: true,
+                            transitionLog: nextLog
+                        });
+                        saveCyclesToFirestore(userId, rec.updatedCycles, {
+                            oct1Reconciled: true,
+                            transitionLog: nextLog
+                        });
+                        saveJobCycleAssignmentsToFirestore(userId, rec.updatedJobs, rec.changedJobIds);
+                    } else {
+                        set({ oct1Reconciled: true });
+                        saveCyclesToFirestore(userId, currentCycles, { oct1Reconciled: true });
+                    }
+                };
+
                 // 2. Jobs Listener
                 const syncedCloudJobIds = new Set();
                 const jobsRef = collection(db, "users", userId, "jobs");
@@ -887,6 +1167,7 @@ export const useAppStore = create(
                                 jobs: state.jobs.map(j => (j?.id && byId.has(j.id) ? { ...j, appliedAt: byId.get(j.id) } : j))
                             }));
                         });
+                        maybeRunOct1CycleReconciliation();
                     },
                     (error) => {
                         console.error("[Store] Jobs snapshot error:", error);
@@ -901,12 +1182,17 @@ export const useAppStore = create(
                             const data = docSnap.data() || {};
                             const remoteList = Array.isArray(data.list) ? data.list : [];
                             const resolved = resolveCyclesFromJobs(get().jobs, remoteList);
-                            set({ cycles: resolved });
+                            const updates = { cycles: resolved };
+                            if (typeof data.jobSearchMode === 'boolean') updates.jobSearchMode = data.jobSearchMode;
+                            if (Array.isArray(data.transitionLog)) updates.transitionLog = data.transitionLog;
+                            if (typeof data.oct1Reconciled === 'boolean') updates.oct1Reconciled = data.oct1Reconciled;
+                            set(updates);
                         } else {
                             const initialCycles = resolveCyclesFromJobs(get().jobs, get().cycles || []);
                             set({ cycles: initialCycles });
                             saveCyclesToFirestore(userId, initialCycles);
                         }
+                        maybeRunOct1CycleReconciliation();
                     },
                     (error) => {
                         console.error("[Store] Cycles snapshot error:", error);
@@ -927,6 +1213,9 @@ export const useAppStore = create(
                 jobs: state.jobs,
                 cycles: state.cycles,
                 selectedCycleId: state.selectedCycleId,
+                jobSearchMode: state.jobSearchMode,
+                transitionLog: state.transitionLog,
+                oct1Reconciled: state.oct1Reconciled,
                 profile: state.profile,
                 currentUserId: state.currentUserId  // Also persist user ID
             })

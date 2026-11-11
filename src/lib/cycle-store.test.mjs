@@ -138,4 +138,74 @@ test('Store Job Search Cycles Lifecycle Engine', async (t) => {
         assert.strictEqual(defaultFiltered.length, 1);
         assert.strictEqual(defaultFiltered[0].company, 'New Corp');
     });
+
+    await t.test('8. setJobSearchMode toggles mode and opens a new cycle when requested', () => {
+        useAppStore.getState().clearUserData();
+        useAppStore.getState().addJob({ id: 's8-j1', company: 'Alpha', role: 'SWE', status: 'applied' });
+        const initialCyclesCount = useAppStore.getState().cycles.length;
+
+        useAppStore.getState().setJobSearchMode(false);
+        assert.strictEqual(useAppStore.getState().jobSearchMode, false);
+
+        useAppStore.getState().setJobSearchMode(true, {
+            openNewCycle: true,
+            cycleName: 'Resumed Search',
+            startDate: '2026-10-01'
+        });
+        const state = useAppStore.getState();
+        assert.strictEqual(state.jobSearchMode, true);
+        assert.strictEqual(state.cycles.length, initialCyclesCount + 1);
+        const active = state.cycles.find(c => c.status === 'active');
+        assert.strictEqual(active.name, 'Resumed Search');
+    });
+
+    await t.test('9. logJobLossAndStartSearch logs transition, enables search mode, and opens new cycle', () => {
+        useAppStore.getState().clearUserData();
+        useAppStore.getState().addJob({ company: 'PrevSearchCo', role: 'SWE', status: 'applied' });
+        useAppStore.getState().setJobSearchMode(false);
+
+        const res = useAppStore.getState().logJobLossAndStartSearch({
+            date: '2026-10-01',
+            company: 'PrevCo',
+            role: 'Senior Engineer',
+            note: 'Laid off'
+        });
+
+        const state = useAppStore.getState();
+        assert.strictEqual(state.jobSearchMode, true);
+        assert.ok(res.newCycle);
+        assert.strictEqual(res.newCycle.triggerType, 'job_loss');
+        assert.ok(res.event);
+        assert.strictEqual(state.transitionLog.length, 2); // job_loss + prior search_paused
+        assert.strictEqual(state.transitionLog[0].company, 'PrevCo');
+        assert.strictEqual(state.transitionLog[0].note, 'Laid off');
+
+        // Delete transition event removes it
+        useAppStore.getState().deleteTransitionEvent(res.event.id);
+        assert.strictEqual(useAppStore.getState().transitionLog.length, 1);
+    });
+
+    await t.test('10. splitCycleAtDate and updateCyclePeriod update cycles and reassign jobs', () => {
+        useAppStore.getState().clearUserData();
+        const oldJob = useAppStore.getState().addJob({ company: 'OldCo', role: 'SWE', status: 'rejected', appliedAt: '2026-07-01T12:00:00.000Z' });
+        const octJobAdded = useAppStore.getState().addJob({ company: 'OctCo', role: 'SWE', status: 'applied', appliedAt: '2026-10-05T12:00:00.000Z' });
+
+        useAppStore.getState().splitCycleAtDate('2026-10-01', { name: 'Oct Search' });
+
+        let state = useAppStore.getState();
+        assert.strictEqual(state.cycles.length, 2);
+        const newCycle = state.cycles.find(c => c.name === 'Oct Search');
+        const oldCycle = state.cycles.find(c => c.id !== newCycle.id);
+        assert.ok(newCycle);
+        const octJob = state.jobs.find(j => j.id === octJobAdded.id);
+        const julyJob = state.jobs.find(j => j.id === oldJob.id);
+        assert.strictEqual(octJob.cycleId, newCycle.id);
+        assert.strictEqual(julyJob.cycleId, oldCycle.id);
+
+        useAppStore.getState().updateCyclePeriod(newCycle.id, { name: 'October Sprint', notes: 'Focused AI roles' });
+        state = useAppStore.getState();
+        const renamed = state.cycles.find(c => c.id === newCycle.id);
+        assert.strictEqual(renamed.name, 'October Sprint');
+        assert.strictEqual(renamed.notes, 'Focused AI roles');
+    });
 });

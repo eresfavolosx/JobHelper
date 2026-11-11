@@ -35,6 +35,8 @@ export function createCycle(cycleNumber = 1, options = {}) {
         acceptedCompany: options.acceptedCompany || null,
         acceptedRole: options.acceptedRole || null,
         targetRole: options.targetRole || null,
+        triggerType: options.triggerType || 'initial', // 'initial' | 'offer_accepted' | 'activity_spike' | 'job_loss' | 'manual_toggle' | 'manual'
+        notes: options.notes || null,
         createdAt: options.createdAt || nowIso,
         updatedAt: options.updatedAt || nowIso
     };
@@ -319,5 +321,364 @@ export function calculateCycleStats(cycle, jobs = []) {
         isCompleted: cycle?.status === 'completed',
         acceptedCompany: cycle?.acceptedCompany || null,
         acceptedRole: cycle?.acceptedRole || null
+    };
+}
+
+/**
+ * Normalizes a date or YYYY-MM-DD string to the UTC day start ISO string (00:00:00.000Z).
+ */
+export function normalizeToDayStartIso(dateInput) {
+    if (!dateInput) return new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+        return `${dateInput.trim()}T00:00:00.000Z`;
+    }
+    const d = safeDate(dateInput);
+    if (isNaN(d.getTime())) {
+        return new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
+    }
+    return d.toISOString().slice(0, 10) + 'T00:00:00.000Z';
+}
+
+function formatShortMonthDayYear(isoStr) {
+    const d = safeDate(isoStr);
+    if (isNaN(d.getTime())) return 'Recent Date';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Automatically detects activity spikes following dormant periods (or dramatic volume surges)
+ * that likely represent the start of a new job search period/cycle.
+ *
+ * Detects:
+ * 1. Dormancy + Resumption: >= minGapDays (default 21d) with zero applications followed by new applications.
+ * 2. Volume Surge: quiet 14-day baseline (<= 1 app) followed by >= 4 apps in a 7-day burst.
+ *
+ * Excludes candidate dates within +-7 days of an existing cycle's startedAt.
+ */
+export function detectSearchActivitySpikes(jobs = [], existingCycles = [], options = {}) {
+    const minGapDays = Number(options.minGapDays) || 21;
+    const windowDays = Number(options.windowDays) || 14;
+    const minBurstJobs = Number(options.minBurstJobs) || 2;
+    const boundaryDedupeDays = Number(options.boundaryDedupeDays) || 7;
+
+    const validJobs = Array.isArray(jobs)
+        ? jobs.filter(j => j && j.status !== 'deleted')
+        : [];
+    if (validJobs.length < 2) return [];
+
+    const datedJobs = validJobs
+        .map(job => {
+            const raw = job.appliedAt || job.dateAdded || job.createdAt;
+            const ms = safeDate(raw).getTime();
+            return { job, ms };
+        })
+        .filter(item => !isNaN(item.ms))
+        .sort((a, b) => a.ms - b.ms);
+
+    if (datedJobs.length < 2) return [];
+
+    const cycles = Array.isArray(existingCycles) ? existingCycles : [];
+    const cycleStartsMs = cycles
+        .map(c => safeDate(c?.startedAt).getTime())
+        .filter(ms => !isNaN(ms));
+
+    const isNearExistingBoundary = (candidateMs) => {
+        // Ignore if close to Cycle 1 initial earliest job start OR any explicit cycle boundary
+        return cycleStartsMs.some(cs => Math.abs(candidateMs - cs) <= boundaryDedupeDays * 86400000);
+    };
+
+    const spikes = [];
+    const seenDays = new Set();
+
+    // Pass 1: Dormancy gap >= minGapDays followed by resumption
+    for (let i = 1; i < datedJobs.length; i++) {
+        const prev = datedJobs[i - 1];
+        const curr = datedJobs[i];
+        const gapDays = Math.round((curr.ms - prev.ms) / 86400000);
+
+        if (gapDays >= minGapDays) {
+            const dayStartIso = normalizeToDayStartIso(new Date(curr.ms).toISOString());
+            const dayStartMs = new Date(dayStartIso).getTime();
+            const dayStr = dayStartIso.slice(0, 10);
+
+            if (seenDays.has(dayStr)) continue;
+            seenDays.add(dayStr);
+
+            if (isNearExistingBoundary(dayStartMs)) continue;
+
+            const jobsBeforeCount = datedJobs.filter(d => d.ms < dayStartMs).length;
+            const jobsAfter = datedJobs.filter(d => d.ms >= dayStartMs);
+            const burstCount = datedJobs.filter(
+                d => d.ms >= dayStartMs && d.ms <= dayStartMs + windowDays * 86400000
+            ).length;
+
+            if (jobsBeforeCount >= 1 && (burstCount >= minBurstJobs || gapDays >= 30)) {
+                const dayLabel = formatShortMonthDayYear(dayStartIso);
+                spikes.push({
+                    id: `spike_${dayStr}`,
+                    suggestedStartDate: dayStartIso,
+                    dayStr,
+                    dayLabel,
+                    gapDays,
+                    jobsBeforeCount,
+                    jobsAfterCount: jobsAfter.length,
+                    burstCount,
+                    confidence: (gapDays >= 28 || burstCount >= 4) ? 'high' : 'medium',
+                    firstJob: {
+                        id: curr.job.id,
+                        company: curr.job.company || 'Unknown',
+                        role: curr.job.role || curr.job.title || 'Role'
+                    },
+                    reason: `${gapDays}-day quiet stretch followed by ${jobsAfter.length} application${jobsAfter.length === 1 ? '' : 's'} starting ${dayLabel}`
+                });
+            }
+        }
+    }
+
+    // Pass 2: Dramatic volume surge (quiet 14-day baseline <= 1 app -> >= 4 apps in 7 days)
+    if (spikes.length === 0 && datedJobs.length >= 5) {
+        for (let i = 1; i < datedJobs.length; i++) {
+            const curr = datedJobs[i];
+            const dayStartIso = normalizeToDayStartIso(new Date(curr.ms).toISOString());
+            const dayStartMs = new Date(dayStartIso).getTime();
+            const dayStr = dayStartIso.slice(0, 10);
+
+            if (seenDays.has(dayStr) || isNearExistingBoundary(dayStartMs)) continue;
+
+            const prior14d = datedJobs.filter(
+                d => d.ms >= dayStartMs - 14 * 86400000 && d.ms < dayStartMs
+            ).length;
+            const jobsBeforeCount = datedJobs.filter(d => d.ms < dayStartMs).length;
+            const next7d = datedJobs.filter(
+                d => d.ms >= dayStartMs && d.ms <= dayStartMs + 7 * 86400000
+            ).length;
+            const jobsAfterCount = datedJobs.filter(d => d.ms >= dayStartMs).length;
+
+            if (jobsBeforeCount >= 1 && prior14d <= 1 && next7d >= 4) {
+                seenDays.add(dayStr);
+                const prev = datedJobs[i - 1];
+                const gapDays = Math.max(0, Math.round((dayStartMs - prev.ms) / 86400000));
+                const dayLabel = formatShortMonthDayYear(dayStartIso);
+                spikes.push({
+                    id: `spike_${dayStr}`,
+                    suggestedStartDate: dayStartIso,
+                    dayStr,
+                    dayLabel,
+                    gapDays,
+                    jobsBeforeCount,
+                    jobsAfterCount,
+                    burstCount: next7d,
+                    confidence: next7d >= 5 ? 'high' : 'medium',
+                    firstJob: {
+                        id: curr.job.id,
+                        company: curr.job.company || 'Unknown',
+                        role: curr.job.role || curr.job.title || 'Role'
+                    },
+                    reason: `Activity surged to ${next7d} applications in 7 days starting ${dayLabel} (up from ${prior14d} in prior 14d)`
+                });
+            }
+        }
+    }
+
+    // Return most recent spike first
+    return spikes.sort((a, b) => new Date(b.suggestedStartDate).getTime() - new Date(a.suggestedStartDate).getTime());
+}
+
+/**
+ * Splits a cycle at a specified splitDate (e.g. '2026-10-01'), closing the earlier cycle right before
+ * the split and creating/activating a new cycle starting at splitDate. Reassigns jobs by date cleanly.
+ */
+export function splitCycleAtDate(cycles = [], jobs = [], targetCycleId = null, splitDateInput, options = {}) {
+    const resolvedCycles = resolveCyclesFromJobs(jobs, cycles);
+    const activeCycle = getActiveCycle(resolvedCycles);
+    const splitIso = normalizeToDayStartIso(splitDateInput);
+    const splitMs = new Date(splitIso).getTime();
+    const nowIso = options.now || new Date().toISOString();
+
+    const targetCycle = (targetCycleId && resolvedCycles.find(c => c.id === targetCycleId)) || activeCycle || resolvedCycles[resolvedCycles.length - 1];
+    if (!targetCycle) {
+        return { updatedCycles: resolvedCycles, updatedJobs: jobs, changedJobIds: [], priorCycle: null, newCycle: null };
+    }
+
+    const priorEndedIso = new Date(splitMs - 1).toISOString();
+    const priorStartMs = safeDate(targetCycle.startedAt).getTime();
+    let adjustedPriorStart = targetCycle.startedAt;
+    if (isNaN(priorStartMs) || priorStartMs >= splitMs) {
+        // Ensure prior cycle starts at or before its earliest job
+        const earliestPriorMs = (jobs || [])
+            .filter(j => j && j.status !== 'deleted')
+            .map(j => safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime())
+            .filter(ms => !isNaN(ms) && ms < splitMs)
+            .sort((a, b) => a - b)[0];
+        adjustedPriorStart = earliestPriorMs
+            ? new Date(earliestPriorMs).toISOString()
+            : new Date(splitMs - 86400000).toISOString();
+    }
+
+    const priorCycle = {
+        ...targetCycle,
+        startedAt: adjustedPriorStart,
+        endedAt: priorEndedIso,
+        status: 'completed',
+        updatedAt: nowIso
+    };
+
+    const maxNum = Math.max(...resolvedCycles.map(c => Number(c?.cycleNumber) || 1), 0);
+    const nextNum = maxNum + 1;
+    const shortLabel = formatShortMonthDayYear(splitIso);
+    const newCycle = createCycle(nextNum, {
+        id: options.newCycleId,
+        name: options.name || `Current Search (${shortLabel})`,
+        status: 'active',
+        startedAt: splitIso,
+        endedAt: null,
+        triggerType: options.triggerType || 'activity_spike',
+        notes: options.notes || `Search cycle split starting ${shortLabel}`,
+        now: nowIso
+    });
+
+    const updatedCycles = resolvedCycles.map(c => {
+        if (c.id === targetCycle.id) return priorCycle;
+        if (c.status === 'active') {
+            return { ...c, status: 'completed', endedAt: c.endedAt || priorEndedIso, updatedAt: nowIso };
+        }
+        return c;
+    });
+    updatedCycles.push(newCycle);
+
+    const changedJobIds = [];
+    const updatedJobs = (Array.isArray(jobs) ? jobs : []).map(job => {
+        if (!job || job.status === 'deleted') return job;
+        // Reassign jobs belonging to targetCycle OR unassigned legacy jobs
+        const belongsToTarget = !job.cycleId || job.cycleId === targetCycle.id;
+        if (!belongsToTarget) return job;
+
+        const jobMs = safeDate(job.appliedAt || job.dateAdded || job.createdAt).getTime();
+        if (isNaN(jobMs)) return job;
+
+        if (jobMs >= splitMs) {
+            if (job.cycleId !== newCycle.id || job.cycleNumber !== newCycle.cycleNumber) {
+                changedJobIds.push(job.id);
+                return { ...job, cycleId: newCycle.id, cycleNumber: newCycle.cycleNumber };
+            }
+        } else {
+            if (job.cycleId !== priorCycle.id || job.cycleNumber !== priorCycle.cycleNumber) {
+                changedJobIds.push(job.id);
+                return { ...job, cycleId: priorCycle.id, cycleNumber: priorCycle.cycleNumber };
+            }
+        }
+        return job;
+    });
+
+    return {
+        updatedCycles,
+        updatedJobs,
+        changedJobIds,
+        priorCycle,
+        newCycle
+    };
+}
+
+/**
+ * Updates metadata and date bounds for an existing cycle directly.
+ */
+export function updateCyclePeriod(cycles = [], cycleId, updates = {}) {
+    if (!Array.isArray(cycles) || !cycleId) return cycles;
+    const nowIso = new Date().toISOString();
+
+    return cycles.map(c => {
+        if (!c || c.id !== cycleId) return c;
+        const nextStartedAt = updates.startedAt ? normalizeToDayStartIso(updates.startedAt) : c.startedAt;
+        let nextEndedAt = updates.endedAt !== undefined
+            ? (updates.endedAt ? normalizeToDayStartIso(updates.endedAt).replace('T00:00:00.000Z', 'T23:59:59.999Z') : null)
+            : c.endedAt;
+
+        if (nextEndedAt && nextStartedAt && new Date(nextEndedAt).getTime() < new Date(nextStartedAt).getTime()) {
+            nextEndedAt = new Date(new Date(nextStartedAt).getTime() + 86399999).toISOString();
+        }
+
+        return {
+            ...c,
+            name: updates.name !== undefined ? String(updates.name).trim() || c.name : c.name,
+            startedAt: nextStartedAt,
+            endedAt: nextEndedAt,
+            status: updates.status !== undefined ? updates.status : c.status,
+            notes: updates.notes !== undefined ? updates.notes : c.notes,
+            triggerType: updates.triggerType !== undefined ? updates.triggerType : c.triggerType,
+            updatedAt: nowIso
+        };
+    });
+}
+
+/**
+ * Creates a career transition log entry (job loss, search activation, pause, or spike split).
+ */
+export function createTransitionEvent(event = {}) {
+    const nowIso = new Date().toISOString();
+    return {
+        id: event.id || `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        type: event.type || 'new_search', // 'job_loss' | 'new_search' | 'search_paused' | 'activity_spike' | 'offer_accepted'
+        date: event.date ? normalizeToDayStartIso(event.date) : nowIso,
+        company: event.company ? String(event.company).trim() : null,
+        role: event.role ? String(event.role).trim() : null,
+        note: event.note ? String(event.note).trim() : '',
+        cycleId: event.cycleId || null,
+        cycleNumber: event.cycleNumber || null,
+        createdAt: event.createdAt || nowIso
+    };
+}
+
+/**
+ * Reconciles a legacy active cycle that spans across October 1, 2026 when an active search resumed
+ * after a break and hasn't been split near October 1 yet.
+ */
+export function reconcileOctoberSpikeIfNeeded(jobs = [], cycles = [], options = {}) {
+    const oct1Iso = '2026-10-01T00:00:00.000Z';
+    const oct1Ms = new Date(oct1Iso).getTime();
+
+    const validJobs = Array.isArray(jobs) ? jobs.filter(j => j && j.status !== 'deleted') : [];
+    const resolvedCycles = resolveCyclesFromJobs(validJobs, cycles);
+    if (resolvedCycles.length === 0) return { applied: false };
+
+    // Do not auto-split if a cycle already starts within +-7 days of Oct 1, 2026
+    const hasOctBoundary = resolvedCycles.some(c => {
+        const sMs = safeDate(c?.startedAt).getTime();
+        return !isNaN(sMs) && Math.abs(sMs - oct1Ms) <= 7 * 86400000;
+    });
+    if (hasOctBoundary) return { applied: false };
+
+    const activeCycle = getActiveCycle(resolvedCycles);
+    if (!activeCycle) return { applied: false };
+
+    const activeStartMs = safeDate(activeCycle.startedAt).getTime();
+    if (isNaN(activeStartMs) || activeStartMs >= oct1Ms - 7 * 86400000) {
+        return { applied: false };
+    }
+
+    // Check if there are jobs both before Oct 1 and on/after Oct 1 in the active cycle / unassigned
+    const jobsInActiveScope = validJobs.filter(j => !j.cycleId || j.cycleId === activeCycle.id);
+    const hasPreOct = jobsInActiveScope.some(j => {
+        const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
+        return !isNaN(ms) && ms < oct1Ms;
+    });
+    const hasOctPlus = jobsInActiveScope.some(j => {
+        const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
+        return !isNaN(ms) && ms >= oct1Ms;
+    });
+
+    if (!hasPreOct || !hasOctPlus) {
+        return { applied: false };
+    }
+
+    const splitResult = splitCycleAtDate(resolvedCycles, validJobs, activeCycle.id, oct1Iso, {
+        name: options.name || 'Current Search (Oct 2026)',
+        triggerType: 'activity_spike',
+        notes: 'Search period started October 1, 2026 following application activity spike.'
+    });
+
+    return {
+        applied: true,
+        ...splitResult
     };
 }

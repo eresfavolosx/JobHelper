@@ -34,6 +34,8 @@ export default function GoalTrackerWidget({ jobs: propJobs }) {
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobSearchMode = useAppStore(state => state.jobSearchMode);
+    const setJobSearchMode = useAppStore(state => state.setJobSearchMode);
     const jobs = useMemo(() => {
         if (propJobs) return propJobs;
         return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
@@ -132,6 +134,38 @@ export default function GoalTrackerWidget({ jobs: propJobs }) {
                                 >
                                     {progress.todayCount >= 5 ? `🎉 ${progress.todayCount} Applied Today (Goal Hit!)` : `${progress.todayCount} Applied Today`}
                                 </span>
+                                {jobSearchMode === false && (
+                                    <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '600',
+                                        padding: '2px 9px',
+                                        borderRadius: '999px',
+                                        background: 'rgba(148, 163, 184, 0.16)',
+                                        border: '1px solid var(--border-subtle)',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        <span>Standby Mode</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setJobSearchMode(true)}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                padding: 0,
+                                                color: 'var(--accent-primary)',
+                                                fontWeight: '700',
+                                                fontSize: '0.74rem',
+                                                cursor: 'pointer',
+                                                textDecoration: 'underline'
+                                            }}
+                                        >
+                                            Reactivate
+                                        </button>
+                                    </span>
+                                )}
                             </div>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                                 {goal.targetRole ? `Focus: ${goal.targetRole} • ` : ''}
