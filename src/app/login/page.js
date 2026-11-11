@@ -1,10 +1,28 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import {
+    signInWithPopup,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+} from "firebase/auth";
+import { auth, googleProvider, createGoogleProviderForAccount } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import { Lock, Mail, Eye, EyeOff, Loader, Briefcase, Sparkles, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import {
+    subscribeSavedAccounts,
+    getSavedAccountsSnapshot,
+    getSavedAccountsServerSnapshot,
+    subscribeRememberSignInPreference,
+    getRememberSignInSnapshot,
+    getRememberSignInServerSnapshot,
+    setRememberSignInPreference,
+    upsertSavedAccount,
+    removeSavedAccount,
+} from "@/lib/saved-accounts";
+import { Lock, Mail, Eye, EyeOff, Loader, Briefcase, Sparkles, ArrowRight, ShieldCheck, AlertCircle, UserCheck, X } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 function GoogleIcon() {
@@ -38,6 +56,18 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [selectedSavedEmail, setSelectedSavedEmail] = useState('');
+    const passwordInputRef = useRef(null);
+    const savedAccounts = useSyncExternalStore(
+        subscribeSavedAccounts,
+        getSavedAccountsSnapshot,
+        getSavedAccountsServerSnapshot
+    );
+    const rememberMe = useSyncExternalStore(
+        subscribeRememberSignInPreference,
+        getRememberSignInSnapshot,
+        getRememberSignInServerSnapshot
+    );
     const router = useRouter();
 
     useEffect(() => {
@@ -46,14 +76,54 @@ export default function LoginPage() {
         }
     }, [user, router]);
 
-    const handleGoogleLogin = async () => {
+    const applyAuthPersistence = async (shouldPersist) => {
+        await setPersistence(auth, shouldPersist ? browserLocalPersistence : browserSessionPersistence);
+    };
+
+    const handleToggleRememberMe = (e) => {
+        setRememberSignInPreference(e.target.checked);
+    };
+
+    const handleGoogleLogin = async (emailHint = '') => {
         try {
             setError('');
-            await signInWithPopup(auth, googleProvider);
+            await applyAuthPersistence(rememberMe);
+            const hint = typeof emailHint === 'string' ? emailHint.trim() : '';
+            const provider = hint ? createGoogleProviderForAccount(hint) : googleProvider;
+            const credential = await signInWithPopup(auth, provider);
+            if (rememberMe && credential?.user) {
+                upsertSavedAccount(credential.user, 'google');
+            }
             router.push('/');
         } catch (err) {
             console.error('Authentication error occurred', err);
             setError('Failed to authenticate with Google. Please try again.');
+        }
+    };
+
+    const handleSavedAccountClick = async (account) => {
+        if (!account) return;
+        setError('');
+        if (account.provider === 'google') {
+            await handleGoogleLogin(account.email);
+            return;
+        }
+        setIsSignUp(false);
+        setEmail(account.email);
+        setPassword('');
+        setSelectedSavedEmail(account.email);
+        if (typeof window !== 'undefined') {
+            window.requestAnimationFrame(() => {
+                passwordInputRef.current?.focus();
+            });
+        }
+    };
+
+    const handleRemoveSavedAccount = (account) => {
+        if (!account) return;
+        removeSavedAccount(account.email || account.uid);
+        if (selectedSavedEmail && account.email?.toLowerCase() === selectedSavedEmail.toLowerCase()) {
+            setSelectedSavedEmail('');
         }
     };
 
@@ -72,10 +142,12 @@ export default function LoginPage() {
         setError('');
 
         try {
-            if (isSignUp) {
-                await createUserWithEmailAndPassword(auth, email.trim(), password);
-            } else {
-                await signInWithEmailAndPassword(auth, email.trim(), password);
+            await applyAuthPersistence(rememberMe);
+            const credential = isSignUp
+                ? await createUserWithEmailAndPassword(auth, email.trim(), password)
+                : await signInWithEmailAndPassword(auth, email.trim(), password);
+            if (rememberMe && credential?.user) {
+                upsertSavedAccount(credential.user, 'password');
             }
             router.push('/');
         } catch (err) {
@@ -271,8 +343,176 @@ export default function LoginPage() {
                     </div>
                 )}
 
+                {/* Saved Accounts Quick Switcher */}
+                {savedAccounts.length > 0 && (
+                    <section
+                        aria-label="Saved accounts"
+                        style={{
+                            marginBottom: '18px',
+                            padding: '12px',
+                            borderRadius: '14px',
+                            background: 'rgba(107, 126, 103, 0.08)',
+                            border: '1px solid var(--border-subtle)',
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.03em',
+                            textTransform: 'uppercase',
+                            color: 'var(--text-secondary)',
+                            marginBottom: '8px',
+                        }}>
+                            <UserCheck size={14} style={{ color: 'var(--accent-primary)' }} />
+                            <span>Saved Accounts ({savedAccounts.length})</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {savedAccounts.map((account) => {
+                                const isGoogle = account.provider === 'google';
+                                const isSelected = selectedSavedEmail && account.email.toLowerCase() === selectedSavedEmail.toLowerCase();
+                                const initial = (account.displayName || account.email || 'U').charAt(0).toUpperCase();
+                                return (
+                                    <div
+                                        key={account.email.toLowerCase()}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '4px',
+                                            borderRadius: '10px',
+                                            background: isSelected ? 'rgba(107, 126, 103, 0.14)' : 'var(--bg-secondary)',
+                                            border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            disabled={loading}
+                                            onClick={() => handleSavedAccountClick(account)}
+                                            style={{
+                                                flex: 1,
+                                                minWidth: 0,
+                                                minHeight: '44px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '6px 8px',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'var(--text-primary)',
+                                                cursor: loading ? 'not-allowed' : 'pointer',
+                                                textAlign: 'left',
+                                                borderRadius: '8px',
+                                            }}
+                                        >
+                                            {account.photoURL ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    src={account.photoURL}
+                                                    alt=""
+                                                    width={32}
+                                                    height={32}
+                                                    style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        borderRadius: '50%',
+                                                        objectFit: 'cover',
+                                                        flexShrink: 0,
+                                                    }}
+                                                />
+                                            ) : (
+                                                <span
+                                                    aria-hidden="true"
+                                                    style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        borderRadius: '50%',
+                                                        background: 'var(--accent-primary)',
+                                                        color: '#fff',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.85rem',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0,
+                                                    }}
+                                                >
+                                                    {initial}
+                                                </span>
+                                            )}
+                                            <span style={{ minWidth: 0, flex: 1 }}>
+                                                <span style={{
+                                                    display: 'block',
+                                                    fontSize: '0.88rem',
+                                                    fontWeight: 600,
+                                                    color: 'var(--text-primary)',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}>
+                                                    {account.displayName || account.email}
+                                                </span>
+                                                <span style={{
+                                                    display: 'block',
+                                                    fontSize: '0.74rem',
+                                                    color: 'var(--text-secondary)',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}>
+                                                    {account.displayName ? `${account.email} · ` : ''}
+                                                    {isGoogle ? 'Google Sign-In' : 'Email & Password'}
+                                                </span>
+                                            </span>
+                                            <ArrowRight size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveSavedAccount(account)}
+                                            aria-label={`Remove saved account ${account.email}`}
+                                            title={`Remove ${account.email} from saved accounts`}
+                                            style={{
+                                                minWidth: '36px',
+                                                minHeight: '36px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <X size={15} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {selectedSavedEmail && (
+                            <p role="status" style={{
+                                margin: '8px 2px 0',
+                                fontSize: '0.75rem',
+                                color: 'var(--accent-primary)',
+                                fontWeight: 500,
+                            }}>
+                                Ready for {selectedSavedEmail} — enter or autofill your password below.
+                            </p>
+                        )}
+                    </section>
+                )}
+
                 {/* Email/Password Form */}
-                <form onSubmit={handleEmailAuth} style={{ marginBottom: '18px' }}>
+                <form
+                    method="post"
+                    aria-label={isSignUp ? 'Create account form' : 'Sign in form'}
+                    onSubmit={handleEmailAuth}
+                    style={{ marginBottom: '18px' }}
+                >
                     <div style={{ marginBottom: '12px', position: 'relative' }}>
                         <Mail
                             size={18}
@@ -288,7 +528,14 @@ export default function LoginPage() {
                         <input
                             aria-label="Email address"
                             id="email"
+                            name="email"
                             type="email"
+                            autoComplete="username"
+                            inputMode="email"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
+                            enterKeyHint="next"
                             required
                             placeholder="Email address"
                             value={email}
@@ -329,9 +576,14 @@ export default function LoginPage() {
                             }}
                         />
                         <input
+                            ref={passwordInputRef}
                             aria-label="Password"
                             id="password"
+                            name={isSignUp ? 'new-password' : 'password'}
                             type={showPassword ? 'text' : 'password'}
+                            autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                            enterKeyHint="done"
+                            minLength={6}
                             required
                             placeholder="Password"
                             value={password}
@@ -378,6 +630,44 @@ export default function LoginPage() {
                         >
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                        <label
+                            htmlFor="remember-signin"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                minHeight: '44px',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                color: 'var(--text-primary)',
+                                userSelect: 'none',
+                            }}
+                        >
+                            <input
+                                id="remember-signin"
+                                name="rememberSignIn"
+                                type="checkbox"
+                                checked={rememberMe}
+                                onChange={handleToggleRememberMe}
+                                style={{
+                                    accentColor: 'var(--accent-primary)',
+                                    width: '18px',
+                                    height: '18px',
+                                    margin: 0,
+                                    cursor: 'pointer',
+                                    flexShrink: 0,
+                                }}
+                            />
+                            <span>
+                                <strong style={{ fontWeight: 600 }}>Save sign-in on this device</strong>
+                                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                    Stay signed in and remember your account for quicker login
+                                </span>
+                            </span>
+                        </label>
                     </div>
 
                     <button
