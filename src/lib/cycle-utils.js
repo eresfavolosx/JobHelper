@@ -208,9 +208,10 @@ export function reopenCycleForRevertedOffer(cycles = [], revertedJobId, jobs = [
 
 /**
  * Filters a list of jobs based on the selected cycle ID ('all', 'active', or cycle.id).
+ * Defaults to 'active' so all views display the active search cycle by default.
  * Handles legacy jobs without cycleId using timestamps and fallbacks.
  */
-export function filterJobsByCycle(jobs = [], cycles = [], selectedCycleId = 'all') {
+export function filterJobsByCycle(jobs = [], cycles = [], selectedCycleId = 'active') {
     if (!Array.isArray(jobs)) return [];
     const validJobs = jobs.filter(j => j && j.status !== 'deleted');
 

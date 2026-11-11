@@ -25,7 +25,7 @@ import {
     formatBenchmarkSummaryMarkdown
 } from '@/lib/benchmark-analytics';
 import { useAppStore } from '@/lib/store';
-import { resolveCyclesFromJobs, filterJobsByCycle } from '@/lib/cycle-utils';
+import { resolveCyclesFromJobs, filterJobsByCycle, getActiveCycle } from '@/lib/cycle-utils';
 
 function subscribeReducedMotion(callback) {
     if (typeof window === 'undefined' || !window.matchMedia) return () => {};
@@ -72,6 +72,7 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
     // Resolve search cycles and filter jobs
     const sourceJobs = useMemo(() => jobs || rawJobs || [], [jobs, rawJobs]);
     const cycles = useMemo(() => resolveCyclesFromJobs(rawJobs || sourceJobs, storeCycles), [rawJobs, sourceJobs, storeCycles]);
+    const activeCycle = useMemo(() => getActiveCycle(cycles), [cycles]);
     const filteredJobs = useMemo(() => filterJobsByCycle(sourceJobs, cycles, selectedCycleId), [sourceJobs, cycles, selectedCycleId]);
 
     // Compute all benchmark metrics, deltas, and trends
@@ -185,7 +186,7 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
                                 <span>
                                     {selectedCycleId === 'all'
                                         ? `All Cycles · ${totalApplied} Applied`
-                                        : `${cycles.find(c => c.id === selectedCycleId)?.name || 'Active Cycle'} · ${totalApplied} Applied`}
+                                        : `${(cycles.find(c => c.id === selectedCycleId) || (selectedCycleId === 'active' ? activeCycle : null))?.name || 'Active Cycle'} · ${totalApplied} Applied`}
                                 </span>
                             </span>
                         </div>
@@ -202,7 +203,7 @@ export default function MarketBenchmarkView({ jobs, compact = false }) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                             <Layers size={13} color="var(--accent-primary)" />
                             <select
-                                value={selectedCycleId}
+                                value={selectedCycleId === 'active' && activeCycle ? activeCycle.id : selectedCycleId}
                                 onChange={e => setSelectedCycleId(e.target.value)}
                                 aria-label="Filter benchmarks by job search cycle"
                                 style={{

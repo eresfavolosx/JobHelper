@@ -47,7 +47,7 @@ export default function CycleFilterBar({ className = '', style = {} }) {
     // Current selected cycle object
     const currentCycleObj = selectedCycleId === 'all'
         ? null
-        : cycles.find(c => c.id === selectedCycleId) || activeCycle;
+        : (selectedCycleId === 'active' ? activeCycle : (cycles.find(c => c.id === selectedCycleId) || activeCycle));
 
     const currentStats = currentCycleObj ? calculateCycleStats(currentCycleObj, filterJobsByCycle(rawJobs, cycles, currentCycleObj.id)) : null;
 
@@ -288,7 +288,7 @@ export default function CycleFilterBar({ className = '', style = {} }) {
 
                 {/* Individual Cycles */}
                 {cycles.map((cycle) => {
-                    const isSelected = selectedCycleId === cycle.id;
+                    const isSelected = selectedCycleId === cycle.id || (selectedCycleId === 'active' && activeCycle?.id === cycle.id);
                     const isCompleted = cycle.status === 'completed';
                     const count = cycleCounts[cycle.id] || 0;
 
