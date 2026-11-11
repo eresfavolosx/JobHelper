@@ -301,7 +301,7 @@ export function calculateCycleStats(cycle, jobs = []) {
 
     const startMs = safeDate(cycle?.startedAt).getTime();
     const endMs = cycle?.endedAt ? safeDate(cycle.endedAt).getTime() : Date.now();
-    const durationDays = isNaN(startMs) ? 0 : Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
+    const durationDays = isNaN(startMs) ? 0 : Math.max(1, Math.floor((endMs - startMs) / (1000 * 60 * 60 * 24)));
 
     const interviewRate = applied > 0 ? Math.round(((screening + interviewing + offers) / applied) * 1000) / 10 : 0;
     const offerRate = applied > 0 ? Math.round((offers / applied) * 1000) / 10 : 0;
@@ -501,12 +501,59 @@ export function splitCycleAtDate(cycles = [], jobs = [], targetCycleId = null, s
         return { updatedCycles: resolvedCycles, updatedJobs: jobs, changedJobIds: [], priorCycle: null, newCycle: null };
     }
 
+    const validJobs = Array.isArray(jobs) ? jobs : [];
+    const hasPreSplitJobsInTarget = validJobs.some(job => {
+        if (!job || job.status === 'deleted') return false;
+        const belongsToTarget = !job.cycleId || job.cycleId === targetCycle.id;
+        if (!belongsToTarget) return false;
+        const jobMs = safeDate(job.appliedAt || job.dateAdded || job.createdAt).getTime();
+        return !isNaN(jobMs) && jobMs < splitMs;
+    });
+
+    const shortLabel = formatShortMonthDayYear(splitIso);
+    const defaultSplitName = options.name || `Current Search (${shortLabel})`;
+
+    // If targetCycle has no jobs strictly before splitMs, update its start date cleanly
+    // instead of creating an empty historical stub cycle.
+    if (!hasPreSplitJobsInTarget && !options.forceCreateCycle) {
+        const updatedTarget = {
+            ...targetCycle,
+            name: options.name || (!targetCycle.name || /^Search Cycle \d+$/i.test(targetCycle.name) ? defaultSplitName : targetCycle.name),
+            startedAt: splitIso,
+            status: 'active',
+            endedAt: null,
+            triggerType: options.triggerType || targetCycle.triggerType || 'activity_spike',
+            notes: options.notes || `Search cycle started ${shortLabel}`,
+            updatedAt: nowIso
+        };
+        const updatedCycles = resolvedCycles.map(c => (c.id === targetCycle.id ? updatedTarget : c));
+        const changedJobIds = [];
+        const updatedJobs = validJobs.map(job => {
+            if (!job || job.status === 'deleted') return job;
+            if (!job.cycleId) {
+                const jobMs = safeDate(job.appliedAt || job.dateAdded || job.createdAt).getTime();
+                if (!isNaN(jobMs) && jobMs >= splitMs) {
+                    changedJobIds.push(job.id);
+                    return { ...job, cycleId: updatedTarget.id, cycleNumber: updatedTarget.cycleNumber };
+                }
+            }
+            return job;
+        });
+        return {
+            updatedCycles,
+            updatedJobs,
+            changedJobIds,
+            priorCycle: null,
+            newCycle: updatedTarget
+        };
+    }
+
     const priorEndedIso = new Date(splitMs - 1).toISOString();
     const priorStartMs = safeDate(targetCycle.startedAt).getTime();
     let adjustedPriorStart = targetCycle.startedAt;
     if (isNaN(priorStartMs) || priorStartMs >= splitMs) {
         // Ensure prior cycle starts at or before its earliest job
-        const earliestPriorMs = (jobs || [])
+        const earliestPriorMs = validJobs
             .filter(j => j && j.status !== 'deleted')
             .map(j => safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime())
             .filter(ms => !isNaN(ms) && ms < splitMs)
@@ -526,10 +573,9 @@ export function splitCycleAtDate(cycles = [], jobs = [], targetCycleId = null, s
 
     const maxNum = Math.max(...resolvedCycles.map(c => Number(c?.cycleNumber) || 1), 0);
     const nextNum = maxNum + 1;
-    const shortLabel = formatShortMonthDayYear(splitIso);
     const newCycle = createCycle(nextNum, {
         id: options.newCycleId,
-        name: options.name || `Current Search (${shortLabel})`,
+        name: defaultSplitName,
         status: 'active',
         startedAt: splitIso,
         endedAt: null,
@@ -630,51 +676,83 @@ export function createTransitionEvent(event = {}) {
 }
 
 /**
- * Reconciles a legacy active cycle that spans across October 1, 2026 when an active search resumed
- * after a break and hasn't been split near October 1 yet.
+ * Reconciles a legacy active cycle that spans well before October 2, 2026 when an active
+ * search began/resumed on October 2, 2026 and hasn't been anchored near October 2 yet.
  */
 export function reconcileOctoberSpikeIfNeeded(jobs = [], cycles = [], options = {}) {
-    const oct1Iso = '2026-10-01T00:00:00.000Z';
-    const oct1Ms = new Date(oct1Iso).getTime();
+    const oct2Iso = options.splitDate || '2026-10-02T00:00:00.000Z';
+    const oct2Ms = new Date(oct2Iso).getTime();
+    const boundaryThresholdMs = oct2Ms - 7 * 86400000;
 
     const validJobs = Array.isArray(jobs) ? jobs.filter(j => j && j.status !== 'deleted') : [];
     const resolvedCycles = resolveCyclesFromJobs(validJobs, cycles);
     if (resolvedCycles.length === 0) return { applied: false };
 
-    // Do not auto-split if a cycle already starts within +-7 days of Oct 1, 2026
-    const hasOctBoundary = resolvedCycles.some(c => {
-        const sMs = safeDate(c?.startedAt).getTime();
-        return !isNaN(sMs) && Math.abs(sMs - oct1Ms) <= 7 * 86400000;
-    });
-    if (hasOctBoundary) return { applied: false };
-
     const activeCycle = getActiveCycle(resolvedCycles);
     if (!activeCycle) return { applied: false };
 
     const activeStartMs = safeDate(activeCycle.startedAt).getTime();
-    if (isNaN(activeStartMs) || activeStartMs >= oct1Ms - 7 * 86400000) {
+    if (isNaN(activeStartMs)) return { applied: false };
+
+    // If a v1 auto-reconcile previously anchored at 2026-10-01 but no active jobs are on Oct 1,
+    // refine start date cleanly to October 2, 2026.
+    if (
+        activeCycle.triggerType === 'activity_spike' &&
+        typeof activeCycle.startedAt === 'string' &&
+        activeCycle.startedAt.startsWith('2026-10-01')
+    ) {
+        const hasOct1Job = validJobs.some(j => {
+            if (j.cycleId && j.cycleId !== activeCycle.id) return false;
+            const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
+            return !isNaN(ms) && ms >= new Date('2026-10-01T00:00:00.000Z').getTime() && ms < oct2Ms;
+        });
+        if (!hasOct1Job) {
+            const updatedCycles = updateCyclePeriod(resolvedCycles, activeCycle.id, {
+                startedAt: oct2Iso,
+                notes: 'Search period started October 2, 2026 following application activity spike.'
+            });
+            const updatedActive = updatedCycles.find(c => c.id === activeCycle.id);
+            return {
+                applied: true,
+                updatedCycles,
+                updatedJobs: jobs,
+                changedJobIds: [],
+                priorCycle: null,
+                newCycle: updatedActive
+            };
+        }
+    }
+
+    // Skip if activeCycle already starts near or after October 2, 2026
+    if (activeStartMs >= boundaryThresholdMs) {
         return { applied: false };
     }
 
-    // Check if there are jobs both before Oct 1 and on/after Oct 1 in the active cycle / unassigned
-    const jobsInActiveScope = validJobs.filter(j => !j.cycleId || j.cycleId === activeCycle.id);
-    const hasPreOct = jobsInActiveScope.some(j => {
-        const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
-        return !isNaN(ms) && ms < oct1Ms;
+    // Do not duplicate if another explicit cycle already starts within +-7 days of Oct 2, 2026
+    const hasOctBoundary = resolvedCycles.some(c => {
+        if (!c || c.id === activeCycle.id) return false;
+        const sMs = safeDate(c.startedAt).getTime();
+        return !isNaN(sMs) && Math.abs(sMs - oct2Ms) <= 7 * 86400000;
     });
+    if (hasOctBoundary) return { applied: false };
+
+    const jobsInActiveScope = validJobs.filter(j => !j.cycleId || j.cycleId === activeCycle.id);
     const hasOctPlus = jobsInActiveScope.some(j => {
         const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
-        return !isNaN(ms) && ms >= oct1Ms;
+        return !isNaN(ms) && ms >= oct2Ms;
+    }) || validJobs.some(j => {
+        const ms = safeDate(j.appliedAt || j.dateAdded || j.createdAt).getTime();
+        return !isNaN(ms) && ms >= oct2Ms;
     });
 
-    if (!hasPreOct || !hasOctPlus) {
+    if (!hasOctPlus) {
         return { applied: false };
     }
 
-    const splitResult = splitCycleAtDate(resolvedCycles, validJobs, activeCycle.id, oct1Iso, {
+    const splitResult = splitCycleAtDate(resolvedCycles, jobs, activeCycle.id, oct2Iso, {
         name: options.name || 'Current Search (Oct 2026)',
         triggerType: 'activity_spike',
-        notes: 'Search period started October 1, 2026 following application activity spike.'
+        notes: 'Search period started October 2, 2026 following application activity spike.'
     });
 
     return {

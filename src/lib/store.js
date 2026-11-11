@@ -19,9 +19,9 @@ import {
 } from './cycle-utils.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
-const OCT1_RECONCILE_KEY = 'novujobs_oct1_cycle_reconciled_v1';
+const OCT2_RECONCILE_KEY = 'novujobs_oct2_cycle_reconciled_v2';
 const appliedAtCleanupInFlight = new Set();
-const oct1ReconcileInFlight = new Set();
+const oct2ReconcileInFlight = new Set();
 
 /**
  * Runs the one-time appliedAt repair for a user (once per device; safe to re-run because
@@ -245,7 +245,7 @@ export const useAppStore = create(
             selectedCycleId: 'active',
             jobSearchMode: true,
             transitionLog: [],
-            oct1Reconciled: false,
+            oct2Reconciled: false,
             offerCelebrationModal: null,
             currentUserId: null, // Track which user's data this is
 
@@ -503,7 +503,7 @@ export const useAppStore = create(
                     selectedCycleId: 'active',
                     jobSearchMode: true,
                     transitionLog: [],
-                    oct1Reconciled: false,
+                    oct2Reconciled: false,
                     offerCelebrationModal: null,
                     profile: {
                         fullName: '',
@@ -541,7 +541,7 @@ export const useAppStore = create(
                     selectedCycleId: 'active',
                     jobSearchMode: true,
                     transitionLog: [],
-                    oct1Reconciled: false,
+                    oct2Reconciled: false,
                     offerCelebrationModal: null,
                     currentUserId: null,
                     profile: {
@@ -1075,32 +1075,36 @@ export const useAppStore = create(
                     }
                 );
 
-                const maybeRunOct1CycleReconciliation = () => {
+                let hasLoadedJobsSnapshot = false;
+                let hasLoadedCyclesSnapshot = false;
+
+                const maybeRunOct2CycleReconciliation = () => {
                     if (typeof window === 'undefined' || !userId) return;
+                    if (!hasLoadedJobsSnapshot || !hasLoadedCyclesSnapshot) return;
                     if (!isOwner(auth?.currentUser)) return;
-                    if (get().oct1Reconciled) return;
-                    const flagKey = `${OCT1_RECONCILE_KEY}_${userId}`;
-                    if (oct1ReconcileInFlight.has(flagKey)) return;
+                    if (get().oct2Reconciled) return;
+                    const flagKey = `${OCT2_RECONCILE_KEY}_${userId}`;
+                    if (oct2ReconcileInFlight.has(flagKey)) return;
                     try {
                         if (localStorage.getItem(flagKey)) return;
                     } catch {
                         return;
                     }
                     const currentJobs = get().jobs || [];
-                    const currentCycles = get().cycles || [];
+                    const currentCycles = resolveCyclesFromJobs(currentJobs, get().cycles || []);
                     if (currentJobs.length === 0 || currentCycles.length === 0) return;
 
-                    oct1ReconcileInFlight.add(flagKey);
+                    oct2ReconcileInFlight.add(flagKey);
                     const rec = reconcileOctoberSpikeIfNeeded(currentJobs, currentCycles);
                     try { localStorage.setItem(flagKey, new Date().toISOString()); } catch { /* ignore */ }
-                    oct1ReconcileInFlight.delete(flagKey);
+                    oct2ReconcileInFlight.delete(flagKey);
 
                     if (rec.applied) {
                         const existingLog = Array.isArray(get().transitionLog) ? get().transitionLog : [];
                         const octEvt = createTransitionEvent({
                             type: 'activity_spike',
-                            date: '2026-10-01T00:00:00.000Z',
-                            note: 'Current search period started October 1, 2026 following application activity spike.',
+                            date: '2026-10-02T00:00:00.000Z',
+                            note: 'Current search period started October 2, 2026 following application activity spike.',
                             cycleId: rec.newCycle.id,
                             cycleNumber: rec.newCycle.cycleNumber
                         });
@@ -1109,17 +1113,17 @@ export const useAppStore = create(
                             cycles: rec.updatedCycles,
                             jobs: rec.updatedJobs,
                             selectedCycleId: 'active',
-                            oct1Reconciled: true,
+                            oct2Reconciled: true,
                             transitionLog: nextLog
                         });
                         saveCyclesToFirestore(userId, rec.updatedCycles, {
-                            oct1Reconciled: true,
+                            oct2Reconciled: true,
                             transitionLog: nextLog
                         });
                         saveJobCycleAssignmentsToFirestore(userId, rec.updatedJobs, rec.changedJobIds);
                     } else {
-                        set({ oct1Reconciled: true });
-                        saveCyclesToFirestore(userId, currentCycles, { oct1Reconciled: true });
+                        set({ oct2Reconciled: true });
+                        saveCyclesToFirestore(userId, currentCycles, { oct2Reconciled: true });
                     }
                 };
 
@@ -1167,7 +1171,8 @@ export const useAppStore = create(
                                 jobs: state.jobs.map(j => (j?.id && byId.has(j.id) ? { ...j, appliedAt: byId.get(j.id) } : j))
                             }));
                         });
-                        maybeRunOct1CycleReconciliation();
+                        hasLoadedJobsSnapshot = true;
+                        maybeRunOct2CycleReconciliation();
                     },
                     (error) => {
                         console.error("[Store] Jobs snapshot error:", error);
@@ -1185,14 +1190,15 @@ export const useAppStore = create(
                             const updates = { cycles: resolved };
                             if (typeof data.jobSearchMode === 'boolean') updates.jobSearchMode = data.jobSearchMode;
                             if (Array.isArray(data.transitionLog)) updates.transitionLog = data.transitionLog;
-                            if (typeof data.oct1Reconciled === 'boolean') updates.oct1Reconciled = data.oct1Reconciled;
+                            if (typeof data.oct2Reconciled === 'boolean') updates.oct2Reconciled = data.oct2Reconciled;
                             set(updates);
                         } else {
                             const initialCycles = resolveCyclesFromJobs(get().jobs, get().cycles || []);
                             set({ cycles: initialCycles });
                             saveCyclesToFirestore(userId, initialCycles);
                         }
-                        maybeRunOct1CycleReconciliation();
+                        hasLoadedCyclesSnapshot = true;
+                        maybeRunOct2CycleReconciliation();
                     },
                     (error) => {
                         console.error("[Store] Cycles snapshot error:", error);
@@ -1215,7 +1221,7 @@ export const useAppStore = create(
                 selectedCycleId: state.selectedCycleId,
                 jobSearchMode: state.jobSearchMode,
                 transitionLog: state.transitionLog,
-                oct1Reconciled: state.oct1Reconciled,
+                oct2Reconciled: state.oct2Reconciled,
                 profile: state.profile,
                 currentUserId: state.currentUserId  // Also persist user ID
             })

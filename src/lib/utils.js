@@ -13,9 +13,14 @@ export const safeDate = (input) => {
         return input;
     }
 
-    // Handle Firestore Timestamp (duck typing)
-    if (typeof input === 'object' && typeof input.toDate === 'function') {
-        return input.toDate();
+    // Handle Firestore Timestamp (live duck typing or serialized { seconds, nanoseconds })
+    if (typeof input === 'object') {
+        if (typeof input.toDate === 'function') {
+            return input.toDate();
+        }
+        if (typeof input.seconds === 'number') {
+            return new Date(input.seconds * 1000);
+        }
     }
 
     // Handle strings or numbers with Safari ISO date parsing tolerance

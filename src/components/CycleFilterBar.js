@@ -62,7 +62,7 @@ export default function CycleFilterBar({ className = '', style = {} }) {
     const [lossNote, setLossNote] = useState('');
 
     // Split / Edit Period form
-    const [splitDateInput, setSplitDateInput] = useState('2026-10-01');
+    const [splitDateInput, setSplitDateInput] = useState('2026-10-02');
     const [splitNameInput, setSplitNameInput] = useState('');
     const [editingCycleId, setEditingCycleId] = useState('');
     const [editName, setEditName] = useState('');
