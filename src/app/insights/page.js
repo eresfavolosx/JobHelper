@@ -9,6 +9,7 @@ import JobSankeyChart from '@/components/JobSankeyChart';
 import JobGanttChart from '@/components/JobGanttChart';
 import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
+import MetricsTrendPanel from '@/components/MetricsTrendPanel';
 import CycleFilterBar from '@/components/CycleFilterBar';
 import { filterJobsByCycle, calculateCycleStats, resolveCyclesFromJobs, getActiveCycle } from '@/lib/cycle-utils';
 
@@ -205,6 +206,8 @@ export default function InsightsPage() {
                                 );
                             })}
                         </div>
+
+                        <MetricsTrendPanel jobs={jobs} />
 
                         <ApplicationHistoryChart jobs={jobs} />
                     </>
