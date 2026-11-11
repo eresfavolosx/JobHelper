@@ -3,10 +3,10 @@ import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } fro
 import { createPortal } from 'react-dom';
 import { 
     Bell, CheckCircle2, Clock, AlertTriangle, Sparkles, 
-    X, ChevronRight, Send, Sunrise, Mail, Shield
+    X, ChevronRight, Send, Sunrise, Mail, Shield, TrendingUp
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { filterJobsByCycle } from '@/lib/cycle-utils';
+import { filterJobsByCycle, detectSearchActivitySpikes } from '@/lib/cycle-utils';
 import { useAuth } from '@/lib/auth-context';
 import { isOwner } from '@/lib/subscription';
 import AnthropicFellowsModal from './AnthropicFellowsModal';
@@ -18,6 +18,9 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const jobSearchMode = useAppStore(state => state.jobSearchMode);
+    const splitCycleAtDate = useAppStore(state => state.splitCycleAtDate);
+    const setJobSearchMode = useAppStore(state => state.setJobSearchMode);
     const jobs = useMemo(() => {
         if (propJobs) return propJobs;
         return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
@@ -171,39 +174,82 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
     // Compute notifications based on active jobs
     const notifications = useMemo(() => {
         const list = [];
-        const activeJobs = jobs.filter(j => j && j.status !== 'deleted');
 
-        activeJobs.forEach(job => {
-            const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
-            if (!refDate) return;
-            const diff = now.getTime() - new Date(refDate).getTime();
-            const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+        if (jobSearchMode === false) {
+            list.push({
+                id: 'standby-mode-notice',
+                type: 'standby',
+                title: 'Standby Mode Active',
+                message: 'Urgent ghost and follow-up alerts are paused while you are not actively searching.',
+                color: 'var(--text-secondary)',
+                actionLabel: 'Activate Search Mode',
+                onAction: () => {
+                    setJobSearchMode(true);
+                }
+            });
+        } else {
+            const activeJobs = jobs.filter(j => j && j.status !== 'deleted');
 
-            if (job.status === 'applied' || job.status === 'screening' || job.status === 'interviewing') {
-                if (days >= 10) {
-                    list.push({
-                        id: `ghost-${job.id}`,
-                        jobId: job.id,
-                        type: 'ghost',
-                        title: `Ghost Alert: ${job.company}`,
-                        message: `No updates for ${days} days on your ${job.role || job.title} application. High chance of dropping off without a nudge.`,
-                        days,
-                        color: '#ef4444',
-                        job
+            activeJobs.forEach(job => {
+                const refDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
+                if (!refDate) return;
+                const diff = now.getTime() - new Date(refDate).getTime();
+                const days = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+
+                if (job.status === 'applied' || job.status === 'screening' || job.status === 'interviewing') {
+                    if (days >= 10) {
+                        list.push({
+                            id: `ghost-${job.id}`,
+                            jobId: job.id,
+                            type: 'ghost',
+                            title: `Ghost Alert: ${job.company}`,
+                            message: `No updates for ${days} days on your ${job.role || job.title} application. High chance of dropping off without a nudge.`,
+                            days,
+                            color: '#ef4444',
+                            job
+                        });
+                    } else if (days >= 5) {
+                        list.push({
+                            id: `followup-${job.id}`,
+                            jobId: job.id,
+                            type: 'followup',
+                            title: `Follow-Up Window: ${job.company}`,
+                            message: `${days} days since applied for ${job.role || job.title}. This is the optimal window to send a value-add follow-up.`,
+                            days,
+                            color: '#f59e0b',
+                            job
+                        });
+                    }
+                }
+            });
+        }
+
+        // Surface un-dismissed activity spikes (resumption after dormancy)
+        const detectedSpikes = detectSearchActivitySpikes(rawJobs, cycles);
+        detectedSpikes.forEach((spike) => {
+            const spikeNotificationId = `spike-${spike.id}`;
+            list.unshift({
+                id: spikeNotificationId,
+                type: 'spike',
+                title: `Search Spike Detected (${spike.dayLabel})`,
+                message: `${spike.jobsAfterCount} applications after ${spike.gapDays} quiet days — split into a fresh search period?`,
+                color: '#f59e0b',
+                actionLabel: `Split Period at ${spike.dayLabel}`,
+                onAction: () => {
+                    splitCycleAtDate(spike.dayStr, {
+                        name: `Search Cycle (${spike.dayLabel})`,
+                        triggerType: 'auto_spike',
+                        notes: `Split from activity spike on ${spike.dayLabel}`
                     });
-                } else if (days >= 5) {
-                    list.push({
-                        id: `followup-${job.id}`,
-                        jobId: job.id,
-                        type: 'followup',
-                        title: `Follow-Up Window: ${job.company}`,
-                        message: `${days} days since applied for ${job.role || job.title}. This is the optimal window to send a value-add follow-up.`,
-                        days,
-                        color: '#f59e0b',
-                        job
+                    setDismissedIds(prev => {
+                        const next = new Set(prev).add(spikeNotificationId);
+                        try {
+                            localStorage.setItem('novujobs_dismissed_notifications', JSON.stringify(Array.from(next)));
+                        } catch {}
+                        return next;
                     });
                 }
-            }
+            });
         });
 
         // Add recommendation tip
@@ -233,7 +279,7 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
         }
 
         return list.filter(item => !dismissedIds.has(item.id));
-    }, [jobs, dismissedIds, now, isPlatformOwner]);
+    }, [jobs, rawJobs, cycles, jobSearchMode, dismissedIds, now, isPlatformOwner, splitCycleAtDate, setJobSearchMode]);
 
     const unreadCount = notifications.length;
 
@@ -453,6 +499,10 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                             <AlertTriangle size={14} color="#ef4444" />
                                         ) : item.type === 'followup' ? (
                                             <Clock size={14} color="#f59e0b" />
+                                        ) : item.type === 'spike' ? (
+                                            <TrendingUp size={14} color="#f59e0b" />
+                                        ) : item.type === 'standby' ? (
+                                            <Clock size={14} color="var(--text-secondary)" />
                                         ) : item.type === 'anthropic' ? (
                                             <Shield size={14} color="var(--accent-primary)" />
                                         ) : (
@@ -486,7 +536,13 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                                     borderRadius: '6px'
                                                 }}
                                             >
-                                                <Shield size={12} color="var(--accent-primary)" /> {item.actionLabel || 'Open Prep Hub'}
+                                                {item.type === 'spike' ? (
+                                                    <TrendingUp size={12} color="#f59e0b" />
+                                                ) : item.type === 'standby' ? (
+                                                    <Sparkles size={12} color="var(--accent-primary)" />
+                                                ) : (
+                                                    <Shield size={12} color="var(--accent-primary)" />
+                                                )} {item.actionLabel || 'Open Prep Hub'}
                                             </button>
                                         </div>
                                     )}

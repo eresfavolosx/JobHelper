@@ -7,7 +7,12 @@ import {
     closeCycleWithAcceptedOffer,
     reopenCycleForRevertedOffer,
     filterJobsByCycle,
-    calculateCycleStats
+    calculateCycleStats,
+    detectSearchActivitySpikes,
+    splitCycleAtDate,
+    updateCyclePeriod,
+    createTransitionEvent,
+    reconcileOctoberSpikeIfNeeded
 } from './cycle-utils.js';
 
 describe('cycle-utils — Job Search Cycles & Cohort Filtering Engine', () => {
@@ -188,6 +193,138 @@ describe('cycle-utils — Job Search Cycles & Cohort Filtering Engine', () => {
             assert.equal(stats.accepted, 1);
             assert.equal(stats.durationDays, 30);
             assert.equal(stats.isCompleted, true);
+        });
+    });
+
+    describe('detectSearchActivitySpikes', () => {
+        test('detects activity resumption after a dormancy gap >= 21 days', () => {
+            const jobs = [
+                { id: 'j1', company: 'Old1', status: 'rejected', appliedAt: '2026-07-05T12:00:00.000Z' },
+                { id: 'j2', company: 'Old2', status: 'rejected', appliedAt: '2026-07-10T12:00:00.000Z' },
+                { id: 'j3', company: 'Oct1', status: 'applied', appliedAt: '2026-10-01T14:00:00.000Z' },
+                { id: 'j4', company: 'Oct2', status: 'applied', appliedAt: '2026-10-02T14:00:00.000Z' },
+                { id: 'j5', company: 'Oct3', status: 'screening', appliedAt: '2026-10-03T14:00:00.000Z' }
+            ];
+            const cycles = [createCycle(1, { id: 'c1', startedAt: '2026-07-05T00:00:00.000Z', status: 'active' })];
+            const spikes = detectSearchActivitySpikes(jobs, cycles);
+
+            assert.ok(spikes.length >= 1);
+            const octSpike = spikes.find(s => s.dayStr === '2026-10-01');
+            assert.ok(octSpike, 'Should suggest 2026-10-01 as spike start');
+            assert.ok(octSpike.gapDays >= 21);
+            assert.equal(octSpike.jobsBeforeCount, 2);
+            assert.equal(octSpike.jobsAfterCount, 3);
+        });
+
+        test('deduplicates spike suggestion when an existing cycle already starts near that date', () => {
+            const jobs = [
+                { id: 'j1', company: 'Old1', appliedAt: '2026-07-05T12:00:00.000Z' },
+                { id: 'j2', company: 'Oct1', appliedAt: '2026-10-01T14:00:00.000Z' },
+                { id: 'j3', company: 'Oct2', appliedAt: '2026-10-02T14:00:00.000Z' }
+            ];
+            const cycles = [
+                createCycle(1, { id: 'c1', startedAt: '2026-07-05T00:00:00.000Z', endedAt: '2026-10-01T00:00:00.000Z', status: 'completed' }),
+                createCycle(2, { id: 'c2', startedAt: '2026-10-01T00:00:00.000Z', status: 'active' })
+            ];
+            const spikes = detectSearchActivitySpikes(jobs, cycles);
+            assert.equal(spikes.length, 0);
+        });
+    });
+
+    describe('splitCycleAtDate & updateCyclePeriod', () => {
+        test('splits cycle at custom date and reassigns jobs on/after split date', () => {
+            const c1 = createCycle(1, { id: 'c1', name: 'Search Cycle 1', startedAt: '2026-06-01T00:00:00.000Z', status: 'active' });
+            const jobs = [
+                { id: 'j1', company: 'SummerCo', appliedAt: '2026-06-15T10:00:00.000Z', cycleId: 'c1', cycleNumber: 1 },
+                { id: 'j2', company: 'OctCoA', appliedAt: '2026-10-01T10:00:00.000Z', cycleId: 'c1', cycleNumber: 1 },
+                { id: 'j3', company: 'OctCoB', appliedAt: '2026-10-12T10:00:00.000Z', cycleId: 'c1', cycleNumber: 1 }
+            ];
+
+            const result = splitCycleAtDate([c1], jobs, 'c1', '2026-10-01', {
+                name: 'Fall Search',
+                triggerType: 'manual_split'
+            });
+
+            assert.equal(result.updatedCycles.length, 2);
+            assert.equal(result.priorCycle.status, 'completed');
+            assert.equal(result.newCycle.status, 'active');
+            assert.equal(result.newCycle.name, 'Fall Search');
+            assert.equal(result.newCycle.triggerType, 'manual_split');
+            assert.deepEqual(result.changedJobIds.sort(), ['j2', 'j3']);
+
+            const j1 = result.updatedJobs.find(j => j.id === 'j1');
+            const j2 = result.updatedJobs.find(j => j.id === 'j2');
+            assert.equal(j1.cycleId, 'c1');
+            assert.equal(j2.cycleId, result.newCycle.id);
+        });
+
+        test('updateCyclePeriod updates cycle name, dates, and metadata cleanly', () => {
+            const c1 = createCycle(1, { id: 'c1', name: 'Old Name', startedAt: '2026-06-01T00:00:00.000Z', status: 'active' });
+            const updated = updateCyclePeriod([c1], 'c1', {
+                name: 'October Search',
+                startedAt: '2026-10-01',
+                notes: 'Started fresh in Oct'
+            });
+
+            assert.equal(updated.length, 1);
+            assert.equal(updated[0].name, 'October Search');
+            assert.equal(updated[0].notes, 'Started fresh in Oct');
+            assert.ok(updated[0].startedAt.startsWith('2026-10-01'));
+        });
+    });
+
+    describe('createTransitionEvent', () => {
+        test('creates structured transition log event with defaults', () => {
+            const ev = createTransitionEvent({
+                type: 'job_loss',
+                date: '2026-10-01',
+                company: 'Acme Inc',
+                role: 'Staff Engineer',
+                note: 'Team restructuring',
+                cycleId: 'c2',
+                cycleNumber: 2
+            });
+
+            assert.ok(ev.id);
+            assert.equal(ev.type, 'job_loss');
+            assert.ok(ev.date.startsWith('2026-10-01'));
+            assert.equal(ev.company, 'Acme Inc');
+            assert.equal(ev.role, 'Staff Engineer');
+            assert.equal(ev.note, 'Team restructuring');
+            assert.equal(ev.cycleId, 'c2');
+            assert.equal(ev.cycleNumber, 2);
+            assert.ok(ev.createdAt);
+        });
+    });
+
+    describe('reconcileOctoberSpikeIfNeeded', () => {
+        test('splits active cycle mixing pre-Oct and Oct+ jobs into an October cycle', () => {
+            const c1 = createCycle(1, { id: 'c1', name: 'Search Cycle 1', startedAt: '2026-05-01T00:00:00.000Z', status: 'active' });
+            const jobs = [
+                { id: 'j1', company: 'MayCo', appliedAt: '2026-05-10T10:00:00.000Z', cycleId: 'c1', cycleNumber: 1 },
+                { id: 'j2', company: 'OctCo1', appliedAt: '2026-10-01T12:00:00.000Z', cycleId: 'c1', cycleNumber: 1 },
+                { id: 'j3', company: 'OctCo2', appliedAt: '2026-10-05T12:00:00.000Z', cycleId: 'c1', cycleNumber: 1 }
+            ];
+
+            const res = reconcileOctoberSpikeIfNeeded(jobs, [c1]);
+            assert.equal(res.applied, true);
+            assert.equal(res.updatedCycles.length, 2);
+            assert.equal(res.priorCycle.status, 'completed');
+            assert.equal(res.newCycle.status, 'active');
+            assert.ok(res.newCycle.startedAt.startsWith('2026-10-01'));
+            assert.deepEqual(res.changedJobIds.sort(), ['j2', 'j3']);
+        });
+
+        test('skips reconciliation when an October cycle already exists', () => {
+            const c1 = createCycle(1, { id: 'c1', startedAt: '2026-05-01T00:00:00.000Z', endedAt: '2026-10-01T00:00:00.000Z', status: 'completed' });
+            const c2 = createCycle(2, { id: 'c2', startedAt: '2026-10-01T00:00:00.000Z', status: 'active' });
+            const jobs = [
+                { id: 'j1', company: 'MayCo', appliedAt: '2026-05-10T10:00:00.000Z', cycleId: 'c1', cycleNumber: 1 },
+                { id: 'j2', company: 'OctCo1', appliedAt: '2026-10-01T12:00:00.000Z', cycleId: 'c2', cycleNumber: 2 }
+            ];
+
+            const res = reconcileOctoberSpikeIfNeeded(jobs, [c1, c2]);
+            assert.equal(res.applied, false);
         });
     });
 });
