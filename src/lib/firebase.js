@@ -35,4 +35,15 @@ const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+export function createGoogleProviderForAccount(emailHint = '') {
+    const provider = new GoogleAuthProvider();
+    const trimmedHint = typeof emailHint === 'string' ? emailHint.trim() : '';
+    provider.setCustomParameters(
+        trimmedHint
+            ? { login_hint: trimmedHint, prompt: 'select_account' }
+            : { prompt: 'select_account' }
+    );
+    return provider;
+}
+
 export { auth, db, googleProvider };

@@ -14,6 +14,7 @@ import UndoToast from '@/components/UndoToast';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { getRememberSignInPreference, upsertSavedAccount } from '@/lib/saved-accounts';
 import { useAppStore } from '@/lib/store';
 import { isOwner, isProUser } from '@/lib/subscription';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -376,6 +377,9 @@ function NavContent({ onOpenMorningSync }) {
 
     const handleSignOut = async () => {
         try {
+            if (getRememberSignInPreference() && auth.currentUser) {
+                upsertSavedAccount(auth.currentUser);
+            }
             useAppStore.getState().clearUserData();
             await signOut(auth);
             router.push('/login');
