@@ -5,12 +5,14 @@ import {
     signInWithPopup,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
+    sendPasswordResetEmail,
     setPersistence,
     browserLocalPersistence,
     browserSessionPersistence,
 } from "firebase/auth";
 import { auth, googleProvider, createGoogleProviderForAccount } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { mapPasswordActionError } from "@/lib/account-security";
 import {
     subscribeSavedAccounts,
     getSavedAccountsSnapshot,
@@ -22,7 +24,7 @@ import {
     upsertSavedAccount,
     removeSavedAccount,
 } from "@/lib/saved-accounts";
-import { Lock, Mail, Eye, EyeOff, Loader, Briefcase, Sparkles, ArrowRight, ShieldCheck, AlertCircle, UserCheck, X } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, Loader, Briefcase, Sparkles, ArrowRight, ShieldCheck, AlertCircle, UserCheck, X, KeyRound, CheckCircle } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 function GoogleIcon() {
@@ -56,6 +58,8 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [resetLoading, setResetLoading] = useState(false);
+    const [resetMessage, setResetMessage] = useState('');
     const [selectedSavedEmail, setSelectedSavedEmail] = useState('');
     const passwordInputRef = useRef(null);
     const savedAccounts = useSyncExternalStore(
@@ -124,6 +128,35 @@ export default function LoginPage() {
         removeSavedAccount(account.email || account.uid);
         if (selectedSavedEmail && account.email?.toLowerCase() === selectedSavedEmail.toLowerCase()) {
             setSelectedSavedEmail('');
+        }
+    };
+
+    const handlePasswordReset = async (targetEmail = '') => {
+        const recipient = (typeof targetEmail === 'string' && targetEmail.trim())
+            ? targetEmail.trim()
+            : (email.trim() || selectedSavedEmail.trim());
+
+        setError('');
+        setResetMessage('');
+
+        if (!recipient) {
+            setError('Enter your email address below (or select a saved account) to send a password reset or setup link.');
+            return;
+        }
+
+        setResetLoading(true);
+        try {
+            await sendPasswordResetEmail(auth, recipient);
+            setIsSignUp(false);
+            setEmail(recipient);
+            setResetMessage(
+                `Password reset / setup email sent to ${recipient}. Check your inbox (and spam) to set a password, then sign in with Email & Password. If this account only uses Google Sign-In and no email arrives, sign in with Google once and set a password directly in Profile → Sign-In & Password.`
+            );
+        } catch (err) {
+            console.error('Password reset error:', err);
+            setError(mapPasswordActionError(err));
+        } finally {
+            setResetLoading(false);
         }
     };
 
@@ -282,7 +315,7 @@ export default function LoginPage() {
                 }}>
                     <button
                         type="button"
-                        onClick={() => { setIsSignUp(false); setError(''); }}
+                        onClick={() => { setIsSignUp(false); setError(''); setResetMessage(''); }}
                         style={{
                             flex: 1,
                             padding: '8px 14px',
@@ -301,7 +334,7 @@ export default function LoginPage() {
                     </button>
                     <button
                         type="button"
-                        onClick={() => { setIsSignUp(true); setError(''); }}
+                        onClick={() => { setIsSignUp(true); setError(''); setResetMessage(''); }}
                         style={{
                             flex: 1,
                             padding: '8px 14px',
@@ -340,6 +373,30 @@ export default function LoginPage() {
                     >
                         <AlertCircle size={16} style={{ flexShrink: 0 }} />
                         <span>{error}</span>
+                    </div>
+                )}
+
+                {resetMessage && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        style={{
+                            padding: '10px 14px',
+                            background: 'rgba(34, 197, 94, 0.12)',
+                            color: 'var(--success)',
+                            borderRadius: '12px',
+                            marginBottom: '18px',
+                            fontSize: '0.83rem',
+                            lineHeight: 1.45,
+                            border: '1px solid rgba(34, 197, 94, 0.28)',
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '8px'
+                        }}
+                    >
+                        <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <span>{resetMessage}</span>
                     </div>
                 )}
 
@@ -467,6 +524,28 @@ export default function LoginPage() {
                                                 </span>
                                             </span>
                                             <ArrowRight size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={resetLoading || loading}
+                                            onClick={() => handlePasswordReset(account.email)}
+                                            aria-label={`Reset or set password for ${account.email}`}
+                                            title={isGoogle ? `Set or reset password for ${account.email} to sign in without Google` : `Send password reset email to ${account.email}`}
+                                            style={{
+                                                minWidth: '36px',
+                                                minHeight: '36px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'var(--text-secondary)',
+                                                cursor: resetLoading || loading ? 'not-allowed' : 'pointer',
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <KeyRound size={15} />
                                         </button>
                                         <button
                                             type="button"
@@ -631,6 +710,31 @@ export default function LoginPage() {
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                     </div>
+
+                    {!isSignUp && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                            <button
+                                type="button"
+                                disabled={resetLoading || loading}
+                                onClick={() => handlePasswordReset()}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: '4px 2px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--accent-primary)',
+                                    cursor: resetLoading || loading ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                }}
+                            >
+                                {resetLoading ? <Loader size={13} className="spin" /> : <KeyRound size={13} />}
+                                <span>Forgot or set password?</span>
+                            </button>
+                        </div>
+                    )}
 
                     <div style={{ marginBottom: '14px' }}>
                         <label

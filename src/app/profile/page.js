@@ -11,6 +11,7 @@ import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
+import AccountSecurityCard from '@/components/AccountSecurityCard';
 
 const emptySubscribe = () => () => {};
 
@@ -687,7 +688,10 @@ function ProfileContent() {
                     <SubscriptionManager />
                 </div>
 
-                {/* 2. MCP & External AI Assistant Integration */}
+                {/* 2. Sign-In & Password Management */}
+                <AccountSecurityCard />
+
+                {/* 3. MCP & External AI Assistant Integration */}
                 <McpIntegrationCard />
 
                 {/* 3. Data Management */}
