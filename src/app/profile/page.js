@@ -12,6 +12,7 @@ import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import AccountSecurityCard from '@/components/AccountSecurityCard';
+import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 const emptySubscribe = () => () => {};
 
@@ -396,7 +397,7 @@ function ProfileContent() {
         }
     }, [profile]);
 
-    if (loading) return null; // Wait for auth check
+    if (loading) return <ProfileSkeleton />;
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;

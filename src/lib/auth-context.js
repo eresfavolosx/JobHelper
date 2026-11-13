@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
+import { AppShellSkeleton } from "@/components/SkeletonLoaders";
 
 const AuthContext = createContext({});
 
@@ -92,30 +93,7 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{ user, loading }}>
             {loading ? (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    background: 'var(--bg-app)',
-                    color: 'var(--text-primary)',
-                    zIndex: 9999
-                }}>
-                    <div style={{
-                        width: '40px',
-                        height: '40px',
-                        border: '3px solid var(--border-subtle)',
-                        borderTopColor: 'var(--accent-primary)',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                    }} />
-                    <style>{`
-                        @keyframes spin {
-                            to { transform: rotate(360deg); }
-                        }
-                    `}</style>
-                </div>
+                <AppShellSkeleton label="Loading your career workspace" />
             ) : (
                 children
             )}

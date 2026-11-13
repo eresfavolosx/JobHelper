@@ -3,12 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     X, Sparkles, Clock, AlertTriangle, Copy, Mail, 
-    Send, Briefcase, FileText, Lightbulb, Check, Loader, Lock
+    Send, Briefcase, FileText, Lightbulb, Check, Lock
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
 import { isOwner, isProUser } from '@/lib/subscription';
+import { CareerCoachSkeleton } from '@/components/SkeletonLoaders';
 
 export default function AiCareerCoachModal({ job, isOpen, onClose, onOpenUpgrade }) {
     const { user } = useAuth();
@@ -407,15 +408,7 @@ Return ONLY valid JSON matching this schema:
                         </div>
                     </div>
                 ) : loading ? (
-                    <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-                        <Loader size={36} className="spin" style={{ margin: '0 auto 16px', color: 'var(--accent-primary)' }} />
-                        <div style={{ fontWeight: '600', fontSize: '1.05rem' }}>
-                            Consulting AI Career Agent...
-                        </div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '6px' }}>
-                            Analyzing role expectations, company background, and candidate strengths.
-                        </div>
-                    </div>
+                    <CareerCoachSkeleton label="Consulting AI Career Agent" />
                 ) : error ? (
                     <div style={{ padding: '24px', textAlign: 'center', color: '#ef4444' }}>
                         <AlertTriangle size={32} style={{ margin: '0 auto 8px' }} />

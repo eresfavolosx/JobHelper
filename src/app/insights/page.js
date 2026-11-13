@@ -11,6 +11,7 @@ import MarketBenchmarkView from '@/components/MarketBenchmarkView';
 import ApplicationHistoryChart from '@/components/ApplicationHistoryChart';
 import MetricsTrendPanel from '@/components/MetricsTrendPanel';
 import CycleFilterBar from '@/components/CycleFilterBar';
+import { InsightsSkeleton } from '@/components/SkeletonLoaders';
 import { filterJobsByCycle, calculateCycleStats, resolveCyclesFromJobs, getActiveCycle } from '@/lib/cycle-utils';
 
 const emptySubscribe = () => () => {};
@@ -93,11 +94,7 @@ export default function InsightsPage() {
     }, [jobs, cycles, selectedCycleId]);
 
     if (!mounted || loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <div className="spinner" />
-            </div>
-        );
+        return <InsightsSkeleton />;
     }
 
     const interviews = overview.screening + overview.interviewing + overview.offers;
