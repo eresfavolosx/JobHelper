@@ -14,6 +14,7 @@ import CycleFilterBar from '@/components/CycleFilterBar';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { isOwner } from '@/lib/subscription';
 import { extractJobFacets } from '@/lib/job-search';
+import { DashboardSkeleton } from '@/components/SkeletonLoaders';
 
 const emptySubscribe = () => () => {};
 
@@ -64,7 +65,7 @@ export default function Home() {
 
     const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
-    if (!mounted || loading) return null; // Prevent hydration mismatch and show nothing while checking auth
+    if (!mounted || loading) return <DashboardSkeleton />;
     if (!user) return null; // Don't render anything if not authenticated (redirect is happening)
 
     const isNewUser = !jobs || stats.total === 0;

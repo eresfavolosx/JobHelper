@@ -262,16 +262,17 @@ button {
   width: 100%;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.sr-only:where(:not(:focus-within, :active)),
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Job Card Actions - subtly visible by default so actions are immediately discoverable */
@@ -1164,6 +1165,43 @@ textarea:focus {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* Compositor-safe Skeleton Loaders */
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background: var(--glass-highlight, rgba(118, 133, 142, 0.14));
+  border-radius: 8px;
+}
+
+.skeleton-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-block::after {
+    animation: skeletonShimmerTranslate 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes skeletonShimmerTranslate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
   }
 }
 

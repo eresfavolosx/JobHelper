@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from 'react';
+import { InsightsSkeleton } from '@/components/SkeletonLoaders';
 
 /**
  * Lightweight client-side redirect used by legacy analytics routes
@@ -11,9 +12,5 @@ export default function InsightsRedirect({ tab }) {
         window.location.replace(`/insights#${tab}`);
     }, [tab]);
 
-    return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-            <div className="spinner" />
-        </div>
-    );
+    return <InsightsSkeleton label="Redirecting to insights" />;
 }

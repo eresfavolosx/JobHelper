@@ -14,6 +14,7 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import { useUIStore } from '@/lib/uiStore';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
+import { KanbanSkeleton } from '@/components/SkeletonLoaders';
 
 const emptySubscribe = () => () => {};
 
@@ -53,7 +54,7 @@ export default function KanbanPage() {
         }
     }, [exportMenuOpen]);
 
-    if (!mounted || loading) return null;
+    if (!mounted || loading) return <KanbanSkeleton />;
     if (!user) return null;
 
     const handleOpenCoach = (job) => {

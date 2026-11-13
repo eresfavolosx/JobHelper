@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
-    Loader,
     AlertCircle,
     Plus,
     Sparkles,
@@ -26,6 +25,7 @@ import {
 import { sanitizeUrl } from '@/lib/utils';
 import UpgradeModal from '@/components/UpgradeModal';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
+import { RecommendationsSkeleton } from '@/components/SkeletonLoaders';
 
 const CACHE_KEY = 'jobhelper_recommendations_cache_v2';
 const FP_CACHE_KEY = 'jobhelper_recommendations_fp_cache_v1';
@@ -319,10 +319,7 @@ export default function RecommendationsPage() {
             )}
 
             {loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px', gap: '24px' }}>
-                    <Loader size={48} className="spin" color="var(--accent-primary)" />
-                    <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Extracting posting facts, checking eligibility gates, and matching evidence...</p>
-                </div>
+                <RecommendationsSkeleton />
             ) : !hasAccess ? (
                 <div className="card" style={{
                     textAlign: 'center',
