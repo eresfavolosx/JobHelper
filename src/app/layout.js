@@ -28,6 +28,8 @@ import GlobalJobSearchModal from '@/components/GlobalJobSearchModal';
 import GoalCelebrationOverlay from '@/components/GoalCelebrationOverlay';
 import OfferAcceptedCycleModal from '@/components/OfferAcceptedCycleModal';
 import AgentModeHud from '@/components/AgentModeHud';
+import TwoFactorGate from '@/components/TwoFactorGate';
+import { isSession2FAVerified } from '@/lib/totp';
 import { AGENT_SELECTORS, buildAgentSnapshot } from '@/lib/agent-helper';
 
 
@@ -111,6 +113,8 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 
 function AuthenticatedLayout({ children }) {
     const { user } = useAuth();
+    const profile = useAppStore(state => state.profile);
+    const [is2FAUnlocked, setIs2FAUnlocked] = useState(false);
     const jobs = useAppStore(state => state.jobs);
     const isJobModalOpen = useUIStore(state => state.isJobModalOpen);
     const closeJobModal = useUIStore(state => state.closeJobModal);
@@ -126,6 +130,14 @@ function AuthenticatedLayout({ children }) {
     const activeJobsCount = Array.isArray(jobs)
         ? jobs.filter(j => j && j.status !== 'deleted').length
         : 0;
+
+    const requires2FA = Boolean(
+        user &&
+        profile?.security2FA?.enabled &&
+        profile?.security2FA?.secret &&
+        !isSession2FAVerified(user?.uid) &&
+        !is2FAUnlocked
+    );
 
     // Sync saved agent mode preference on mount
     useEffect(() => {
@@ -288,6 +300,9 @@ function AuthenticatedLayout({ children }) {
                     onClose={() => setCoachJob(null)}
                     job={coachJob}
                 />
+            )}
+            {requires2FA && (
+                <TwoFactorGate onUnlocked={() => setIs2FAUnlocked(true)} />
             )}
         </>
     );

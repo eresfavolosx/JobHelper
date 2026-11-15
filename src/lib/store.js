@@ -17,6 +17,7 @@ import {
     reconcileOctoberSpikeIfNeeded,
     normalizeToDayStartIso
 } from './cycle-utils.js';
+import { clearSession2FAVerification } from './totp.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const OCT2_RECONCILE_KEY = 'novujobs_oct2_cycle_reconciled_v2';
@@ -101,7 +102,7 @@ const ALLOWED_PROFILE_KEYS = new Set([
     'contextDocuments', 'resumeAnalysis', 'geminiApiKey',
     'claudeApiKey', 'openaiApiKey', 'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
     'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
-    'applicationGoal', 'updatedAt'
+    'applicationGoal', 'security2FA', 'updatedAt'
 ]);
 
 const ALLOWED_GOAL_KEYS = new Set([
@@ -186,6 +187,17 @@ export function sanitizeProfileForFirestore(rawProfile) {
         }
         if (key === 'minimumSalary') {
             cleaned[key] = val === null ? '' : String(val).slice(0, 50);
+        } else if (key === 'security2FA') {
+            if (val && typeof val === 'object') {
+                cleaned[key] = {
+                    enabled: Boolean(val.enabled),
+                    secret: typeof val.secret === 'string' ? val.secret.trim() : '',
+                    backupCodes: Array.isArray(val.backupCodes) ? val.backupCodes.map(String).slice(0, 16) : [],
+                    enabledAt: typeof val.enabledAt === 'string' ? val.enabledAt : null
+                };
+            } else {
+                cleaned[key] = null;
+            }
         } else if (key === 'applicationGoal' && val && typeof val === 'object') {
             const goalClean = {};
             for (const gKey of Object.keys(val)) {
@@ -526,7 +538,8 @@ export const useAppStore = create(
                         googleMapsApiKey: '',
                         subscriptionStatus: 'free', // 'free', 'premium', 'trial'
                         trialStartDate: null,
-                        trialEndDate: null
+                        trialEndDate: null,
+                        security2FA: null
                     },
                     currentUserId: userId
                 });
@@ -535,6 +548,7 @@ export const useAppStore = create(
             // Clear all user data on logout
             clearUserData: () => {
                 console.log("Clearing user data on logout");
+                clearSession2FAVerification();
                 set({
                     jobs: [],
                     cycles: [],
@@ -565,7 +579,8 @@ export const useAppStore = create(
                         googleMapsApiKey: '',
                         subscriptionStatus: 'free',
                         trialStartDate: null,
-                        trialEndDate: null
+                        trialEndDate: null,
+                        security2FA: null
                     }
                 });
             },
@@ -931,7 +946,8 @@ export const useAppStore = create(
                 googleMapsApiKey: '', // Google Maps API Key for commute & location intelligence
                 subscriptionStatus: 'free',
                 trialStartDate: null,
-                trialEndDate: null
+                trialEndDate: null,
+                security2FA: null
             },
             isPremium: () => {
                 const currentUser = auth?.currentUser;
@@ -1011,7 +1027,7 @@ export const useAppStore = create(
                                 'experienceLevel', 'country', 'modality', 'minimumSalary',
                                 'geminiApiKey', 'claudeApiKey', 'openaiApiKey',
                                 'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
-                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis'
+                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis', 'security2FA'
                             ];
 
                             if (localTime > remoteTime) {

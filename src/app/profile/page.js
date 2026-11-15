@@ -12,6 +12,7 @@ import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import AccountSecurityCard from '@/components/AccountSecurityCard';
+import TwoFactorAuthCard from '@/components/TwoFactorAuthCard';
 import { ProfileSkeleton } from '@/components/SkeletonLoaders';
 
 const emptySubscribe = () => () => {};
@@ -691,6 +692,7 @@ function ProfileContent() {
 
                 {/* 2. Sign-In & Password Management */}
                 <AccountSecurityCard />
+                <TwoFactorAuthCard />
 
                 {/* 3. MCP & External AI Assistant Integration */}
                 <McpIntegrationCard />
