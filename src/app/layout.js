@@ -960,7 +960,7 @@ function NavContent({ onOpenMorningSync }) {
                                     }}>
                                         {user.email}
                                     </p>
-                                    <div style={{ marginTop: '4px' }}>
+                                    <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
                                         {isPlatformOwner ? (
                                             <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'linear-gradient(135deg, #eab308, #ca8a04)', color: 'black', fontWeight: 'bold' }}>
                                                 👑 OWNER
@@ -976,6 +976,25 @@ function NavContent({ onOpenMorningSync }) {
                                                 style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(107, 126, 103, 0.16)', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 'bold' }}
                                             >
                                                 Free (25 Cap) · Upgrade
+                                            </Link>
+                                        )}
+                                        {profile?.security2FA?.enabled && profile?.security2FA?.secret ? (
+                                            <Link
+                                                href="/profile#two-factor-auth-section"
+                                                onClick={closeMobileMenu}
+                                                title="Manage Two-Factor Authentication (2FA)"
+                                                style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.16)', color: 'var(--success)', textDecoration: 'none', fontWeight: 'bold' }}
+                                            >
+                                                🛡️ 2FA On
+                                            </Link>
+                                        ) : (
+                                            <Link
+                                                href="/profile?setup2fa=1#two-factor-auth-section"
+                                                onClick={closeMobileMenu}
+                                                title="Add free Authenticator 2FA to your Google or email account"
+                                                style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.16)', color: '#f59e0b', textDecoration: 'none', fontWeight: 'bold' }}
+                                            >
+                                                🛡️ Add 2FA
                                             </Link>
                                         )}
                                     </div>

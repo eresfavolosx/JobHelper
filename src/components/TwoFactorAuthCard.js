@@ -1,12 +1,13 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    ShieldCheck, ShieldAlert, KeyRound, QrCode, Copy, Check,
-    RefreshCw, AlertCircle, CheckCircle, Lock, Download, Trash2, Eye, EyeOff
+    ShieldCheck, ShieldAlert, KeyRound, Copy, Check,
+    RefreshCw, AlertCircle, CheckCircle, Trash2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
+import { hasGoogleProvider } from '@/lib/account-security';
 import {
     generateTotpSecret,
     buildOtpAuthUri,
@@ -23,6 +24,7 @@ export default function TwoFactorAuthCard() {
 
     const security2FA = profile?.security2FA;
     const isEnabled = Boolean(security2FA?.enabled && security2FA?.secret);
+    const googleLinked = Boolean(user && hasGoogleProvider(user));
 
     // Setup Wizard State
     const [isSettingUp, setIsSettingUp] = useState(false);
@@ -40,17 +42,7 @@ export default function TwoFactorAuthCard() {
     const [statusMessage, setStatusMessage] = useState(null);
     const [disabling, setDisabling] = useState(false);
 
-    useEffect(() => {
-        if (!isSettingUp) return;
-        const timer = setInterval(() => {
-            setSecondsLeft(getTotpSecondsRemaining());
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [isSettingUp]);
-
-    if (!user) return null;
-
-    const startSetupFlow = () => {
+    const startSetupFlow = useCallback(() => {
         const secret = generateTotpSecret(32);
         const backupCodes = generateBackupCodes(8);
         setSetupSecret(secret);
@@ -61,7 +53,52 @@ export default function TwoFactorAuthCard() {
         setCopiedBackup(false);
         setIsSettingUp(true);
         setStatusMessage(null);
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!isSettingUp) return;
+        const timer = setInterval(() => {
+            setSecondsLeft(getTotpSecondsRemaining());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [isSettingUp]);
+
+    useEffect(() => {
+        if (!user || typeof window === 'undefined') return;
+
+        const scrollIntoView = () => {
+            window.requestAnimationFrame(() => {
+                document.getElementById('two-factor-auth-section')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            });
+        };
+
+        const handleOpenEvent = () => {
+            if (!isEnabled) {
+                startSetupFlow();
+            }
+            scrollIntoView();
+        };
+
+        window.addEventListener('jobhelper:open-2fa-setup', handleOpenEvent);
+
+        const wantsSetup = window.location.search.includes('setup2fa=1') ||
+            window.location.hash === '#two-factor-auth-setup';
+        if (wantsSetup) {
+            if (!isEnabled) {
+                startSetupFlow();
+            }
+            scrollIntoView();
+        }
+
+        return () => {
+            window.removeEventListener('jobhelper:open-2fa-setup', handleOpenEvent);
+        };
+    }, [user, isEnabled, startSetupFlow]);
+
+    if (!user) return null;
 
     const handleCopyKey = () => {
         if (!setupSecret) return;
@@ -196,13 +233,13 @@ export default function TwoFactorAuthCard() {
 
     return (
         <section
+            id="two-factor-auth-section"
             aria-labelledby="two-factor-auth-heading"
             className="card"
             style={{
-                marginTop: '24px',
                 padding: '24px',
                 borderRadius: '16px',
-                border: '1px solid var(--border-subtle)',
+                border: googleLinked && !isEnabled ? '1px solid rgba(107, 126, 103, 0.45)' : '1px solid var(--border-subtle)',
                 background: 'var(--bg-card)'
             }}
         >
@@ -243,9 +280,9 @@ export default function TwoFactorAuthCard() {
                             fontWeight: 700,
                             padding: '4px 10px',
                             borderRadius: '999px',
-                            background: isEnabled ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-secondary)',
-                            color: isEnabled ? 'var(--success)' : 'var(--text-secondary)',
-                            border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.35)' : 'var(--border-subtle)'}`,
+                            background: isEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.14)',
+                            color: isEnabled ? 'var(--success)' : '#f59e0b',
+                            border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '5px'
@@ -256,13 +293,36 @@ export default function TwoFactorAuthCard() {
                                 width: '7px',
                                 height: '7px',
                                 borderRadius: '50%',
-                                background: isEnabled ? 'var(--success)' : 'var(--text-secondary)'
+                                background: isEnabled ? 'var(--success)' : '#f59e0b'
                             }}
                         />
                         {isEnabled ? 'Active / Protected' : 'Not Enabled'}
                     </span>
                 </div>
             </div>
+
+            {googleLinked && (
+                <div
+                    style={{
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        marginBottom: '16px',
+                        fontSize: '0.83rem',
+                        lineHeight: 1.45,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '8px',
+                        background: 'rgba(107, 126, 103, 0.12)',
+                        border: '1px solid rgba(107, 126, 103, 0.32)',
+                        color: 'var(--text-primary)'
+                    }}
+                >
+                    <ShieldCheck size={16} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>
+                        <strong>Google Account Connected ({user.email})</strong> — No password required to enable 2FA. Your 6-digit authenticator code will be requested after Google Sign-In.
+                    </span>
+                </div>
+            )}
 
             {statusMessage && (
                 <div

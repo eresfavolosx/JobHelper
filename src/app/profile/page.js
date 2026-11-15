@@ -339,6 +339,18 @@ function ProfileContent() {
     const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
 
     const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
+    const is2FAEnabled = Boolean(profile?.security2FA?.enabled && profile?.security2FA?.secret);
+
+    const handleQuick2FAAction = () => {
+        if (typeof window === 'undefined') return;
+        if (!is2FAEnabled) {
+            window.dispatchEvent(new CustomEvent('jobhelper:open-2fa-setup'));
+        }
+        document.getElementById('two-factor-auth-section')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+        });
+    };
 
     useEffect(() => {
         if (mounted && !loading && !user) {
@@ -457,15 +469,39 @@ function ProfileContent() {
 
     return (
         <div className="container" style={{ maxWidth: '800px', paddingBottom: '100px' }}>
-            <header className="animate-slide-up" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <header className="animate-slide-up" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                     <h2 style={{ fontSize: '2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <User size={32} color="var(--accent-primary)" /> Your Profile
                     </h2>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                        Manage your personal details and preferences.
+                        Manage your personal details, free 2FA security, and preferences.
                     </p>
                 </div>
+                <button
+                    type="button"
+                    onClick={handleQuick2FAAction}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '9px 14px',
+                        borderRadius: '999px',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: is2FAEnabled
+                            ? '1px solid rgba(16, 185, 129, 0.38)'
+                            : '1px solid rgba(107, 126, 103, 0.45)',
+                        background: is2FAEnabled
+                            ? 'rgba(16, 185, 129, 0.14)'
+                            : 'rgba(107, 126, 103, 0.16)',
+                        color: is2FAEnabled ? 'var(--success)' : 'var(--accent-primary)',
+                    }}
+                >
+                    <ShieldCheck size={16} />
+                    <span>{is2FAEnabled ? '2FA Active' : 'Enable Free 2FA'}</span>
+                </button>
             </header>
 
             <div style={{ display: 'grid', gap: '32px' }}>
@@ -481,6 +517,10 @@ function ProfileContent() {
                         <SyncButton />
                     </div>
                 </div>
+
+                {/* 0.5. Free 2FA & Sign-In Security (above the fold for Google & Email accounts) */}
+                <TwoFactorAuthCard />
+                <AccountSecurityCard />
 
                 {/* 1. Resume Upload */}
                 <div className="card animate-slide-up delay-150">
@@ -689,10 +729,6 @@ function ProfileContent() {
                     </h3>
                     <SubscriptionManager />
                 </div>
-
-                {/* 2. Sign-In & Password Management */}
-                <AccountSecurityCard />
-                <TwoFactorAuthCard />
 
                 {/* 3. MCP & External AI Assistant Integration */}
                 <McpIntegrationCard />

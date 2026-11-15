@@ -62,6 +62,7 @@ export default function LoginPage() {
     const [resetMessage, setResetMessage] = useState('');
     const [selectedSavedEmail, setSelectedSavedEmail] = useState('');
     const passwordInputRef = useRef(null);
+    const postLoginRedirectRef = useRef('/');
     const savedAccounts = useSyncExternalStore(
         subscribeSavedAccounts,
         getSavedAccountsSnapshot,
@@ -76,7 +77,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (user) {
-            router.push('/');
+            router.push(postLoginRedirectRef.current || '/');
         }
     }, [user, router]);
 
@@ -88,9 +89,10 @@ export default function LoginPage() {
         setRememberSignInPreference(e.target.checked);
     };
 
-    const handleGoogleLogin = async (emailHint = '') => {
+    const handleGoogleLogin = async (emailHint = '', redirectAfterLogin = '/') => {
         try {
             setError('');
+            postLoginRedirectRef.current = redirectAfterLogin || '/';
             await applyAuthPersistence(rememberMe);
             const hint = typeof emailHint === 'string' ? emailHint.trim() : '';
             const provider = hint ? createGoogleProviderForAccount(hint) : googleProvider;
@@ -98,7 +100,7 @@ export default function LoginPage() {
             if (rememberMe && credential?.user) {
                 upsertSavedAccount(credential.user, 'google');
             }
-            router.push('/');
+            router.push(redirectAfterLogin || '/');
         } catch (err) {
             console.error('Authentication error occurred', err);
             setError('Failed to authenticate with Google. Please try again.');
@@ -182,7 +184,7 @@ export default function LoginPage() {
             if (rememberMe && credential?.user) {
                 upsertSavedAccount(credential.user, 'password');
             }
-            router.push('/');
+            router.push(postLoginRedirectRef.current || '/');
         } catch (err) {
             console.error('Authentication error occurred', err);
             if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -527,6 +529,43 @@ export default function LoginPage() {
                                         </button>
                                         <button
                                             type="button"
+                                            disabled={loading}
+                                            onClick={() => {
+                                                if (isGoogle) {
+                                                    handleGoogleLogin(account.email, '/profile?setup2fa=1#two-factor-auth-section');
+                                                } else {
+                                                    setIsSignUp(false);
+                                                    setEmail(account.email);
+                                                    setPassword('');
+                                                    setSelectedSavedEmail(account.email);
+                                                    postLoginRedirectRef.current = '/profile?setup2fa=1#two-factor-auth-section';
+                                                    if (typeof window !== 'undefined') {
+                                                        window.requestAnimationFrame(() => {
+                                                            passwordInputRef.current?.focus();
+                                                        });
+                                                    }
+                                                }
+                                            }}
+                                            aria-label={`Sign in and manage 2FA for ${account.email}`}
+                                            title={`Sign in and configure or manage Free 2FA for ${account.email}`}
+                                            style={{
+                                                minWidth: '36px',
+                                                minHeight: '36px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'var(--accent-primary)',
+                                                cursor: loading ? 'not-allowed' : 'pointer',
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <ShieldCheck size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
                                             disabled={resetLoading || loading}
                                             onClick={() => handlePasswordReset(account.email)}
                                             aria-label={`Reset or set password for ${account.email}`}
@@ -844,6 +883,30 @@ export default function LoginPage() {
                     <GoogleIcon />
                     <span>Continue with Google</span>
                 </button>
+
+                <div style={{ marginTop: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={() => handleGoogleLogin('', '/profile?setup2fa=1#two-factor-auth-section')}
+                        disabled={loading}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '4px',
+                            fontSize: '0.8rem',
+                            color: 'var(--accent-primary)',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            textDecoration: 'underline'
+                        }}
+                    >
+                        <ShieldCheck size={14} />
+                        <span>Already have a Google account? Sign in &amp; add free 2FA →</span>
+                    </button>
+                </div>
 
                 {/* Security Trust Badge */}
                 <div style={{

@@ -7,9 +7,10 @@ import {
     sendPasswordResetEmail,
     updatePassword,
 } from 'firebase/auth';
-import { KeyRound, CheckCircle, AlertCircle, Loader, Eye, EyeOff, Mail, ShieldCheck } from 'lucide-react';
+import { KeyRound, CheckCircle, AlertCircle, Loader, Eye, EyeOff, Mail, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { auth, createGoogleProviderForAccount } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
+import { useAppStore } from '@/lib/store';
 import {
     hasGoogleProvider,
     hasPasswordProvider,
@@ -21,6 +22,7 @@ import { getRememberSignInPreference, upsertSavedAccount } from '@/lib/saved-acc
 
 export default function AccountSecurityCard() {
     const { user } = useAuth();
+    const profile = useAppStore((state) => state.profile);
     const [newPassword, setNewPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -32,6 +34,18 @@ export default function AccountSecurityCard() {
 
     const googleLinked = hasGoogleProvider(user);
     const passwordLinked = providerLinkedLocally || hasPasswordProvider(user);
+    const is2FAEnabled = Boolean(profile?.security2FA?.enabled && profile?.security2FA?.secret);
+
+    const handleTrigger2FA = () => {
+        if (typeof window === 'undefined') return;
+        if (!is2FAEnabled) {
+            window.dispatchEvent(new CustomEvent('jobhelper:open-2fa-setup'));
+        }
+        document.getElementById('two-factor-auth-section')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+        });
+    };
 
     const runWithRecentLoginRetry = async (actionFn) => {
         try {
@@ -122,11 +136,11 @@ export default function AccountSecurityCard() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px', lineHeight: 1.5 }}>
                 {passwordLinked
                     ? 'Your account supports Email & Password sign-in. Update your password below or send yourself a reset email.'
-                    : 'Signed in with Google? Set a password here so you can also sign in directly with your email and password.'}
+                    : 'Signed in with Google? Your Google account supports free Authenticator 2FA directly (no password required). You can also optionally set a password below if you want to sign in with email & password.'}
             </p>
 
             {/* Connected sign-in methods */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '16px' }}>
                 <span style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -170,6 +184,67 @@ export default function AccountSecurityCard() {
                     }}>
                         <CheckCircle size={13} /> Password Sign-In Enabled
                     </span>
+                )}
+                {is2FAEnabled ? (
+                    <>
+                        <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '5px 10px',
+                            borderRadius: '999px',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            background: 'rgba(16, 185, 129, 0.14)',
+                            color: 'var(--success)',
+                        }}>
+                            <ShieldCheck size={13} /> 2FA Active
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleTrigger2FA}
+                            className="btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '0.76rem', borderRadius: '999px' }}
+                        >
+                            Manage 2FA
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '5px 10px',
+                            borderRadius: '999px',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            background: 'rgba(245, 158, 11, 0.14)',
+                            color: '#f59e0b',
+                        }}>
+                            <ShieldAlert size={13} /> 2FA Not Enabled
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleTrigger2FA}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '5px 12px',
+                                borderRadius: '999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                border: '1px solid rgba(107, 126, 103, 0.45)',
+                                background: 'rgba(107, 126, 103, 0.16)',
+                                color: 'var(--accent-primary)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <ShieldCheck size={13} />
+                            <span>{googleLinked ? 'Enable Free 2FA for Google Account' : 'Enable Free 2FA'}</span>
+                        </button>
+                    </>
                 )}
             </div>
 

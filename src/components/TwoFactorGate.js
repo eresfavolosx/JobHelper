@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Lock, ShieldCheck, KeyRound, AlertCircle, LogOut, RefreshCw, LifeBuoy } from 'lucide-react';
+import { ShieldCheck, KeyRound, AlertCircle, LogOut, RefreshCw, LifeBuoy } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import {
