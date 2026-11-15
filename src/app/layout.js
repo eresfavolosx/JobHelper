@@ -139,6 +139,10 @@ function AuthenticatedLayout({ children }) {
         !is2FAUnlocked
     );
 
+    useEffect(() => {
+        setIs2FAUnlocked(false);
+    }, [user?.uid, profile?.security2FA?.secret]);
+
     // Sync saved agent mode preference on mount
     useEffect(() => {
         try {
@@ -154,7 +158,7 @@ function AuthenticatedLayout({ children }) {
     // Register Programmatic Agent Bridge on window for automated browser agents
     // Exposes structured read/write access to window.__NOVU_AGENT__ for Playwright, Puppeteer, Claude Computer Use, and DevTools
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (typeof window === 'undefined' || requires2FA) return;
         window.__NOVU_AGENT__ = {
             version: '1.0.0',
             /** Current Agent Navigation Mode boolean status */
@@ -204,7 +208,7 @@ function AuthenticatedLayout({ children }) {
         return () => {
             delete window.__NOVU_AGENT__;
         };
-    }, [user]);
+    }, [user, requires2FA]);
 
     // Global keyboard shortcuts:
     // - Cmd+Shift+A / Ctrl+Shift+A toggles Agent Navigation Mode
@@ -212,7 +216,7 @@ function AuthenticatedLayout({ children }) {
     // - Cmd+B / Ctrl+B toggles desktop sidebar collapse into icons
     // - 'N' (when not typing in a form field) quickly logs a new job
     useEffect(() => {
-        if (!user) return;
+        if (!user || requires2FA) return;
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
                 e.preventDefault();
@@ -239,12 +243,12 @@ function AuthenticatedLayout({ children }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [user, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse, toggleAgentMode]);
+    }, [user, requires2FA, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse, toggleAgentMode]);
 
     // Auto-launch Morning Career Radar on the first login of each day
     // Only auto-launch when the user already has tracked jobs and is not mid-save from the Chrome Extension
     useEffect(() => {
-        if (!user || activeJobsCount === 0 || isJobModalOpen) return;
+        if (!user || requires2FA || activeJobsCount === 0 || isJobModalOpen) return;
         if (typeof window !== 'undefined' && window.location.search.includes('action=auto-open')) return;
         const todayStr = new Date().toISOString().slice(0, 10);
         const lastSync = localStorage.getItem('novujobs_last_morning_sync');
@@ -254,7 +258,7 @@ function AuthenticatedLayout({ children }) {
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [user, activeJobsCount, isJobModalOpen]);
+    }, [user, requires2FA, activeJobsCount, isJobModalOpen]);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -264,6 +268,10 @@ function AuthenticatedLayout({ children }) {
                 {children}
             </main>
         );
+    }
+
+    if (requires2FA) {
+        return <TwoFactorGate onUnlocked={() => setIs2FAUnlocked(true)} />;
     }
 
     // User is authenticated - show full layout
@@ -300,9 +308,6 @@ function AuthenticatedLayout({ children }) {
                     onClose={() => setCoachJob(null)}
                     job={coachJob}
                 />
-            )}
-            {requires2FA && (
-                <TwoFactorGate onUnlocked={() => setIs2FAUnlocked(true)} />
             )}
         </>
     );

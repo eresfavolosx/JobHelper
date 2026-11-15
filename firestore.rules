@@ -7,6 +7,8 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
+    // --- Existing Shared Project Collections (NovuJobs / jobhelper-c3cd7) ---
+    //
     // Collection: /users/{userId}/data/profile (single document 'profile')
     // Document ID: 'profile'
     // Fields:
@@ -33,6 +35,7 @@ service cloud.firestore {
     //   - trialStartDate: string/timestamp/null (optional, 0..100 chars) - Trial start date
     //   - trialEndDate: string/timestamp/null (optional, 0..100 chars) - Trial end date
     //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
+    //   - security2FA: map or null (optional, max 4 keys: enabled, secret, backupCodes, enabledAt) - Two-factor authentication configuration
     //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
     //
     // Collection: /users/{userId}/data/cycles (single document 'cycles')
@@ -74,6 +77,54 @@ service cloud.firestore {
     //   - lastFollowUpAt: string/timestamp/null (optional, 0..100 chars) - Last follow-up timestamp
     //   - lastInteraction: string/timestamp/null (optional, 0..100 chars) - Last interaction date/timestamp
     //
+    // --- CTRL Orange Collections ---
+    //
+    // Collection: /remote_sessions/{sessionId}
+    // Document ID: {sessionId} (uppercase alphanumeric, 6-12 chars: ^[A-Z0-9]{6,12}$)
+    // Purpose: Real-time Desktop <-> Phone Mobile Mirror pairing state (no login required,
+    //          collection listing disabled so pairing codes cannot be enumerated).
+    // Fields:
+    //   - sessionId: string (required, immutable, must match document ID {sessionId})
+    //   - updatedAt: number (required, epoch ms >= 0 and <= 9999999999999)
+    //   - activeMode: string (required, enum: 'ask' | 'followup' | 'livecoach' | 'debrief')
+    //   - isStreaming: bool (required)
+    //   - isListening: bool (required)
+    //   - stealth: map (required, exact keys: contentProtection, alwaysOnTop, hideFromDock,
+    //              skipTaskbar, clickThrough, mobileOnlyHidden, focusSafePassive [all bool],
+    //              opacity [number 0..1], processTitle [string 0..120])
+    //   - activeProvider: string (required, length 0..64)
+    //   - activeModel: string (required, length 0..120)
+    //   - bufferSummary: list (required, max 30 items; each item map with exact keys:
+    //                    id [string 1..128], type ['screenshot'|'text'|'audio'|'code'],
+    //                    label [string 0..200], preview [string 0..2000], createdAt [number])
+    //   - latestResponse: string (required, length 0..200000)
+    //   - messages: list (required, max 100 items; each item map with required keys:
+    //               id [string 1..128], role ['user'|'assistant'],
+    //               mode ['ask'|'followup'|'livecoach'|'debrief'], content [string 0..200000],
+    //               timestamp [number], and optional key: providerUsed [string 0..120])
+    //   - liveTranscript: string (required, length 0..100000)
+    //   - debriefReport: string (required, length 0..200000)
+    //
+    // Subcollection: /remote_sessions/{sessionId}/commands/{commandId}
+    // Document ID: {commandId} (1..128 chars)
+    // Purpose: Append-only remote control commands sent from Phone Remote to Desktop.
+    // Fields:
+    //   - id: string (required, length 1..128)
+    //   - type: string (required, enum: CAPTURE_SCREENSHOT, CAPTURE_CLIPBOARD, TOGGLE_AUDIO,
+    //           ASK_AI, FOLLOW_UP, LIVE_COACH, DEBRIEF, HIDE_DESKTOP, TOGGLE_GHOST_MODE,
+    //           CLEAR_BUFFER, SWITCH_MODEL)
+    //   - payload: string (optional, length 0..4000)
+    //   - createdAt: number (required, epoch ms >= 0 and <= 9999999999999)
+    //
+    // Collection: /platform_debriefs/{debriefId}
+    // Document ID: {debriefId} (1..128 chars)
+    // Purpose: Authenticated user-owned post-session debrief records synced to Firebase.
+    // Fields:
+    //   - userId: string (required, immutable, must equal request.auth.uid)
+    //   - sessionTag: string (required, length 0..120)
+    //   - reportMarkdown: string (required, length 1..200000)
+    //   - createdAt: number (required, immutable, epoch ms >= 0 and <= 9999999999999)
+    //
     // ===============================================================
 
     // Default deny for all unmatched paths
@@ -92,6 +143,8 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    // --- NovuJobs Helpers ---
 
     function isPlatformAdmin() {
       return isAuthenticated() &&
@@ -122,11 +175,59 @@ service cloud.firestore {
              (data.deletedAt is string && data.deletedAt.size() <= 100);
     }
 
+    // --- CTRL Orange Helpers ---
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isBoundedString(value, minLen, maxLen) {
+      return value is string &&
+        value.size() >= minLen &&
+        value.size() <= maxLen;
+    }
+
+    function isValidList(listVal, maxSize) {
+      return listVal is list && listVal.size() <= maxSize;
+    }
+
+    function isValidMapKeys(mapData, requiredKeys, allowedKeys) {
+      return mapData is map &&
+        mapData.keys().hasAll(requiredKeys) &&
+        mapData.keys().hasOnly(allowedKeys);
+    }
+
+    function isValidEpochMs(value) {
+      return value is number &&
+        value >= 0 &&
+        value <= 9999999999999;
+    }
+
+    function isValidSessionId(sessionId) {
+      return sessionId is string &&
+        sessionId.size() >= 6 &&
+        sessionId.size() <= 12 &&
+        sessionId.matches('^[A-Z0-9]{6,12}$');
+    }
+
+    function isValidAIMode(mode) {
+      return mode is string &&
+        mode in ['ask', 'followup', 'livecoach', 'debrief'];
+    }
+
     // ===============================================================
-    // Domain Validators
+    // Domain Validators — NovuJobs (Existing Shared Project)
     // ===============================================================
 
-    // Validator for /users/{userId}/data/profile
+    // Validator for /users/{userId}/data/profile applicationGoal map
     function isValidApplicationGoal(goal) {
       return goal is map &&
              goal.keys().size() <= 10 &&
@@ -148,6 +249,18 @@ service cloud.firestore {
              isValidDateOrTimestamp(goal, 'updatedAt');
     }
 
+    // Validator for /users/{userId}/data/profile security2FA map
+    function isValidSecurity2FA(sec) {
+      return sec == null ||
+             (sec is map &&
+              sec.keys().size() <= 4 &&
+              sec.keys().hasOnly(['enabled', 'secret', 'backupCodes', 'enabledAt']) &&
+              (!('enabled' in sec) || sec.enabled is bool) &&
+              isValidOptionalString(sec, 'secret', 0, 128) &&
+              (!('backupCodes' in sec) || (sec.backupCodes is list && sec.backupCodes.size() <= 16)) &&
+              isValidDateOrTimestamp(sec, 'enabledAt'));
+    }
+
     // Validator for /users/{userId}/data/profile
     function isValidProfile(data) {
       return data.keys().hasOnly([
@@ -157,7 +270,7 @@ service cloud.firestore {
                'claudeApiKey', 'openaiApiKey', 'customAiApiKey',
                'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
                'googleMapsApiKey', 'subscriptionStatus', 'trialStartDate', 'trialEndDate',
-               'applicationGoal', 'updatedAt'
+               'applicationGoal', 'updatedAt', 'security2FA'
              ]) &&
              isValidOptionalString(data, 'fullName', 0, 100) &&
              isValidOptionalString(data, 'targetRole', 0, 100) &&
@@ -193,7 +306,9 @@ service cloud.firestore {
               (data.resumeAnalysis is map && data.resumeAnalysis.keys().size() <= 50)) &&
              (!('applicationGoal' in data) ||
               data.applicationGoal == null ||
-              isValidApplicationGoal(data.applicationGoal));
+              isValidApplicationGoal(data.applicationGoal)) &&
+             (!('security2FA' in data) ||
+              isValidSecurity2FA(data.security2FA));
     }
 
     // RBAC: Profile privilege escalation protection
@@ -273,7 +388,137 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // Collection Match Rules
+    // Domain Validators — CTRL Orange
+    // ===============================================================
+
+    function isValidStealthConfig(stealth) {
+      let stealthKeys = [
+        'contentProtection',
+        'alwaysOnTop',
+        'hideFromDock',
+        'skipTaskbar',
+        'clickThrough',
+        'mobileOnlyHidden',
+        'focusSafePassive',
+        'opacity',
+        'processTitle'
+      ];
+      return isValidMapKeys(stealth, stealthKeys, stealthKeys) &&
+        stealth.contentProtection is bool &&
+        stealth.alwaysOnTop is bool &&
+        stealth.hideFromDock is bool &&
+        stealth.skipTaskbar is bool &&
+        stealth.clickThrough is bool &&
+        stealth.mobileOnlyHidden is bool &&
+        stealth.focusSafePassive is bool &&
+        stealth.opacity is number &&
+        stealth.opacity >= 0 &&
+        stealth.opacity <= 1 &&
+        isBoundedString(stealth.processTitle, 0, 120);
+    }
+
+    function isValidBufferSummaryItem(item) {
+      let itemKeys = ['id', 'type', 'label', 'preview', 'createdAt'];
+      return isValidMapKeys(item, itemKeys, itemKeys) &&
+        isBoundedString(item.id, 1, 128) &&
+        item.type is string &&
+        item.type in ['screenshot', 'text', 'audio', 'code'] &&
+        isBoundedString(item.label, 0, 200) &&
+        isBoundedString(item.preview, 0, 2000) &&
+        isValidEpochMs(item.createdAt);
+    }
+
+    function isValidMessageItem(msg) {
+      let requiredKeys = ['id', 'role', 'mode', 'content', 'timestamp'];
+      let allowedKeys = ['id', 'role', 'mode', 'content', 'timestamp', 'providerUsed'];
+      return isValidMapKeys(msg, requiredKeys, allowedKeys) &&
+        isBoundedString(msg.id, 1, 128) &&
+        msg.role is string &&
+        msg.role in ['user', 'assistant'] &&
+        isValidAIMode(msg.mode) &&
+        isBoundedString(msg.content, 0, 200000) &&
+        isValidEpochMs(msg.timestamp) &&
+        (!('providerUsed' in msg) || isBoundedString(msg.providerUsed, 0, 120));
+    }
+
+    function isValidRemoteSession(data, sessionId) {
+      let sessionFields = [
+        'sessionId',
+        'updatedAt',
+        'activeMode',
+        'isStreaming',
+        'isListening',
+        'stealth',
+        'activeProvider',
+        'activeModel',
+        'bufferSummary',
+        'latestResponse',
+        'messages',
+        'liveTranscript',
+        'debriefReport'
+      ];
+      return hasRequiredFields(sessionFields) &&
+        hasOnlyAllowedFields(sessionFields) &&
+        isValidSessionId(data.sessionId) &&
+        data.sessionId == sessionId &&
+        isValidEpochMs(data.updatedAt) &&
+        isValidAIMode(data.activeMode) &&
+        data.isStreaming is bool &&
+        data.isListening is bool &&
+        isValidStealthConfig(data.stealth) &&
+        isBoundedString(data.activeProvider, 0, 64) &&
+        isBoundedString(data.activeModel, 0, 120) &&
+        isValidList(data.bufferSummary, 30) &&
+        (data.bufferSummary.size() == 0 ||
+          (isValidBufferSummaryItem(data.bufferSummary[0]) &&
+           isValidBufferSummaryItem(data.bufferSummary[data.bufferSummary.size() - 1]))) &&
+        isBoundedString(data.latestResponse, 0, 200000) &&
+        isValidList(data.messages, 100) &&
+        (data.messages.size() == 0 ||
+          (isValidMessageItem(data.messages[0]) &&
+           isValidMessageItem(data.messages[data.messages.size() - 1]))) &&
+        isBoundedString(data.liveTranscript, 0, 100000) &&
+        isBoundedString(data.debriefReport, 0, 200000);
+    }
+
+    function isValidRemoteCommand(data) {
+      let requiredFields = ['id', 'type', 'createdAt'];
+      let allowedFields = ['id', 'type', 'payload', 'createdAt'];
+      let allowedTypes = [
+        'CAPTURE_SCREENSHOT',
+        'CAPTURE_CLIPBOARD',
+        'TOGGLE_AUDIO',
+        'ASK_AI',
+        'FOLLOW_UP',
+        'LIVE_COACH',
+        'DEBRIEF',
+        'HIDE_DESKTOP',
+        'TOGGLE_GHOST_MODE',
+        'CLEAR_BUFFER',
+        'SWITCH_MODEL'
+      ];
+      return hasRequiredFields(requiredFields) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        isBoundedString(data.id, 1, 128) &&
+        data.type is string &&
+        data.type in allowedTypes &&
+        (!('payload' in data) || isBoundedString(data.payload, 0, 4000)) &&
+        isValidEpochMs(data.createdAt);
+    }
+
+    function isValidPlatformDebrief(data) {
+      let fields = ['userId', 'sessionTag', 'reportMarkdown', 'createdAt'];
+      return hasRequiredFields(fields) &&
+        hasOnlyAllowedFields(fields) &&
+        isBoundedString(data.userId, 1, 128) &&
+        isOwner(data.userId) &&
+        isBoundedString(data.sessionTag, 0, 120) &&
+        isBoundedString(data.reportMarkdown, 1, 200000) &&
+        isValidEpochMs(data.createdAt);
+    }
+
+    // ===============================================================
+    // Collection Match Rules — NovuJobs (Existing Shared Project)
     // ===============================================================
 
     match /users/{userId} {
@@ -306,6 +551,43 @@ service cloud.firestore {
                         isJobUpdateImmutable(resource.data, request.resource.data);
         allow delete: if isOwner(userId);
       }
+    }
+
+    // ===============================================================
+    // Collection Match Rules — CTRL Orange
+    // ===============================================================
+
+    // Desktop <-> Phone Mobile Mirror sync state (QR-paired by secret sessionId).
+    // Collection listing is disabled to prevent enumerating active session codes.
+    match /remote_sessions/{sessionId} {
+      allow get: if isValidSessionId(sessionId);
+      allow list: if false;
+      allow create: if isValidSessionId(sessionId) &&
+        isValidRemoteSession(request.resource.data, sessionId);
+      allow update: if isValidSessionId(sessionId) &&
+        isValidRemoteSession(request.resource.data, sessionId) &&
+        areImmutableFieldsUnchanged(['sessionId']);
+      allow delete: if false;
+
+      // Append-only remote commands sent from Phone Remote to Desktop listener.
+      match /commands/{commandId} {
+        allow get, list: if isValidSessionId(sessionId);
+        allow create: if isValidSessionId(sessionId) &&
+          isBoundedString(commandId, 1, 128) &&
+          isValidRemoteCommand(request.resource.data);
+        allow update, delete: if false;
+      }
+    }
+
+    // Authenticated user-owned post-session debrief records.
+    match /platform_debriefs/{debriefId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isBoundedString(debriefId, 1, 128) &&
+        isValidPlatformDebrief(request.resource.data);
+      allow update: if isOwner(resource.data.userId) &&
+        isValidPlatformDebrief(request.resource.data) &&
+        areImmutableFieldsUnchanged(['userId', 'createdAt']);
+      allow delete: if isOwner(resource.data.userId);
     }
   }
 }

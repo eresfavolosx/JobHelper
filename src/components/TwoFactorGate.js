@@ -7,7 +7,8 @@ import {
     verifyTotpCode,
     verifyAndConsumeBackupCode,
     getTotpSecondsRemaining,
-    markSession2FAVerified
+    markSession2FAVerified,
+    clearSession2FAVerification
 } from '@/lib/totp';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -103,6 +104,8 @@ export default function TwoFactorGate({ onUnlocked }) {
 
     const handleSignOut = async () => {
         try {
+            clearSession2FAVerification(user?.uid);
+            useAppStore.getState().clearUserData();
             await signOut(auth);
             if (typeof window !== 'undefined') {
                 window.location.href = '/login';

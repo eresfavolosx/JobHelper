@@ -105,14 +105,21 @@ export default function TwoFactorAuthCard() {
                 enabledAt: new Date().toISOString()
             };
 
-            await updateProfile({ security2FA: payload });
+            const syncResult = await updateProfile({ security2FA: payload });
             markSession2FAVerified(user.uid);
 
             setIsSettingUp(false);
-            setStatusMessage({
-                type: 'success',
-                text: 'Two-Factor Authentication is now enabled! Your account is protected.'
-            });
+            if (syncResult?.synced === false && syncResult?.error) {
+                setStatusMessage({
+                    type: 'warning',
+                    text: `Two-Factor Authentication was enabled locally, but cloud sync encountered an error: ${syncResult.error}`
+                });
+            } else {
+                setStatusMessage({
+                    type: 'success',
+                    text: 'Two-Factor Authentication is now enabled! Your account is protected.'
+                });
+            }
         } catch (err) {
             console.error('[2FA Setup] Activation error:', err);
             setSetupError('Failed to activate 2FA. Please try again.');
@@ -128,7 +135,7 @@ export default function TwoFactorAuthCard() {
 
         setDisabling(true);
         try {
-            await updateProfile({
+            const syncResult = await updateProfile({
                 security2FA: {
                     enabled: false,
                     secret: '',
@@ -137,10 +144,17 @@ export default function TwoFactorAuthCard() {
                 }
             });
             setShowBackupCodes(false);
-            setStatusMessage({
-                type: 'info',
-                text: 'Two-Factor Authentication has been disabled. You can re-enable it at any time.'
-            });
+            if (syncResult?.synced === false && syncResult?.error) {
+                setStatusMessage({
+                    type: 'warning',
+                    text: `Two-Factor Authentication was disabled locally, but cloud sync encountered an error: ${syncResult.error}`
+                });
+            } else {
+                setStatusMessage({
+                    type: 'info',
+                    text: 'Two-Factor Authentication has been disabled. You can re-enable it at any time.'
+                });
+            }
         } catch (err) {
             console.error('[2FA Disable] Error:', err);
             setStatusMessage({
@@ -157,16 +171,23 @@ export default function TwoFactorAuthCard() {
             return;
         }
         const freshCodes = generateBackupCodes(8);
-        await updateProfile({
+        const syncResult = await updateProfile({
             security2FA: {
                 ...security2FA,
                 backupCodes: freshCodes
             }
         });
-        setStatusMessage({
-            type: 'success',
-            text: 'Fresh backup recovery codes generated. Make sure to copy them.'
-        });
+        if (syncResult?.synced === false && syncResult?.error) {
+            setStatusMessage({
+                type: 'warning',
+                text: `Backup recovery codes were updated locally, but cloud sync encountered an error: ${syncResult.error}`
+            });
+        } else {
+            setStatusMessage({
+                type: 'success',
+                text: 'Fresh backup recovery codes generated. Make sure to copy them.'
+            });
+        }
     };
 
     const otpAuthUri = setupSecret
@@ -256,18 +277,24 @@ export default function TwoFactorAuthCard() {
                         gap: '8px',
                         background: statusMessage.type === 'success'
                             ? 'rgba(16, 185, 129, 0.12)'
+                            : statusMessage.type === 'warning'
+                            ? 'rgba(245, 158, 11, 0.12)'
                             : statusMessage.type === 'error'
                             ? 'rgba(239, 68, 68, 0.12)'
                             : 'rgba(59, 130, 246, 0.12)',
                         border: `1px solid ${
                             statusMessage.type === 'success'
                                 ? 'rgba(16, 185, 129, 0.3)'
+                                : statusMessage.type === 'warning'
+                                ? 'rgba(245, 158, 11, 0.35)'
                                 : statusMessage.type === 'error'
                                 ? 'rgba(239, 68, 68, 0.3)'
                                 : 'rgba(59, 130, 246, 0.3)'
                         }`,
                         color: statusMessage.type === 'success'
                             ? 'var(--success)'
+                            : statusMessage.type === 'warning'
+                            ? '#f59e0b'
                             : statusMessage.type === 'error'
                             ? '#ef4444'
                             : 'var(--accent-primary)'
