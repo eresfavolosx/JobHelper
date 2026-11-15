@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
 import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
 import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
-import { isOwner, isProUser, getStripeCheckoutUrl } from '@/lib/subscription';
+import { isOwner, isProUser, getStripeCheckoutUrl, hasConfiguredAiKey, hasConfiguredMapsKey } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
@@ -1281,8 +1281,9 @@ function GoogleServicesConfig() {
     const { user } = useAuth();
     const isPlatformOwner = isOwner(user);
 
-    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || '') : '';
+    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '') : '';
     const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '') : '';
+    const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '') : '';
 
     // Never expose environment keys or existing saved keys inside DOM <input value="..."> attributes
     // (even type="password" exposes the raw value in DOM inspection).
@@ -1322,18 +1323,16 @@ function GoogleServicesConfig() {
     const hasPersonalGeminiKey = Boolean(
         profile?.geminiApiKey &&
         profile.geminiApiKey.trim().length > 5 &&
-        (isPlatformOwner || profile.geminiApiKey.trim() !== envGemini.trim())
+        profile.geminiApiKey.trim() !== 'your_api_key_here' &&
+        (!envGemini.trim() || profile.geminiApiKey.trim() !== envGemini.trim())
     );
-    const hasPersonalClaudeKey = Boolean(profile?.claudeApiKey && profile.claudeApiKey.trim().length > 5);
-    const hasPersonalOpenAiKey = Boolean(profile?.openaiApiKey && profile.openaiApiKey.trim().length > 5);
-    const hasPersonalCustomAi = Boolean(profile?.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile?.customAiBaseUrl);
+    const hasPersonalClaudeKey = Boolean(profile?.claudeApiKey && profile.claudeApiKey.trim().length > 5 && profile.claudeApiKey.trim() !== 'your_api_key_here');
+    const hasPersonalOpenAiKey = Boolean(profile?.openaiApiKey && profile.openaiApiKey.trim().length > 5 && profile.openaiApiKey.trim() !== 'your_api_key_here');
+    const hasPersonalCustomAi = Boolean(profile?.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile.customAiApiKey.trim() !== 'your_api_key_here' && profile?.customAiBaseUrl?.trim());
+    const hasAnyAiKey = hasConfiguredAiKey(profile);
     const activeProvider = profile?.activeAiProvider || 'gemini';
 
-    const hasPersonalMapsKey = Boolean(
-        profile?.googleMapsApiKey &&
-        profile.googleMapsApiKey.trim().length > 5 &&
-        (isPlatformOwner || profile.googleMapsApiKey.trim() !== envMaps.trim())
-    );
+    const hasPersonalMapsKey = hasConfiguredMapsKey(profile);
 
     const handleSelectProvider = (prov) => {
         updateProfile({ activeAiProvider: prov });
@@ -1451,26 +1450,27 @@ function GoogleServicesConfig() {
         }
     };
 
-    // Automatically scrub any accidentally persisted platform env key from non-owner profiles
+    // Automatically scrub any accidentally persisted platform env key from all profiles
     useEffect(() => {
-        if (!isPlatformOwner && profile) {
+        if (profile) {
             const updates = {};
             if (envGemini && profile.geminiApiKey && profile.geminiApiKey.trim() === envGemini.trim()) {
                 updates.geminiApiKey = '';
             }
-            if (envMaps && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envMaps.trim()) {
+            if ((envMaps && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envMaps.trim()) ||
+                (envFirebase && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envFirebase.trim())) {
                 updates.googleMapsApiKey = '';
             }
             if (Object.keys(updates).length > 0) {
                 updateProfile(updates);
             }
         }
-    }, [isPlatformOwner, profile, envGemini, envMaps, updateProfile]);
+    }, [profile, envGemini, envMaps, envFirebase, updateProfile]);
 
     const handleSaveGemini = () => {
         const trimmed = geminiKeyDraft.trim();
         if (!trimmed) return;
-        if (!isPlatformOwner && envGemini && trimmed === envGemini.trim()) {
+        if (envGemini && trimmed === envGemini.trim()) {
             setGeminiStatus({ success: false, message: 'Please enter your own personal Gemini API key.' });
             return;
         }
@@ -1491,8 +1491,7 @@ function GoogleServicesConfig() {
         setGeminiStatus(null);
         try {
             const keyToTest = geminiKeyDraft.trim()
-                || (hasPersonalGeminiKey ? profile?.geminiApiKey : '')
-                || (isPlatformOwner ? envGemini : '');
+                || (hasPersonalGeminiKey ? profile?.geminiApiKey : '');
             if (!keyToTest) {
                 setGeminiStatus({ success: false, message: 'Please enter a Gemini API key first.' });
                 return;
@@ -1509,7 +1508,7 @@ function GoogleServicesConfig() {
     const handleSaveMaps = () => {
         const trimmed = mapsKeyDraft.trim();
         if (!trimmed) return;
-        if (!isPlatformOwner && envMaps && trimmed === envMaps.trim()) {
+        if ((envMaps && trimmed === envMaps.trim()) || (envFirebase && trimmed === envFirebase.trim())) {
             setMapsStatus({ success: false, message: 'Please enter your own personal Google Maps API key.' });
             return;
         }
@@ -1530,8 +1529,7 @@ function GoogleServicesConfig() {
         setMapsStatus(null);
         try {
             const keyToTest = mapsKeyDraft.trim()
-                || (hasPersonalMapsKey ? profile?.googleMapsApiKey : '')
-                || (isPlatformOwner ? envMaps : '');
+                || (hasPersonalMapsKey ? profile?.googleMapsApiKey : '');
             if (!keyToTest) {
                 setMapsStatus({ success: false, message: 'Please enter a Google Maps API key first.' });
                 return;
@@ -1644,19 +1642,21 @@ function GoogleServicesConfig() {
                         fontWeight: 700,
                         padding: '3px 10px',
                         borderRadius: '999px',
-                        background: 'rgba(94, 135, 110, 0.15)',
-                        border: '1px solid rgba(94, 135, 110, 0.4)',
-                        color: 'var(--accent-primary)',
+                        background: hasAnyAiKey ? 'rgba(94, 135, 110, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                        border: hasAnyAiKey ? '1px solid rgba(94, 135, 110, 0.4)' : '1px solid rgba(234, 179, 8, 0.4)',
+                        color: hasAnyAiKey ? 'var(--accent-primary)' : 'var(--warning)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px'
                     }}>
-                        Active: {activeProvider === 'gemini' ? 'Google Gemini' : activeProvider === 'claude' ? 'Anthropic Claude' : activeProvider === 'openai' ? 'OpenAI ChatGPT' : 'Custom Provider'}
+                        {hasAnyAiKey
+                            ? `Active: ${activeProvider === 'gemini' ? 'Google Gemini' : activeProvider === 'claude' ? 'Anthropic Claude' : activeProvider === 'openai' ? 'OpenAI ChatGPT' : 'Custom Provider'}`
+                            : 'AI Paused (No Key on Account)'}
                     </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
                     {[
-                        { id: 'gemini', label: 'Google Gemini', sub: 'Flash 3.8 / 2.5', icon: Sparkles, configured: hasPersonalGeminiKey || (isPlatformOwner && Boolean(envGemini)) },
+                        { id: 'gemini', label: 'Google Gemini', sub: 'Flash 3.8 / 2.5', icon: Sparkles, configured: hasPersonalGeminiKey },
                         { id: 'claude', label: 'Anthropic Claude', sub: 'Sonnet 3.5 / Haiku', icon: Zap, configured: hasPersonalClaudeKey },
                         { id: 'openai', label: 'OpenAI ChatGPT', sub: 'GPT-4o / 4o-mini', icon: Bot, configured: hasPersonalOpenAiKey },
                         { id: 'custom', label: 'Custom Provider', sub: 'DeepSeek / Groq / Router', icon: Globe, configured: hasPersonalCustomAi }
@@ -1705,7 +1705,7 @@ function GoogleServicesConfig() {
                     <label htmlFor="gemini-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Sparkles size={16} color="var(--accent-primary)" /> Google Gemini API Key
                     </label>
-                    {(hasPersonalGeminiKey || (isPlatformOwner && Boolean(envGemini))) && (
+                    {hasPersonalGeminiKey ? (
                         <span style={{
                             fontSize: '0.75rem',
                             fontWeight: 700,
@@ -1719,7 +1719,22 @@ function GoogleServicesConfig() {
                             gap: '4px'
                         }}>
                             <CheckCircle size={12} />
-                            {hasPersonalGeminiKey ? 'Personal Key Configured (Hidden)' : 'Owner Platform Key Active (Hidden)'}
+                            Personal Key Configured (Hidden)
+                        </span>
+                    ) : (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(234, 179, 8, 0.12)',
+                            border: '1px solid rgba(234, 179, 8, 0.35)',
+                            color: 'var(--warning)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            Paused (No Key on Account)
                         </span>
                     )}
                 </div>
@@ -1740,9 +1755,7 @@ function GoogleServicesConfig() {
                         placeholder={
                             hasPersonalGeminiKey
                                 ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
-                                : isPlatformOwner && envGemini
-                                    ? '•••••••••••••••••••••••• (Owner key active — enter a custom key to override)'
-                                    : 'Paste your personal Gemini API key (from Google AI Studio)'
+                                : 'Paste your personal Gemini API key (from Google AI Studio)'
                         }
                         style={{ width: '100%' }}
                     />
@@ -1770,7 +1783,7 @@ function GoogleServicesConfig() {
                     <button
                         type="button"
                         onClick={handleTestGemini}
-                        disabled={testingGemini || (!geminiKeyDraft.trim() && !hasPersonalGeminiKey && !(isPlatformOwner && envGemini))}
+                        disabled={testingGemini || (!geminiKeyDraft.trim() && !hasPersonalGeminiKey)}
                         style={{
                             padding: '6px 14px',
                             fontSize: '0.85rem',
@@ -2170,7 +2183,7 @@ function GoogleServicesConfig() {
                     <label htmlFor="maps-api-key-input" style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <MapPin size={16} color="var(--accent-primary)" /> Google Maps Platform API Key
                     </label>
-                    {(hasPersonalMapsKey || (isPlatformOwner && Boolean(envMaps))) && (
+                    {hasPersonalMapsKey ? (
                         <span style={{
                             fontSize: '0.75rem',
                             fontWeight: 700,
@@ -2184,7 +2197,22 @@ function GoogleServicesConfig() {
                             gap: '4px'
                         }}>
                             <CheckCircle size={12} />
-                            {hasPersonalMapsKey ? 'Personal Key Configured (Hidden)' : 'Owner Platform Key Active (Hidden)'}
+                            Personal Key Configured (Hidden)
+                        </span>
+                    ) : (
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            padding: '2px 9px',
+                            borderRadius: '999px',
+                            background: 'rgba(234, 179, 8, 0.12)',
+                            border: '1px solid rgba(234, 179, 8, 0.35)',
+                            color: 'var(--warning)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            Paused (No Key on Account)
                         </span>
                     )}
                 </div>
@@ -2205,9 +2233,7 @@ function GoogleServicesConfig() {
                         placeholder={
                             hasPersonalMapsKey
                                 ? '•••••••••••••••••••••••• (Key saved securely — enter a new key to replace)'
-                                : isPlatformOwner && envMaps
-                                    ? '•••••••••••••••••••••••• (Owner key active — enter a custom key to override)'
-                                    : 'Paste your personal Google Maps API key'
+                                : 'Paste your personal Google Maps API key'
                         }
                         style={{ width: '100%' }}
                     />
@@ -2235,7 +2261,7 @@ function GoogleServicesConfig() {
                     <button
                         type="button"
                         onClick={handleTestMaps}
-                        disabled={testingMaps || (!mapsKeyDraft.trim() && !hasPersonalMapsKey && !(isPlatformOwner && envMaps))}
+                        disabled={testingMaps || (!mapsKeyDraft.trim() && !hasPersonalMapsKey)}
                         style={{
                             padding: '6px 14px',
                             fontSize: '0.85rem',
@@ -2386,8 +2412,15 @@ function ResumeUpload({ onAnalysisComplete }) {
     const [analyzing, setAnalyzing] = useState(false);
     const [error, setError] = useState(null);
     const profile = useAppStore(state => state.profile);
+    const hasAiKey = hasConfiguredAiKey(profile);
 
     const handleFileUpload = async (e) => {
+        if (!hasAiKey) {
+            setError('AI Resume Analysis is paused because no API key is configured on your account. Add an API key below to enable resume analysis.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         const file = e.target.files[0];
         if (!file) return;
 
@@ -2477,8 +2510,15 @@ function ResumeUpload({ onAnalysisComplete }) {
                         type="button"
                         className="btn-secondary"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={analyzing}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                        disabled={analyzing || !hasAiKey}
+                        title={!hasAiKey ? 'AI Resume Analysis is paused — add an API key below to enable' : 'Upload resume for AI analysis'}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            opacity: hasAiKey ? 1 : 0.5,
+                            cursor: !hasAiKey ? 'not-allowed' : analyzing ? 'wait' : 'pointer'
+                        }}
                     >
                         {analyzing ? (
                             <>
@@ -2492,6 +2532,12 @@ function ResumeUpload({ onAnalysisComplete }) {
                     </button>
                 </div>
             </div>
+
+            {!hasAiKey && (
+                <div style={{ padding: '10px 12px', background: 'rgba(234, 179, 8, 0.1)', borderRadius: '8px', border: '1px solid rgba(234, 179, 8, 0.35)', color: 'var(--warning)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <AlertCircle size={15} /> Paused — Add an AI API key below to enable AI resume analysis.
+                </div>
+            )}
 
             {error && (
                 <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--error)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

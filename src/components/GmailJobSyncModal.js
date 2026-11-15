@@ -5,8 +5,10 @@ import {
     X, Mail, Sparkles, CheckCircle2, ArrowRight, AlertTriangle, 
     Loader, Check, Plus, Inbox, Clipboard, ExternalLink
 } from 'lucide-react';
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import { auth } from '@/lib/firebase';
 import { connectGmailAccount, fetchRecentJobEmails, getStoredGmailToken } from '@/lib/gmail-service';
 import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
@@ -19,6 +21,7 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     const addJob = useAppStore(state => state.addJob);
 
     const firstName = (profile?.fullName || '').trim().split(' ')[0] || 'Candidate';
+    const hasAiKey = hasConfiguredAiKey(profile);
 
     const [emailText, setEmailText] = useState('');
     const [fetchingGmail, setFetchingGmail] = useState(false);
@@ -41,6 +44,10 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     const handleDirectGmailFetch = async () => {
+        if (!hasAiKey) {
+            setError('AI Email Sync is paused because no API key is configured on your account. Add an API key in Profile Settings to enable this feature.');
+            return;
+        }
         setFetchingGmail(true);
         setError('');
         setApiDisabledInfo(null);
@@ -107,6 +114,10 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
     };
 
     const handleAnalyze = async (textOverride = null) => {
+        if (!hasAiKey) {
+            setError('AI Email Sync is paused because no API key is configured on your account. Add an API key in Profile Settings to enable this feature.');
+            return;
+        }
         const textToAnalyze = textOverride || emailText;
         if (!textToAnalyze || !textToAnalyze.trim()) {
             setError('Please paste the email content or fetch from Gmail.');
@@ -370,6 +381,38 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                     </div>
                 </div>
 
+                {!hasAiKey && (
+                    <div style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        background: 'rgba(234, 179, 8, 0.1)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.86rem',
+                        margin: '16px 0 4px 0',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px' }}>
+                            <AlertTriangle size={18} color="#eab308" style={{ flexShrink: 0 }} />
+                            <span>
+                                <strong>AI Email Sync Paused:</strong> No AI API key is saved on your account. Add a personal API key in Profile Settings to enable AI email scanning.
+                            </span>
+                        </div>
+                        <Link
+                            href="/profile"
+                            onClick={onClose}
+                            className="btn-primary"
+                            style={{ fontSize: '0.8rem', padding: '6px 12px', textDecoration: 'none', flexShrink: 0 }}
+                        >
+                            Configure API Key
+                        </Link>
+                    </div>
+                )}
+
                 {/* 1-Click Live Gmail Connect Option */}
                 <div style={{
                     padding: '14px 16px',
@@ -395,9 +438,15 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                     <button
                         type="button"
                         onClick={handleDirectGmailFetch}
-                        disabled={fetchingGmail || analyzing}
+                        disabled={!hasAiKey || fetchingGmail || analyzing}
                         className="btn-primary"
-                        style={{ fontSize: '0.85rem', padding: '8px 16px', background: 'linear-gradient(135deg, #ef4444, #ea580c)' }}
+                        style={{
+                            fontSize: '0.85rem',
+                            padding: '8px 16px',
+                            background: 'linear-gradient(135deg, #ef4444, #ea580c)',
+                            opacity: hasAiKey ? 1 : 0.5,
+                            cursor: hasAiKey ? 'pointer' : 'not-allowed'
+                        }}
                     >
                         {fetchingGmail ? (
                             <>
@@ -458,18 +507,33 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                             <button
                                 type="button"
                                 onClick={handlePasteClipboard}
+                                disabled={!hasAiKey || analyzing}
                                 className="btn-secondary"
-                                style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                                title="Paste recruiter email from your clipboard"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    padding: '4px 10px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    opacity: hasAiKey ? 1 : 0.5,
+                                    cursor: hasAiKey ? 'pointer' : 'not-allowed'
+                                }}
+                                title={hasAiKey ? "Paste recruiter email from your clipboard" : "Paused — add an API key in Profile Settings"}
                             >
                                 <Clipboard size={13} /> Paste from Clipboard
                             </button>
                             <button
                                 type="button"
                                 onClick={handleInsertAtlassianSample}
+                                disabled={!hasAiKey || analyzing}
                                 className="btn-secondary"
-                                style={{ fontSize: '0.78rem', padding: '4px 10px' }}
-                                title="Test the Atlassian recruiter update flow"
+                                style={{
+                                    fontSize: '0.78rem',
+                                    padding: '4px 10px',
+                                    opacity: hasAiKey ? 1 : 0.5,
+                                    cursor: hasAiKey ? 'pointer' : 'not-allowed'
+                                }}
+                                title={hasAiKey ? "Test the Atlassian recruiter update flow" : "Paused — add an API key in Profile Settings"}
                             >
                                 Atlassian Recruiter Update
                             </button>
@@ -497,9 +561,14 @@ Return ONLY a JSON array of detected updates (usually 1, but could be multiple i
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                     <button
                         onClick={() => handleAnalyze()}
-                        disabled={analyzing || !emailText.trim()}
+                        disabled={!hasAiKey || analyzing || !emailText.trim()}
                         className="btn-primary"
-                        style={{ padding: '10px 22px', fontSize: '0.95rem' }}
+                        style={{
+                            padding: '10px 22px',
+                            fontSize: '0.95rem',
+                            opacity: hasAiKey ? 1 : 0.5,
+                            cursor: hasAiKey ? 'pointer' : 'not-allowed'
+                        }}
                     >
                         {analyzing ? (
                             <>

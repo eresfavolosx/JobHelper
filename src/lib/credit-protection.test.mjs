@@ -1,63 +1,80 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import {
+    hasConfiguredAiKey,
+    hasConfiguredMapsKey,
+    checkApiAccess,
+    canAddJob,
+    FREE_TIER_MAX_JOBS
+} from './subscription.js';
+import { calculateCommute, loadGoogleMapsScript } from './maps-service.js';
 
-// Test credit protection logic, monthly quotas, and subscriber access control
+// Test credit protection logic, monthly quotas, and strict account API-key gating
 
 describe('Credit Protection & Budget Guardrails Audit', () => {
 
-    describe('1. Gemini API Key & Credit Protection Logic', () => {
-        it('should require Pro subscription or personal key for free users', () => {
-            const OWNER_EMAIL = 'fabian.velez1996@gmail.com';
-            
-            function isOwner(user) {
-                if (!user || !user.email) return false;
-                return user.email.toLowerCase().trim() === OWNER_EMAIL;
-            }
-
-            function isProUser(user, profile) {
-                if (isOwner(user)) return true;
-                const status = (profile?.subscriptionStatus || '').toLowerCase();
-                return status === 'active' || status === 'pro' || status === 'trialing';
-            }
-
-            function canAccessSharedKey(user, profile, personalKey) {
-                if (personalKey && personalKey.length > 5) {
-                    return { allowed: true, mode: 'BYOK (Personal Key - $0 Platform Cost)' };
-                }
-                if (isOwner(user) || isProUser(user, profile)) {
-                    return { allowed: true, mode: 'Shared Platform Key (Pro / Owner)' };
-                }
-                return { allowed: false, error: 'SUBSCRIPTION_REQUIRED' };
-            }
-
-            // Free non-paying user without personal key
-            const freeUser = { email: 'stranger@example.com' };
-            const freeProfile = { subscriptionStatus: 'free' };
-            assert.deepEqual(canAccessSharedKey(freeUser, freeProfile, ''), {
-                allowed: false,
-                error: 'SUBSCRIPTION_REQUIRED'
-            });
-
-            // Free user WITH personal key (BYOK) -> Allowed at $0 cost to Fabian
-            assert.deepEqual(canAccessSharedKey(freeUser, freeProfile, 'AIzaSyA_Personal_Key_123'), {
-                allowed: true,
-                mode: 'BYOK (Personal Key - $0 Platform Cost)'
-            });
-
-            // Owner (Fabian) -> Allowed
+    describe('1. Account API Key Requirement & AI Credit Protection Logic', () => {
+        it('should block AI API access when no API key is configured on profile (even for owner or pro)', () => {
             const ownerUser = { email: 'fabian.velez1996@gmail.com' };
-            assert.deepEqual(canAccessSharedKey(ownerUser, freeProfile, ''), {
-                allowed: true,
-                mode: 'Shared Platform Key (Pro / Owner)'
-            });
+            const proUser = { email: 'subscriber@company.com' };
+            const freeUser = { email: 'stranger@example.com' };
 
-            // Pro subscriber -> Allowed
-            const payingUser = { email: 'subscriber@company.com' };
-            const proProfile = { subscriptionStatus: 'active' };
-            assert.deepEqual(canAccessSharedKey(payingUser, proProfile, ''), {
-                allowed: true,
-                mode: 'Shared Platform Key (Pro / Owner)'
-            });
+            const emptyProfile = { subscriptionStatus: 'free', geminiApiKey: '' };
+            const proEmptyProfile = { subscriptionStatus: 'premium', geminiApiKey: '' };
+
+            // Owner without personal key on profile -> Blocked
+            assert.equal(hasConfiguredAiKey(emptyProfile), false);
+            const ownerCheck = checkApiAccess(ownerUser, emptyProfile);
+            assert.equal(ownerCheck.allowed, false);
+            assert.equal(ownerCheck.code, 'API_KEY_REQUIRED');
+
+            // Pro user without personal key on profile -> Blocked
+            assert.equal(hasConfiguredAiKey(proEmptyProfile), false);
+            const proCheck = checkApiAccess(proUser, proEmptyProfile);
+            assert.equal(proCheck.allowed, false);
+            assert.equal(proCheck.code, 'API_KEY_REQUIRED');
+
+            // Free user without personal key on profile -> Blocked
+            const freeCheck = checkApiAccess(freeUser, emptyProfile);
+            assert.equal(freeCheck.allowed, false);
+            assert.equal(freeCheck.code, 'API_KEY_REQUIRED');
+
+            // Account with personal Gemini, Claude, OpenAI, or Custom AI key -> Allowed
+            assert.equal(hasConfiguredAiKey({ geminiApiKey: 'AIzaSyA_Personal_Key_123' }), true);
+            assert.equal(checkApiAccess(freeUser, { geminiApiKey: 'AIzaSyA_Personal_Key_123' }).allowed, true);
+            assert.equal(hasConfiguredAiKey({ claudeApiKey: 'sk-ant-personal-123456' }), true);
+            assert.equal(hasConfiguredAiKey({ openaiApiKey: 'sk-openai-personal-123' }), true);
+            assert.equal(hasConfiguredAiKey({ customAiApiKey: 'sk-deepseek-123456', customAiBaseUrl: 'https://api.deepseek.com/v1' }), true);
+
+            // Placeholder or short keys must not count
+            assert.equal(hasConfiguredAiKey({ geminiApiKey: 'your_api_key_here' }), false);
+            assert.equal(hasConfiguredAiKey({ geminiApiKey: '12345' }), false);
+            assert.equal(hasConfiguredAiKey({ customAiApiKey: 'sk-deepseek-123456', customAiBaseUrl: '' }), false);
+        });
+
+        it('should ignore environment keys when checking profile AI and Maps keys', () => {
+            const prevGemini = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+            const prevMaps = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+            const prevFirebase = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+            try {
+                process.env.NEXT_PUBLIC_GEMINI_API_KEY = 'env-gemini-shared-secret-key';
+                process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'env-maps-shared-secret-key';
+                process.env.NEXT_PUBLIC_FIREBASE_API_KEY = 'env-firebase-shared-key';
+
+                assert.equal(hasConfiguredAiKey({ geminiApiKey: 'env-gemini-shared-secret-key' }), false);
+                assert.equal(checkApiAccess({ email: 'fabian.velez1996@gmail.com' }, { geminiApiKey: 'env-gemini-shared-secret-key' }).allowed, false);
+
+                assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'env-maps-shared-secret-key' }), false);
+                assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'env-firebase-shared-key' }), false);
+                assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'AIzaSyPersonalMapsKey1234' }), true);
+            } finally {
+                if (prevGemini === undefined) delete process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+                else process.env.NEXT_PUBLIC_GEMINI_API_KEY = prevGemini;
+                if (prevMaps === undefined) delete process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+                else process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = prevMaps;
+                if (prevFirebase === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+                else process.env.NEXT_PUBLIC_FIREBASE_API_KEY = prevFirebase;
+            }
         });
 
         it('should enforce monthly hard cap before any Gemini API request is dispatched', () => {
@@ -121,38 +138,19 @@ describe('Credit Protection & Budget Guardrails Audit', () => {
             assert.equal(cachedResult.duration, '24 mins');
         });
 
-        it('should block non-paying users from using shared Google Maps Platform key', () => {
-            const OWNER_EMAIL = 'fabian.velez1996@gmail.com';
+        it('should block calculateCommute and loadGoogleMapsScript when no personal Maps API key is configured', async () => {
+            const missingKeyRes = await calculateCommute('San Juan, PR', 'Guaynabo, PR', '');
+            assert.equal(missingKeyRes.success, false);
+            assert.equal(missingKeyRes.code, 'API_KEY_REQUIRED');
 
-            function canAccessMapsKey(user, profile, personalKey) {
-                const isPersonal = Boolean(personalKey && personalKey.length > 5);
-                if (isPersonal) return { allowed: true, isPersonal: true };
+            const shortKeyRes = await calculateCommute('San Juan, PR', 'Guaynabo, PR', '123');
+            assert.equal(shortKeyRes.success, false);
+            assert.equal(shortKeyRes.code, 'API_KEY_REQUIRED');
 
-                const isOwner = user?.email?.toLowerCase().trim() === OWNER_EMAIL;
-                const isPro = ['active', 'pro', 'trialing'].includes((profile?.subscriptionStatus || '').toLowerCase());
-
-                if (!isOwner && !isPro) {
-                    return {
-                        allowed: false,
-                        error: 'NovuJobs Pro ($9.99/mo) or your personal Google Maps API key is required to calculate commute intelligence.'
-                    };
-                }
-                return { allowed: true, isPersonal: false };
-            }
-
-            // Random unauthenticated or free user without key
-            const anonymous = null;
-            assert.equal(canAccessMapsKey(anonymous, null, '').allowed, false);
-
-            const freeUser = { email: 'freebie@gmail.com' };
-            assert.equal(canAccessMapsKey(freeUser, { subscriptionStatus: 'free' }, '').allowed, false);
-
-            // Free user with their own Google Maps key
-            assert.equal(canAccessMapsKey(freeUser, { subscriptionStatus: 'free' }, 'AIzaSyMapsPersonal123').allowed, true);
-
-            // Pro user and Owner
-            assert.equal(canAccessMapsKey({ email: 'pro@test.com' }, { subscriptionStatus: 'active' }, '').allowed, true);
-            assert.equal(canAccessMapsKey({ email: 'fabian.velez1996@gmail.com' }, null, '').allowed, true);
+            await assert.rejects(
+                () => loadGoogleMapsScript(''),
+                (err) => err?.code === 'API_KEY_REQUIRED'
+            );
         });
 
         it('should enforce monthly Maps hard cap (default 150 calls = ~$0.75 max)', () => {
@@ -174,28 +172,20 @@ describe('Credit Protection & Budget Guardrails Audit', () => {
     });
 
     describe('3. Firebase Cloud & Free Tier Resource Caps', () => {
-        it('should enforce FREE_TIER_MAX_JOBS limit of 25 jobs for free non-paying users', () => {
-            const FREE_TIER_MAX_JOBS = 25;
+        it('should enforce FREE_TIER_MAX_JOBS limit of 25 jobs for free users while keeping non-AI tracking unlimited for owner/pro', () => {
+            assert.equal(FREE_TIER_MAX_JOBS, 25);
 
-            function canAddJob(currentJobCount, isProOrOwner) {
-                if (isProOrOwner) return { allowed: true };
-                if (currentJobCount >= FREE_TIER_MAX_JOBS) {
-                    return {
-                        allowed: false,
-                        reason: `Free tier limit of ${FREE_TIER_MAX_JOBS} applications reached. Upgrade to Pro for unlimited job tracking.`
-                    };
-                }
-                return { allowed: true };
-            }
+            const freeUser = { email: 'user@example.com' };
+            const ownerUser = { email: 'fabian.velez1996@gmail.com' };
+            const proProfile = { subscriptionStatus: 'premium', geminiApiKey: '' };
 
-            assert.equal(canAddJob(10, false).allowed, true);
-            assert.equal(canAddJob(24, false).allowed, true);
-            assert.equal(canAddJob(25, false).allowed, false);
-            assert.match(canAddJob(25, false).reason, /Free tier limit of 25 applications reached/);
+            assert.equal(canAddJob(freeUser, { subscriptionStatus: 'free' }, 10).allowed, true);
+            assert.equal(canAddJob(freeUser, { subscriptionStatus: 'free' }, 24).allowed, true);
+            assert.equal(canAddJob(freeUser, { subscriptionStatus: 'free' }, 25).allowed, false);
 
-            // Pro / Owner can track unlimited jobs
-            assert.equal(canAddJob(25, true).allowed, true);
-            assert.equal(canAddJob(500, true).allowed, true);
+            // Non-AI job tracking remains unrestricted for Owner and Pro even when AI keys are empty
+            assert.equal(canAddJob(ownerUser, { geminiApiKey: '' }, 500).allowed, true);
+            assert.equal(canAddJob({ email: 'pro@test.com' }, proProfile, 500).allowed, true);
         });
     });
 });

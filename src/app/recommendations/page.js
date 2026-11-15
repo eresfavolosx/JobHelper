@@ -23,6 +23,7 @@ import {
     canonicalizeJobUrl,
 } from '@/lib/job-matcher';
 import { sanitizeUrl } from '@/lib/utils';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import UpgradeModal from '@/components/UpgradeModal';
 import JobSettingsBanner from '@/components/JobSettingsBanner';
 import { RecommendationsSkeleton } from '@/components/SkeletonLoaders';
@@ -82,7 +83,6 @@ function getGateBadge(status) {
 export default function RecommendationsPage() {
     const profile = useAppStore(state => state.profile);
     const trackedJobs = useAppStore(state => state.jobs);
-    const isPremium = useAppStore(state => state.isPremium);
     const addJob = useAppStore((state) => state.addJob);
     const [jobs, setJobs] = useState([]);
     const [coverageReport, setCoverageReport] = useState(null);
@@ -100,8 +100,7 @@ export default function RecommendationsPage() {
             .filter(Boolean)
     ), [trackedJobs]);
 
-    const isCurrentlyPremium = isPremium();
-    const hasAccess = isCurrentlyPremium || Boolean(profile?.geminiApiKey);
+    const hasAccess = hasConfiguredAiKey(profile);
 
     const labelCounts = useMemo(() => {
         const counts = {
@@ -157,6 +156,11 @@ export default function RecommendationsPage() {
     }, [jobs, recSearchQuery, labelFilter]);
 
     const findJobs = async (forceRefresh = false) => {
+        if (!hasConfiguredAiKey(profile)) {
+            setLoading(false);
+            return;
+        }
+
         if (!forceRefresh && typeof window !== 'undefined') {
             try {
                 const cachedRaw = localStorage.getItem(CACHE_KEY);
@@ -243,9 +247,8 @@ export default function RecommendationsPage() {
             }
         } catch (err) {
             console.error('Error fetching recommendations:', err);
-            if (err?.code === 'SUBSCRIPTION_REQUIRED') {
-                setError('NovuJobs Pro ($9.99/mo) or your personal Gemini API key is required to score recommendations with AI.');
-                setUpgradeOpen(true);
+            if (err?.code === 'API_KEY_REQUIRED' || err?.code === 'SUBSCRIPTION_REQUIRED') {
+                setError('AI features are paused because no AI API key is configured on your account. Add an API key in Profile Settings to enable recommendations.');
             } else {
                 setError(err.message || 'An unexpected error occurred while fetching recommendations.');
             }
@@ -255,11 +258,11 @@ export default function RecommendationsPage() {
     };
 
     useEffect(() => {
-        if (jobs.length === 0) {
+        if (hasAccess && jobs.length === 0) {
             findJobs(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [hasAccess]);
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -274,12 +277,19 @@ export default function RecommendationsPage() {
                 </div>
                 <button
                     onClick={() => findJobs(true)}
-                    disabled={loading}
+                    disabled={loading || !hasAccess}
                     className="btn-secondary"
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        opacity: hasAccess ? 1 : 0.5,
+                        cursor: !hasAccess ? 'not-allowed' : loading ? 'wait' : 'pointer'
+                    }}
+                    title={!hasAccess ? 'AI features paused — add an API key in Profile Settings to refresh matches' : 'Refresh AI recommendations'}
                 >
                     <RefreshCw size={18} className={loading ? 'spin' : ''} />
-                    Refresh Matches
+                    {hasAccess ? 'Refresh Matches' : 'AI Paused'}
                 </button>
             </header>
 
@@ -328,12 +338,12 @@ export default function RecommendationsPage() {
                     border: '1px solid var(--border-subtle)',
                     borderRadius: '24px',
                 }}>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '16px' }}>Premium AI Insights</h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 32px', lineHeight: '1.6' }}>
-                        Unlock specialized job matches curated by AI based on your verified evidence and eligibility gates.
+                    <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '16px' }}>AI Job Recommendations Paused</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '540px', margin: '0 auto 32px', lineHeight: '1.6' }}>
+                        AI-powered job matching and recommendations are blocked because no AI API key is configured on your account. Add a personal Gemini, Claude, OpenAI, or Custom API key in Profile Settings when you want to re-enable AI features.
                     </p>
-                    <Link href="/profile" className="btn-primary" style={{ padding: '16px 32px', fontSize: '1.1rem', display: 'inline-flex', justifyContent: 'center' }}>
-                        Upgrade to Premium
+                    <Link href="/profile" className="btn-primary" style={{ padding: '16px 32px', fontSize: '1.05rem', display: 'inline-flex', justifyContent: 'center' }}>
+                        Configure API Key in Profile
                     </Link>
                 </div>
             ) : error ? (

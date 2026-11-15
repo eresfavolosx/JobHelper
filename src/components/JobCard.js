@@ -9,6 +9,7 @@ import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { safeDate, sanitizeUrl } from '@/lib/utils';
 import { getMapsSearchUrl } from '@/lib/maps-service';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import AiCareerCoachModal from './AiCareerCoachModal';
 import UpgradeModal from './UpgradeModal';
 
@@ -79,6 +80,7 @@ const JobCard = memo(function JobCard({ job }) {
     const openEditJobModal = useUIStore(s => s.openEditJobModal);
     const isHighlighted = useUIStore(s => s.highlightedJobId === job.id);
     const setBoardFilters = useUIStore(s => s.setBoardFilters);
+    const hasAiKey = useAppStore(s => hasConfiguredAiKey(s.profile));
     const [coachOpen, setCoachOpen] = useState(false);
     const [upgradeOpen, setUpgradeOpen] = useState(false);
     const [isEditingResume, setIsEditingResume] = useState(false);
@@ -758,14 +760,20 @@ const JobCard = memo(function JobCard({ job }) {
                     </button>
 
                     <button
+                        type="button"
+                        disabled={!hasAiKey}
                         onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            if (!hasAiKey) return;
                             setCoachOpen(true);
                         }}
                         onPointerDown={e => e.stopPropagation()}
                         className="job-action-btn"
-                        title="Launch AI Career Agent (Ghosting Buster, STAR Interview Prep & ATS Gap)"
+                        title={hasAiKey
+                            ? "Launch AI Career Agent (Ghosting Buster, STAR Interview Prep & ATS Gap)"
+                            : "AI features are paused — add an API key in Profile Settings to enable"
+                        }
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -777,10 +785,11 @@ const JobCard = memo(function JobCard({ job }) {
                             border: '1px solid rgba(94, 135, 110, 0.35)',
                             borderRadius: '6px',
                             padding: '3px 8px',
-                            cursor: 'pointer'
+                            opacity: hasAiKey ? 1 : 0.5,
+                            cursor: hasAiKey ? 'pointer' : 'not-allowed'
                         }}
                     >
-                        <Sparkles size={12} /> AI Coach
+                        <Sparkles size={12} /> {hasAiKey ? 'AI Coach' : 'AI Paused'}
                     </button>
                 </div>
             </div>

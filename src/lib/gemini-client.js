@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAppStore } from './store.js';
-import { auth } from './firebase.js';
-import { isOwner } from './subscription.js';
 import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety.js';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
@@ -117,31 +115,42 @@ export const getMimeType = (file, defaultType = 'application/pdf') => {
 };
 
 /**
- * Resolves the available AI providers and user keys from state and environment.
+ * Resolves the available AI providers strictly from personal keys saved on the account profile.
+ * Environment/platform keys are intentionally ignored so AI stays paused when no key is on the account.
  */
-export function getAvailableAiProviders() {
-    let profile = {};
-    try {
-        profile = useAppStore.getState()?.profile || {};
-    } catch {}
-
-    const currentUser = auth?.currentUser;
-    const currentIsOwner = isOwner(currentUser);
+export function getAvailableAiProviders(profileOverride = null) {
+    let profile = profileOverride || {};
+    if (!profileOverride) {
+        try {
+            profile = useAppStore.getState()?.profile || {};
+        } catch {}
+    }
 
     let envGemini = '';
     if (typeof process !== 'undefined') {
         envGemini = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
     }
 
+    const rawGeminiKey = String(profile?.geminiApiKey || '').trim();
     const hasGemini = Boolean(
-        (profile.geminiApiKey && profile.geminiApiKey.trim().length > 5) ||
-        (currentIsOwner && envGemini)
+        rawGeminiKey.length > 5 &&
+        rawGeminiKey !== 'your_api_key_here' &&
+        (!envGemini || rawGeminiKey !== envGemini)
     );
-    const hasClaude = Boolean(profile.claudeApiKey && profile.claudeApiKey.trim().length > 5);
-    const hasOpenAI = Boolean(profile.openaiApiKey && profile.openaiApiKey.trim().length > 5);
-    const hasCustom = Boolean(profile.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile.customAiBaseUrl);
 
-    let active = profile.activeAiProvider || 'gemini';
+    const rawClaudeKey = String(profile?.claudeApiKey || '').trim();
+    const hasClaude = Boolean(rawClaudeKey.length > 5 && rawClaudeKey !== 'your_api_key_here');
+
+    const rawOpenAiKey = String(profile?.openaiApiKey || '').trim();
+    const hasOpenAI = Boolean(rawOpenAiKey.length > 5 && rawOpenAiKey !== 'your_api_key_here');
+
+    const rawCustomKey = String(profile?.customAiApiKey || '').trim();
+    const rawCustomBaseUrl = String(profile?.customAiBaseUrl || '').trim();
+    const hasCustom = Boolean(rawCustomKey.length > 5 && rawCustomKey !== 'your_api_key_here' && rawCustomBaseUrl.length > 0);
+
+    const hasAnyAiKey = Boolean(hasGemini || hasClaude || hasOpenAI || hasCustom);
+
+    let active = profile?.activeAiProvider || 'gemini';
     // If active is unset or unconfigured, default gracefully to the first configured provider
     if (active === 'gemini' && !hasGemini) {
         if (hasClaude) active = 'claude';
@@ -150,72 +159,74 @@ export function getAvailableAiProviders() {
     } else if (active === 'claude' && !hasClaude) {
         if (hasGemini) active = 'gemini';
         else if (hasOpenAI) active = 'openai';
+        else if (hasCustom) active = 'custom';
     } else if (active === 'openai' && !hasOpenAI) {
         if (hasGemini) active = 'gemini';
         else if (hasClaude) active = 'claude';
+        else if (hasCustom) active = 'custom';
+    } else if (active === 'custom' && !hasCustom) {
+        if (hasGemini) active = 'gemini';
+        else if (hasClaude) active = 'claude';
+        else if (hasOpenAI) active = 'openai';
     }
 
     return {
         active,
+        hasAnyAiKey,
         hasGemini,
         hasClaude,
         hasOpenAI,
         hasCustom,
-        geminiKey: profile.geminiApiKey?.trim() || (currentIsOwner ? envGemini : ''),
-        claudeKey: profile.claudeApiKey?.trim() || '',
-        openaiKey: profile.openaiApiKey?.trim() || '',
-        customKey: profile.customAiApiKey?.trim() || '',
-        customBaseUrl: profile.customAiBaseUrl?.trim() || '',
-        customModel: profile.customAiModel?.trim() || ''
+        geminiKey: hasGemini ? rawGeminiKey : '',
+        claudeKey: hasClaude ? rawClaudeKey : '',
+        openaiKey: hasOpenAI ? rawOpenAiKey : '',
+        customKey: hasCustom ? rawCustomKey : '',
+        customBaseUrl: hasCustom ? rawCustomBaseUrl : '',
+        customModel: hasCustom ? String(profile?.customAiModel || '').trim() : ''
     };
 }
 
 /**
- * Resolves the appropriate Gemini API key.
- * - If user entered their own personal key (BYOK), it is always permitted (costs Fabian $0).
- * - Shared platform key is strictly restricted to Fabian (fabian.velez1996@gmail.com).
- * - All other users receive a descriptive error prompting them to bring their own key.
+ * Resolves the personal Gemini API key configured on the account.
+ * Blocks execution with API_KEY_REQUIRED if no personal Gemini API key is configured.
  */
-export function resolveGeminiApiKey() {
+export function resolveGeminiApiKey(profileOverride = null) {
     let personalKey = '';
 
-    try {
-        const state = useAppStore.getState();
-        if (state?.profile?.geminiApiKey) {
-            personalKey = String(state.profile.geminiApiKey).trim();
+    if (profileOverride) {
+        personalKey = String(profileOverride?.geminiApiKey || '').trim();
+    } else {
+        try {
+            const state = useAppStore.getState();
+            if (state?.profile?.geminiApiKey) {
+                personalKey = String(state.profile.geminiApiKey).trim();
+            }
+        } catch (e) {
+            console.warn("[Gemini] Failed to read key from store:", e);
         }
-    } catch (e) {
-        console.warn("[Gemini] Failed to read key from store:", e);
     }
 
-    const currentUser = auth?.currentUser;
-    const currentIsOwner = isOwner(currentUser);
-
-    let sharedKey = '';
+    let envGemini = '';
     if (typeof process !== 'undefined') {
-        sharedKey = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
+        envGemini = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
     }
 
-    // 1. Personal key (BYOK) - allowed only if it is NOT a leaked copy of the platform shared key for a non-owner
-    if (personalKey && personalKey.length > 5 && (currentIsOwner || !sharedKey || personalKey !== sharedKey)) {
-        return { apiKey: personalKey, isPersonal: true };
-    }
+    const hasPersonalKey = Boolean(
+        personalKey &&
+        personalKey.length > 5 &&
+        personalKey !== 'your_api_key_here' &&
+        (!envGemini || personalKey !== envGemini)
+    );
 
-    // 2. Shared platform key is strictly restricted to Platform Owner (fabian.velez1996@gmail.com)
-    // so external users can never incur billing on the owner's account.
-    if (!currentIsOwner) {
+    if (!hasPersonalKey) {
         const error = new Error(
-            'Add your free personal Google Gemini API key in Profile settings to use AI features.'
+            'AI features are paused because no Gemini API key is configured on your account. Please add your API key in Profile Settings.'
         );
-        error.code = 'SUBSCRIPTION_REQUIRED';
+        error.code = 'API_KEY_REQUIRED';
         throw error;
     }
 
-    if (!sharedKey) {
-        throw new Error('Gemini API Key is not configured on this environment.');
-    }
-
-    return { apiKey: sharedKey, isPersonal: false };
+    return { apiKey: personalKey, isPersonal: true, isPersonalKey: true };
 }
 
 // Initialize Gemini with credit overflow protection
@@ -520,6 +531,11 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
 
     // 2. Resolve Active AI Provider & Available Keys
     const providers = getAvailableAiProviders();
+    if (!providers.hasAnyAiKey) {
+        const err = new Error('AI features are paused because no API key is configured on your account. Please add an API key in Profile Settings to enable AI features.');
+        err.code = 'API_KEY_REQUIRED';
+        throw err;
+    }
     const active = providers.active;
 
     // Dispatch according to active engine, with graceful fallbacks

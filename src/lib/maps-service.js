@@ -4,8 +4,7 @@
  * Features built-in persistent caching and strict monthly budget protection to prevent credit overflow.
  */
 
-import { auth } from './firebase';
-import { isOwner } from './subscription';
+import { hasConfiguredMapsKey } from './subscription.js';
 
 let mapsScriptLoadingPromise = null;
 
@@ -103,6 +102,12 @@ export function clearMapsCache() {
  * @returns {Promise<typeof google.maps>}
  */
 export function loadGoogleMapsScript(apiKey) {
+    if (!hasConfiguredMapsKey({ googleMapsApiKey: apiKey })) {
+        const err = new Error('Google Maps features are paused because no Google Maps API key is configured on your account. Please add your key in Profile Settings.');
+        err.code = 'API_KEY_REQUIRED';
+        return Promise.reject(err);
+    }
+
     if (typeof window === 'undefined') {
         return Promise.reject(new Error('Google Maps can only be loaded in the browser.'));
     }
@@ -115,35 +120,7 @@ export function loadGoogleMapsScript(apiKey) {
         return mapsScriptLoadingPromise;
     }
 
-    let resolvedKey = apiKey ? String(apiKey).trim() : '';
-    const sharedMapsKey = typeof process !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
-        : '';
-
-    let currentUser = null;
-    try {
-        currentUser = auth?.currentUser;
-    } catch {}
-
-    // If a non-owner passes the platform owner's shared key as their personal key, treat it as empty so authorization is enforced
-    if (resolvedKey && sharedMapsKey && resolvedKey === sharedMapsKey && !isOwner(currentUser)) {
-        resolvedKey = '';
-    }
-
-    const isPersonalKey = Boolean(resolvedKey && resolvedKey.length > 5 && (resolvedKey !== sharedMapsKey || isOwner(currentUser)));
-
-    if (!isPersonalKey) {
-        // Shared platform Google Maps API key is strictly restricted to Platform Owner (fabian.velez1996@gmail.com)
-        if (!isOwner(currentUser)) {
-            return Promise.reject(new Error('Add your personal Google Maps API key in Profile settings to calculate commute times.'));
-        }
-
-        resolvedKey = sharedMapsKey;
-    }
-
-    if (!resolvedKey) {
-        return Promise.reject(new Error('Google Maps API Key is required. Configure it in Profile settings.'));
-    }
+    const resolvedKey = String(apiKey).trim();
 
     mapsScriptLoadingPromise = new Promise((resolve, reject) => {
         const existingScript = document.getElementById('google-maps-script');
@@ -203,6 +180,14 @@ export function getDirectionsUrl(origin, destination) {
  * @returns {Promise<{ success: boolean, duration?: string, distance?: string, fromCache?: boolean, error?: string }>}
  */
 export async function calculateCommute(origin, destination, apiKey) {
+    if (!hasConfiguredMapsKey({ googleMapsApiKey: apiKey })) {
+        return {
+            success: false,
+            code: 'API_KEY_REQUIRED',
+            error: 'Google Maps features are paused because no API key is configured on your account. Add a Google Maps API key in Profile Settings to calculate commute.'
+        };
+    }
+
     if (!origin || !destination) {
         return { success: false, error: 'Both origin and destination are required.' };
     }
@@ -218,32 +203,8 @@ export async function calculateCommute(origin, destination, apiKey) {
         };
     }
 
-    const sharedMapsKey = typeof process !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
-        : '';
-    const currentUser = auth?.currentUser;
-
-    let resolvedKey = apiKey ? String(apiKey).trim() : '';
-    if (resolvedKey && sharedMapsKey && resolvedKey === sharedMapsKey && !isOwner(currentUser)) {
-        resolvedKey = '';
-    }
-
-    if (!resolvedKey) {
-        // Shared platform key fallback: restricted strictly to Platform Owner (fabian.velez1996@gmail.com)
-        if (!isOwner(currentUser)) {
-            return {
-                success: false,
-                error: 'Add your personal Google Maps API key in Profile settings to calculate commute intelligence.'
-            };
-        }
-        resolvedKey = sharedMapsKey;
-    }
-
-    if (!resolvedKey) {
-        return { success: false, error: 'Google Maps API key not configured. Set it in Profile.' };
-    }
-
-    const isPersonalKey = Boolean(resolvedKey && resolvedKey.length > 5 && (resolvedKey !== sharedMapsKey || isOwner(currentUser)));
+    const resolvedKey = String(apiKey).trim();
+    const isPersonalKey = true;
 
     // 2. Enforce monthly safety quota cap for shared platform key
     if (!isPersonalKey) {

@@ -36,47 +36,78 @@ export function isProUser(user, profile) {
 }
 
 /**
- * Verifies if user is allowed to access shared Google Cloud / Gemini / Maps APIs.
- * Only fabian.velez1996@gmail.com or paying Pro users ($9.99/mo) can access Fabian's shared API keys.
- * Free users can ONLY use AI features if they provide their own Gemini API key (BYOK).
+ * Checks whether the account profile has at least one personal AI API key configured.
+ * Environment/platform keys are intentionally NOT counted so AI features stay paused
+ * whenever the account itself has no API key saved.
+ */
+export function hasConfiguredAiKey(profile) {
+    if (!profile || typeof profile !== 'object') return false;
+
+    const envGemini = (typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '')
+        : '').trim();
+
+    const geminiKey = String(profile.geminiApiKey || '').trim();
+    const gemini = Boolean(
+        geminiKey.length > 5 &&
+        geminiKey !== 'your_api_key_here' &&
+        (!envGemini || geminiKey !== envGemini)
+    );
+
+    const claudeKey = String(profile.claudeApiKey || '').trim();
+    const claude = Boolean(claudeKey.length > 5 && claudeKey !== 'your_api_key_here');
+
+    const openaiKey = String(profile.openaiApiKey || '').trim();
+    const openai = Boolean(openaiKey.length > 5 && openaiKey !== 'your_api_key_here');
+
+    const customKey = String(profile.customAiApiKey || '').trim();
+    const customUrl = String(profile.customAiBaseUrl || '').trim();
+    const custom = Boolean(customKey.length > 5 && customKey !== 'your_api_key_here' && customUrl.length > 0);
+
+    return Boolean(gemini || claude || openai || custom);
+}
+
+/**
+ * Checks whether the account profile has a personal Google Maps API key configured.
+ * Environment/platform keys are excluded so Maps calls stay blocked when the account has no key.
+ */
+export function hasConfiguredMapsKey(profile) {
+    if (!profile || typeof profile !== 'object') return false;
+
+    const envMaps = (typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '')
+        : '').trim();
+    const envFirebase = (typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
+        : '').trim();
+
+    const key = String(profile.googleMapsApiKey || '').trim();
+    return Boolean(
+        key.length > 5 &&
+        key !== 'your_api_key_here' &&
+        (!envMaps || key !== envMaps) &&
+        (!envFirebase || key !== envFirebase)
+    );
+}
+
+/**
+ * Verifies if AI API access is permitted for the current account.
+ * Strictly requires a personal AI API key saved on `profile` (no shared/owner bypass).
  */
 export function checkApiAccess(user, profile) {
-    // 1. Owner has unrestricted access
-    if (isOwner(user)) {
+    if (!hasConfiguredAiKey(profile)) {
         return {
-            allowed: true,
-            tier: 'owner',
-            useSharedKey: true,
-            message: 'Owner access active'
+            allowed: false,
+            isPersonalKey: false,
+            code: 'API_KEY_REQUIRED',
+            reason: 'AI features are paused because no API key is configured on your account. Add an API key in Profile Settings to enable AI features.'
         };
     }
 
-    // 2. Paid Pro user ($9.99/mo)
-    if (isProUser(user, profile)) {
-        return {
-            allowed: true,
-            tier: 'pro',
-            useSharedKey: true,
-            message: 'Pro subscription active'
-        };
-    }
-
-    // 3. Free user with Bring-Your-Own-Key (BYOK) - costs Fabian $0.00
-    if (profile?.geminiApiKey && String(profile.geminiApiKey).trim().length > 10) {
-        return {
-            allowed: true,
-            tier: 'byok',
-            useSharedKey: false,
-            message: 'Using personal Gemini API key'
-        };
-    }
-
-    // 4. Blocked
     return {
-        allowed: false,
-        tier: 'free',
-        useSharedKey: false,
-        message: 'This feature requires a NovuJobs Pro subscription ($9.99/mo) or your own free Gemini API key to protect cloud credits.'
+        allowed: true,
+        isPersonalKey: true,
+        reason: 'Personal API key configured on account'
     };
 }
 

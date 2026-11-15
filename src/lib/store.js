@@ -169,19 +169,19 @@ const VALID_PREVIOUS_STATUSES = new Set([
 export function sanitizeProfileForFirestore(rawProfile) {
     if (!rawProfile || typeof rawProfile !== 'object') return {};
     const cleaned = {};
-    const currentIsOwner = isOwner(auth?.currentUser);
-    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim() : '';
+    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim() : '';
     const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim() : '';
+    const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
 
     for (const key of Object.keys(rawProfile)) {
         if (!ALLOWED_PROFILE_KEYS.has(key) || key === 'contextDocuments') continue;
         const val = rawProfile[key];
         if (val === undefined) continue;
-        if (!currentIsOwner && key === 'geminiApiKey' && envGemini && String(val).trim() === envGemini) {
+        if (key === 'geminiApiKey' && envGemini && String(val).trim() === envGemini) {
             cleaned[key] = '';
             continue;
         }
-        if (!currentIsOwner && key === 'googleMapsApiKey' && envMaps && String(val).trim() === envMaps) {
+        if (key === 'googleMapsApiKey' && ((envMaps && String(val).trim() === envMaps) || (envFirebase && String(val).trim() === envFirebase))) {
             cleaned[key] = '';
             continue;
         }
@@ -1050,6 +1050,20 @@ export const useAppStore = create(
                                         needsCloudCatchup = true;
                                     }
                                 }
+                            }
+
+                            const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim() : '';
+                            const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim() : '';
+                            const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
+
+                            if (envGemini && String(mergedProfile.geminiApiKey || '').trim() === envGemini) {
+                                mergedProfile.geminiApiKey = '';
+                                needsCloudCatchup = true;
+                            }
+                            if ((envMaps && String(mergedProfile.googleMapsApiKey || '').trim() === envMaps) ||
+                                (envFirebase && String(mergedProfile.googleMapsApiKey || '').trim() === envFirebase)) {
+                                mergedProfile.googleMapsApiKey = '';
+                                needsCloudCatchup = true;
                             }
 
                             set({ profile: mergedProfile });

@@ -14,6 +14,7 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 import GoalCustomizationModal from '@/components/GoalCustomizationModal';
 import { useUIStore } from '@/lib/uiStore';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import { KanbanSkeleton } from '@/components/SkeletonLoaders';
 
 const emptySubscribe = () => () => {};
@@ -25,6 +26,7 @@ export default function KanbanPage() {
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
     const jobs = useMemo(() => filterJobsByCycle(rawJobs, cycles, selectedCycleId), [rawJobs, cycles, selectedCycleId]);
     const profile = useAppStore(state => state.profile);
+    const hasAiKey = hasConfiguredAiKey(profile);
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
 
     const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
@@ -111,7 +113,8 @@ export default function KanbanPage() {
                     {/* AI Email & Status Sync Trigger */}
                     <button
                         type="button"
-                        onClick={() => setEmailSyncOpen(true)}
+                        disabled={!hasAiKey}
+                        onClick={() => hasAiKey && setEmailSyncOpen(true)}
                         className="btn-secondary"
                         style={{
                             display: 'flex',
@@ -120,12 +123,17 @@ export default function KanbanPage() {
                             fontSize: '0.8rem',
                             padding: '7px 12px',
                             background: 'linear-gradient(135deg, rgba(208, 90, 71, 0.12), rgba(94, 135, 110, 0.14))',
-                            border: '1px solid rgba(94, 135, 110, 0.35)'
+                            border: '1px solid rgba(94, 135, 110, 0.35)',
+                            opacity: hasAiKey ? 1 : 0.5,
+                            cursor: hasAiKey ? 'pointer' : 'not-allowed'
                         }}
-                        title="Scan recruiter emails with AI to auto-update job statuses"
+                        title={hasAiKey
+                            ? "Scan recruiter emails with AI to auto-update job statuses"
+                            : "AI Email Sync is paused — add an API key in Profile Settings to enable"
+                        }
                     >
                         <Mail size={15} color="var(--accent-primary)" />
-                        <span>Sync Emails</span>
+                        <span>{hasAiKey ? 'Sync Emails' : 'Sync Emails (Paused)'}</span>
                     </button>
 
                     {/* Export Function Dropdown */}

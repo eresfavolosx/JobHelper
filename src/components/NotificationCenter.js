@@ -8,7 +8,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { filterJobsByCycle, detectSearchActivitySpikes } from '@/lib/cycle-utils';
 import { useAuth } from '@/lib/auth-context';
-import { isOwner } from '@/lib/subscription';
+import { isOwner, hasConfiguredAiKey } from '@/lib/subscription';
 import AnthropicFellowsModal from './AnthropicFellowsModal';
 import Link from 'next/link';
 
@@ -16,6 +16,7 @@ const emptySubscribe = () => () => {};
 
 export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningSync, onOpenGmailSync, jobs: propJobs }) {
     const rawJobs = useAppStore(state => state.jobs);
+    const profile = useAppStore(state => state.profile);
     const cycles = useAppStore(state => state.cycles);
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
     const jobSearchMode = useAppStore(state => state.jobSearchMode);
@@ -27,6 +28,7 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
     }, [propJobs, rawJobs, cycles, selectedCycleId]);
     const { user } = useAuth();
     const isPlatformOwner = isOwner(user);
+    const hasAiKey = hasConfiguredAiKey(profile);
     const [isAnthropicModalOpen, setIsAnthropicModalOpen] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [dismissedIds, setDismissedIds] = useState(() => {
@@ -547,7 +549,7 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                                         </div>
                                     )}
 
-                                    {item.job && (
+                                    {item.job && hasAiKey && (
                                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                                             {onSelectJobForCoach && (
                                                 <button

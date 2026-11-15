@@ -7,6 +7,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import { getStoredGmailToken, fetchRecentJobEmails } from '@/lib/gmail-service';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import { calculateGoalProgress, DEFAULT_GOAL } from '@/lib/goal-tracker';
 import { findMatchingJob, classifyEmailIntent } from '@/lib/email-matcher';
 import { safeDate } from '@/lib/utils';
@@ -23,6 +24,7 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
     const moveJob = useAppStore(state => state.moveJob);
     const updateJob = useAppStore(state => state.updateJob);
     const profile = useAppStore(state => state.profile);
+    const hasAiKey = hasConfiguredAiKey(profile);
 
     const goalProgress = calculateGoalProgress(jobs, profile?.applicationGoal || DEFAULT_GOAL);
 
@@ -90,11 +92,11 @@ export default function MorningSyncModal({ isOpen, onClose, onOpenCoach, autoLau
             await new Promise(r => setTimeout(r, 600));
             if (isCancelled) return;
 
-            // Step 2: Check Gmail direct if connected
+            // Step 2: Check Gmail direct if connected AND an AI API key is configured on account
             let detectedUpdates = [];
             const gmailToken = getStoredGmailToken();
 
-            if (gmailToken) {
+            if (hasAiKey && gmailToken) {
                 try {
                     setStatusText('Querying Gmail inbox for recent recruiter responses...');
                     const targetCompanies = [...ghosts, ...followUps, ...activeJobs.slice(0, 10)].map(j => j.company);
@@ -197,7 +199,7 @@ Return ONLY a JSON array of status changes:
             isCancelled = true;
             clearTimeout(timer);
         };
-    }, [isOpen, jobs]);
+    }, [isOpen, jobs, hasAiKey]);
 
     if (!isOpen) return null;
 
@@ -450,7 +452,7 @@ Return ONLY a JSON array of status changes:
                                                 </div>
                                             </div>
 
-                                            {onOpenCoach && (
+                                            {onOpenCoach && hasAiKey && (
                                                 <button
                                                     onClick={() => {
                                                         onClose();

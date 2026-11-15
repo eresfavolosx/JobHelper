@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '@/lib/store';
 import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown, Send, Trash2, Clock, Plus } from 'lucide-react';
 import { getMapsSearchUrl, calculateCommute } from '@/lib/maps-service';
+import { hasConfiguredMapsKey } from '@/lib/subscription';
 import { sanitizeUrl } from '@/lib/utils';
 import UpgradeModal from './UpgradeModal';
 
@@ -26,6 +27,7 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
     const deleteJobFollowUp = useAppStore((state) => state.deleteJobFollowUp);
     const profile = useAppStore((state) => state.profile);
     const jobs = useAppStore((state) => state.jobs);
+    const hasMapsKey = hasConfiguredMapsKey(profile);
 
     // Follow-ups state
     const [today] = useState(() => new Date());
@@ -153,6 +155,14 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
     }, [onClose]);
 
     const handleCalculateCommute = async () => {
+        if (!hasMapsKey) {
+            setCommuteMessage({
+                type: 'error',
+                text: 'Google Maps API key required on your account. Add one in Profile Settings to calculate commute.'
+            });
+            return;
+        }
+
         const destination = formData.location || formData.company;
         const origin = profile?.location;
 
@@ -384,7 +394,8 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                                 <button
                                     type="button"
                                     onClick={handleCalculateCommute}
-                                    disabled={calculatingCommute}
+                                    disabled={calculatingCommute || !hasMapsKey}
+                                    title={!hasMapsKey ? 'Add a Google Maps API key in Profile Settings to enable commute calculation' : 'Calculate commute with Google Maps'}
                                     style={{
                                         fontSize: '0.8rem',
                                         padding: '4px 10px',
@@ -392,7 +403,8 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                                         background: 'var(--accent-primary)',
                                         color: '#fff',
                                         border: 'none',
-                                        cursor: calculatingCommute ? 'wait' : 'pointer',
+                                        opacity: hasMapsKey ? 1 : 0.55,
+                                        cursor: !hasMapsKey ? 'not-allowed' : calculatingCommute ? 'wait' : 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '6px'
@@ -402,8 +414,10 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                                         <>
                                             <Loader size={12} className="animate-spin" /> Calculating...
                                         </>
-                                    ) : (
+                                    ) : hasMapsKey ? (
                                         'Calculate with Google Maps'
+                                    ) : (
+                                        'Maps Key Required (Paused)'
                                     )}
                                 </button>
                             </div>

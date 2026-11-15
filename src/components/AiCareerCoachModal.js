@@ -5,14 +5,13 @@ import {
     X, Sparkles, Clock, AlertTriangle, Copy, Mail, 
     Send, Briefcase, FileText, Lightbulb, Check, Lock
 } from 'lucide-react';
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
-import { useAuth } from '@/lib/auth-context';
 import { generateWithFallback, extractJson } from '@/lib/gemini-client';
-import { isOwner, isProUser } from '@/lib/subscription';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 import { CareerCoachSkeleton } from '@/components/SkeletonLoaders';
 
-export default function AiCareerCoachModal({ job, isOpen, onClose, onOpenUpgrade }) {
-    const { user } = useAuth();
+export default function AiCareerCoachModal({ job, isOpen, onClose }) {
     const profile = useAppStore(state => state.profile);
     const [activeTab, setActiveTab] = useState('ghosting'); // 'ghosting', 'interview', 'ats'
     const [loading, setLoading] = useState(false);
@@ -22,7 +21,7 @@ export default function AiCareerCoachModal({ job, isOpen, onClose, onOpenUpgrade
     const [now] = useState(() => new Date());
     const mouseDownTargetRef = useRef(null);
 
-    const isAuthorized = isOwner(user) || isProUser(user, profile) || Boolean(profile?.geminiApiKey);
+    const isAuthorized = hasConfiguredAiKey(profile);
 
     // Calculate days elapsed since job created or updated
     const daysElapsed = React.useMemo(() => {
@@ -169,8 +168,8 @@ Return ONLY valid JSON matching this schema:
                 }
             } catch (err) {
                 console.error("[AiCareerCoach] Error generating strategy:", err);
-                if (err?.code === 'SUBSCRIPTION_REQUIRED') {
-                    setError('SUBSCRIPTION_REQUIRED');
+                if (err?.code === 'API_KEY_REQUIRED' || err?.code === 'SUBSCRIPTION_REQUIRED') {
+                    setError('API_KEY_REQUIRED');
                 } else {
                     setError(err?.message || 'Failed to generate AI strategy. Please try again.');
                 }
@@ -370,7 +369,7 @@ Return ONLY valid JSON matching this schema:
                 </div>
 
                 {/* Body Content */}
-                {!isAuthorized || error === 'SUBSCRIPTION_REQUIRED' ? (
+                {!isAuthorized || error === 'API_KEY_REQUIRED' || error === 'SUBSCRIPTION_REQUIRED' ? (
                     <div style={{
                         padding: '32px 24px',
                         textAlign: 'center',
@@ -381,30 +380,20 @@ Return ONLY valid JSON matching this schema:
                     }}>
                         <Lock size={42} color="var(--accent-primary)" style={{ margin: '0 auto 12px' }} />
                         <h4 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '8px' }}>
-                            Unlock AI Career Agent & Ghosting Buster
+                            AI Career Agent Paused — No API Key on Account
                         </h4>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '520px', margin: '0 auto 20px' }}>
-                            Get hyper-personalized recruiter follow-up templates, interview question predictions with STAR frameworks, and ATS resume tailoring.
+                            AI features (Ghosting Buster follow-ups, STAR interview predictions, and ATS resume tailoring) are blocked because no AI API key is saved on your account. Add a personal API key in Profile Settings to enable this feature.
                         </p>
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <button
-                                onClick={() => {
-                                    onClose();
-                                    if (onOpenUpgrade) onOpenUpgrade();
-                                    else window.location.href = '/profile#subscription-section';
-                                }}
+                            <Link
+                                href="/profile"
+                                onClick={onClose}
                                 className="btn-primary"
-                                style={{ padding: '10px 20px', fontSize: '0.95rem' }}
+                                style={{ padding: '10px 20px', fontSize: '0.95rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                             >
-                                <Sparkles size={16} /> Upgrade to NovuJobs Pro ($9.99/mo)
-                            </button>
-                            <a
-                                href="/profile#api-keys-section"
-                                className="btn-secondary"
-                                style={{ padding: '10px 20px', fontSize: '0.95rem' }}
-                            >
-                                Or Enter Free Gemini Key in Profile
-                            </a>
+                                <Sparkles size={16} /> Add API Key in Profile Settings
+                            </Link>
                         </div>
                     </div>
                 ) : loading ? (

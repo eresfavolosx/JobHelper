@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, testGeminiApiKey, extractJson } from './gemini-client.js';
+import {
+    testClaudeApiKey,
+    testOpenAiApiKey,
+    testCustomAiProvider,
+    testGeminiApiKey,
+    extractJson,
+    getAvailableAiProviders,
+    resolveGeminiApiKey,
+    generateWithFallback
+} from './gemini-client.js';
 
 test('Multi-Provider AI Validation Suite', async (t) => {
     await t.test('testClaudeApiKey rejects empty key', async () => {
@@ -47,5 +56,41 @@ test('Multi-Provider AI Validation Suite', async (t) => {
         const rawMarkdown = "Here is the parsed response:\n```json\n{\"skills\": [\"React\", \"TypeScript\"], \"score\": 95}\n```\nHope this helps!";
         const parsed = extractJson(rawMarkdown);
         assert.deepEqual(parsed, { skills: ["React", "TypeScript"], score: 95 });
+    });
+
+    await t.test('getAvailableAiProviders returns hasAnyAiKey=false when account has no keys (even with env key)', () => {
+        const prevGemini = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+        try {
+            process.env.NEXT_PUBLIC_GEMINI_API_KEY = 'env-gemini-platform-key';
+
+            const emptyProviders = getAvailableAiProviders({});
+            assert.equal(emptyProviders.hasAnyAiKey, false);
+            assert.equal(emptyProviders.hasGemini, false);
+            assert.equal(emptyProviders.geminiKey, '');
+
+            const leakedEnvProviders = getAvailableAiProviders({ geminiApiKey: 'env-gemini-platform-key' });
+            assert.equal(leakedEnvProviders.hasAnyAiKey, false);
+            assert.equal(leakedEnvProviders.hasGemini, false);
+
+            const personalProviders = getAvailableAiProviders({ geminiApiKey: 'AIzaSyPersonalAccountKey123' });
+            assert.equal(personalProviders.hasAnyAiKey, true);
+            assert.equal(personalProviders.hasGemini, true);
+            assert.equal(personalProviders.geminiKey, 'AIzaSyPersonalAccountKey123');
+        } finally {
+            if (prevGemini === undefined) delete process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+            else process.env.NEXT_PUBLIC_GEMINI_API_KEY = prevGemini;
+        }
+    });
+
+    await t.test('resolveGeminiApiKey and generateWithFallback throw API_KEY_REQUIRED when no key is on account', async () => {
+        assert.throws(
+            () => resolveGeminiApiKey({}),
+            (err) => err?.code === 'API_KEY_REQUIRED'
+        );
+
+        await assert.rejects(
+            () => generateWithFallback('Hello AI'),
+            (err) => err?.code === 'API_KEY_REQUIRED'
+        );
     });
 });
