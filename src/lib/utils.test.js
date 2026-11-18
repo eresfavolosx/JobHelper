@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeXml, sanitizeUrl } from './utils.js';
+import { sanitizeJobForFirestore } from './store.js';
 
 describe('utils', () => {
   describe('escapeXml', () => {
@@ -54,6 +55,40 @@ describe('utils', () => {
     it('should block URLs longer than 2048 characters', () => {
       const longUrl = 'https://example.com/' + 'a'.repeat(2048);
       assert.equal(sanitizeUrl(longUrl), null);
+    });
+  });
+
+  describe('sanitizeJobForFirestore & full job description storage', () => {
+    it('preserves very large job descriptions up to 200,000 characters without truncation', () => {
+      const fullDescription = 'Responsibilities:\n' + 'Develop robust systems. '.repeat(5000); // ~120,000 chars
+      assert.ok(fullDescription.length > 50000, 'Test payload should exceed old 50k limit');
+
+      const sanitized = sanitizeJobForFirestore({
+        id: 'job-123',
+        company: 'Scale AI',
+        role: 'Senior Infrastructure Engineer',
+        status: 'applied',
+        description: fullDescription,
+        notes: 'Great conversation with recruiter'
+      });
+
+      assert.equal(sanitized.description.length, fullDescription.length);
+      assert.equal(sanitized.description, fullDescription);
+      assert.equal(sanitized.company, 'Scale AI');
+      assert.equal(sanitized.status, 'applied');
+    });
+
+    it('strips disallowed keys and preserves valid job fields', () => {
+      const sanitized = sanitizeJobForFirestore({
+        company: 'Stripe',
+        status: 'wishlist',
+        description: 'Payment API engineers',
+        maliciousKey: 'drop_database'
+      });
+
+      assert.equal(sanitized.company, 'Stripe');
+      assert.equal(sanitized.description, 'Payment API engineers');
+      assert.equal(sanitized.maliciousKey, undefined);
     });
   });
 });

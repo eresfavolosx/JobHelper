@@ -80,7 +80,8 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
             setError(null);
 
             const jobTitle = job.role || job.title || 'Software Engineer';
-            const jobNotes = job.notes || job.description || '';
+            const jobDescription = job.description || job.notes || '';
+            const personalNotes = job.notes && job.description ? job.notes : '';
 
             const prompt = `You are the world's most elite executive career coach and recruiter.
 Analyze this job application and candidate profile to generate a tactical career coaching strategy:
@@ -90,7 +91,8 @@ Title: ${jobTitle}
 Company: ${job.company || 'Tech Company'}
 Status: ${job.status || 'applied'}
 Days Since Update: ${daysElapsed} days
-Description: ${jobNotes.slice(0, 1500)}
+Description: ${jobDescription.slice(0, 4000)}
+${personalNotes ? `Applicant Notes: ${personalNotes.slice(0, 1000)}` : ''}
 </job>
 
 <candidate>

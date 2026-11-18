@@ -46,11 +46,33 @@ const SAMPLE_JOBS = [
 
 describe('Multi-Parameter Job Search & Facet Engine', () => {
     it('parses structured field prefix tokens and free-text terms', () => {
-        const parsed = parseSearchQuery('company:Anthropic location:"San Francisco" fellowship');
-        assert.equal(parsed.fieldFilters.length, 2);
+        const parsed = parseSearchQuery('company:Anthropic location:"San Francisco" desc:"reinforcement learning" fellowship');
+        assert.equal(parsed.fieldFilters.length, 3);
         assert.deepEqual(parsed.fieldFilters[0], { field: 'company', value: 'anthropic' });
         assert.deepEqual(parsed.fieldFilters[1], { field: 'location', value: 'san francisco' });
+        assert.deepEqual(parsed.fieldFilters[2], { field: 'description', value: 'reinforcement learning' });
         assert.deepEqual(parsed.textTokens, ['fellowship']);
+    });
+
+    it('matches jobs by full job description content', () => {
+        const jobWithDesc = {
+            id: '5',
+            role: 'ML Engineer',
+            company: 'Google DeepMind',
+            location: 'Mountain View, CA',
+            status: 'applied',
+            description: 'Looking for experts in transformer architectures, FlashAttention, and TPU kernel optimization.',
+            notes: 'Referred by team lead',
+            updatedAt: '2026-10-22T12:00:00Z'
+        };
+
+        const matchDesc = evaluateJobMatch(jobWithDesc, { query: 'FlashAttention' });
+        assert.equal(matchDesc.matches, true);
+        assert.ok(matchDesc.matchedFields.includes('description'));
+
+        const matchPrefix = evaluateJobMatch(jobWithDesc, { query: 'desc:"TPU kernel"' });
+        assert.equal(matchPrefix.matches, true);
+        assert.ok(matchPrefix.matchedFields.includes('description'));
     });
 
     it('matches multi-word queries across company, role, location, salary, and notes', () => {

@@ -72,6 +72,7 @@ function UrlListener() {
             const salary = cleanIncomingText(searchParams.get('salary'));
             const location = cleanIncomingText(searchParams.get('location'));
             const description = cleanIncomingText(searchParams.get('description'));
+            const notes = cleanIncomingText(searchParams.get('notes'));
             const rawResumeUrl = searchParams.get('resumeUrl');
             const resumeName = cleanIncomingText(searchParams.get('resumeName'));
 
@@ -96,7 +97,8 @@ function UrlListener() {
                 status,
                 salary,
                 location,
-                notes: description,
+                description: description || '',
+                notes: notes || '',
                 resumeUrl,
                 resumeName
             });

@@ -32,6 +32,9 @@ const FIELD_PREFIX_MAP = {
     cv: 'resume',
     notes: 'notes',
     note: 'notes',
+    description: 'description',
+    desc: 'description',
+    jd: 'description',
     tag: 'tags',
     tags: 'tags'
 };
@@ -96,6 +99,7 @@ function getSearchableFields(job) {
         salary: String(job?.salary || '').toLowerCase(),
         resume: `${job?.resumeName || ''} ${job?.resumeUrl || ''}`.toLowerCase(),
         notes: String(job?.notes || '').toLowerCase(),
+        description: String(job?.description || '').toLowerCase(),
         tags: tagsStr.toLowerCase(),
         url: String(job?.url || '').toLowerCase()
     };
@@ -268,6 +272,11 @@ export function evaluateJobMatch(job, options = {}) {
             tokenMatched = true;
             matchedFieldsSet.add('notes');
             score += 6;
+        }
+        if (fields.description && fields.description.includes(token)) {
+            tokenMatched = true;
+            matchedFieldsSet.add('description');
+            score += 15;
         }
         if (fields.url.includes(token)) {
             tokenMatched = true;

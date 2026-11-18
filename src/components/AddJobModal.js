@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '@/lib/store';
-import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown, Send, Trash2, Clock, Plus } from 'lucide-react';
+import { X, MapPin, Navigation, ExternalLink, Loader, FileText, ChevronDown, Send, Trash2, Clock, Plus, Clipboard, Check } from 'lucide-react';
 import { getMapsSearchUrl, calculateCommute } from '@/lib/maps-service';
 import { hasConfiguredMapsKey } from '@/lib/subscription';
 import { sanitizeUrl } from '@/lib/utils';
@@ -118,9 +118,11 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
         resumeName: initialData?.resumeName || '',
         location: initialData?.location || '',
         commuteTime: initialData?.commuteTime || '',
+        description: initialData?.description || initialData?.jobDescription || '',
         notes: initialData?.notes || '',
         status: initialData?.status || 'applied'
     }));
+    const [copiedFromClipboard, setCopiedFromClipboard] = useState(false);
     const [calculatingCommute, setCalculatingCommute] = useState(false);
     const [commuteMessage, setCommuteMessage] = useState({ type: '', text: '' });
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -153,6 +155,24 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [onClose]);
+
+    const handlePasteDescription = async () => {
+        try {
+            if (typeof navigator !== 'undefined' && navigator?.clipboard?.readText) {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    setFormData(prev => ({
+                        ...prev,
+                        description: prev.description ? `${prev.description}\n\n${text}` : text
+                    }));
+                    setCopiedFromClipboard(true);
+                    setTimeout(() => setCopiedFromClipboard(false), 1500);
+                }
+            }
+        } catch (e) {
+            console.warn('[AddJobModal] Clipboard read not permitted:', e);
+        }
+    };
 
     const handleCalculateCommute = async () => {
         if (!hasMapsKey) {
@@ -203,6 +223,8 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                 url: formData.url ? sanitizeUrl(formData.url) || formData.url.trim() : '',
                 resumeUrl: formData.resumeUrl ? sanitizeUrl(formData.resumeUrl) || formData.resumeUrl.trim() : '',
                 resumeName: (formData.resumeName || '').trim(),
+                description: (formData.description || '').trim(),
+                notes: (formData.notes || '').trim(),
                 followUps,
                 ...(followUps.length > 0 ? {
                     lastFollowUpAt: followUps[0].date,
@@ -227,6 +249,7 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                 salary: '',
                 location: '',
                 commuteTime: '',
+                description: '',
                 notes: '',
                 status: 'applied'
             });
@@ -806,6 +829,87 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                             </div>
                         )}
                     </fieldset>
+
+                    {/* Full Job Description Section */}
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                            <label htmlFor="job-description" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                                <FileText size={15} color="var(--accent-primary)" /> Job Description
+                                <span style={{ fontSize: '0.74rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
+                                    (no character limit)
+                                </span>
+                            </label>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {formData.description && (
+                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                        {formData.description.length.toLocaleString()} chars · {formData.description.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                                    </span>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={handlePasteDescription}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.74rem',
+                                        background: 'var(--glass-highlight)',
+                                        border: '1px solid var(--border-subtle)',
+                                        color: copiedFromClipboard ? 'var(--success)' : 'var(--text-secondary)',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Paste from clipboard into the job description"
+                                >
+                                    {copiedFromClipboard ? <Check size={12} color="var(--success)" /> : <Clipboard size={12} />}
+                                    <span>{copiedFromClipboard ? 'Pasted!' : 'Paste Clipboard'}</span>
+                                </button>
+
+                                {formData.description && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, description: '' }))}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            fontSize: '0.74rem',
+                                            color: 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            padding: '2px 4px'
+                                        }}
+                                        title="Clear description"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <textarea
+                            id="job-description"
+                            name="description"
+                            data-agent-input="job-description"
+                            style={{
+                                width: '100%',
+                                minHeight: '140px',
+                                padding: '12px',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid var(--border-subtle)',
+                                background: 'var(--bg-app)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.88rem',
+                                lineHeight: '1.5',
+                                resize: 'vertical',
+                                fontFamily: 'inherit'
+                            }}
+                            value={formData.description || ''}
+                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                            placeholder="Paste the full job posting text here (responsibilities, required qualifications, tech stack, benefits, salary details, etc.)..."
+                        />
+                    </div>
 
                     <div>
                         <label htmlFor="job-notes" style={{ display: 'block', marginBottom: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Notes</label>

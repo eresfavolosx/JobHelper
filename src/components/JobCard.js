@@ -86,6 +86,8 @@ const JobCard = memo(function JobCard({ job }) {
     const [isEditingResume, setIsEditingResume] = useState(false);
     const [resumeUrlDraft, setResumeUrlDraft] = useState(job.resumeUrl || '');
     const [resumeNameDraft, setResumeNameDraft] = useState(job.resumeName || '');
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [copiedDesc, setCopiedDesc] = useState(false);
 
     // Follow-up outreach logger state
     const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -911,6 +913,99 @@ const JobCard = memo(function JobCard({ job }) {
                                 </button>
                             </div>
                         </>
+                    )}
+                </div>
+            )}
+
+            {job.description && (
+                <div style={{ marginTop: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDescriptionExpanded(!isDescriptionExpanded);
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border-subtle)',
+                            background: isDescriptionExpanded ? 'var(--glass-highlight)' : 'var(--glass-panel)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                        }}
+                        title={isDescriptionExpanded ? 'Collapse job description' : 'Expand full job description'}
+                    >
+                        <FileText size={12} color="var(--accent-primary)" />
+                        <span>Job Description</span>
+                        <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>
+                            ({job.description.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words)
+                        </span>
+                        <ChevronDown
+                            size={12}
+                            style={{
+                                transform: isDescriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s ease'
+                            }}
+                        />
+                    </button>
+
+                    {isDescriptionExpanded && (
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                marginTop: '8px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-subtle)',
+                                fontSize: '0.8rem',
+                                lineHeight: '1.5',
+                                color: 'var(--text-primary)',
+                                maxHeight: '220px',
+                                overflowY: 'auto',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '4px' }}>
+                                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                    Full Posting Text
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                            if (typeof navigator !== 'undefined' && navigator?.clipboard?.writeText) {
+                                                await navigator.clipboard.writeText(job.description);
+                                                setCopiedDesc(true);
+                                                setTimeout(() => setCopiedDesc(false), 1500);
+                                            }
+                                        } catch {}
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        fontSize: '0.72rem',
+                                        color: copiedDesc ? 'var(--success)' : 'var(--accent-primary)',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    {copiedDesc ? '✓ Copied' : '📋 Copy Text'}
+                                </button>
+                            </div>
+                            <div>{job.description}</div>
+                        </div>
                     )}
                 </div>
             )}

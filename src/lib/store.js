@@ -147,7 +147,7 @@ const JOB_STRING_LIMITS = {
     salary: 100,
     url: 2048,
     link: 2048,
-    description: 50000,
+    description: 200000,
     notes: 10000,
     commuteTime: 200,
     matchReason: 2000,

@@ -53,7 +53,7 @@ service cloud.firestore {
     //   - status: string (required, in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted'])
     //   - url: string (optional, 0..2048 chars) - Job URL
     //   - link: string (optional, 0..2048 chars) - Alias for job URL
-    //   - description: string (optional, 0..50000 chars) - Job description text
+    //   - description: string (optional, 0..200000 chars) - Job description text
     //   - salary: string (optional, 0..100 chars) - Salary range
     //   - notes: string (optional, 0..10000 chars) - Notes or AI match info
     //   - commuteTime: string (optional, 0..200 chars) - Calculated commute time
@@ -351,7 +351,7 @@ service cloud.firestore {
              isValidOptionalString(data, 'salary', 0, 100) &&
              isValidOptionalString(data, 'url', 0, 2048) &&
              isValidOptionalString(data, 'link', 0, 2048) &&
-             isValidOptionalString(data, 'description', 0, 50000) &&
+             isValidOptionalString(data, 'description', 0, 200000) &&
              isValidOptionalString(data, 'notes', 0, 10000) &&
              isValidOptionalString(data, 'commuteTime', 0, 200) &&
              isValidOptionalString(data, 'matchReason', 0, 2000) &&

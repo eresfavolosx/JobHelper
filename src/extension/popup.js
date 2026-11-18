@@ -176,13 +176,27 @@ function scrapeActivePageDom() {
         }
     }
 
+    let description = '';
+    const liDesc = doc.querySelector('.jobs-description__content, .jobs-box__html-content, #job-details, .show-more-less-html__markup');
+    const indDesc = doc.querySelector('#jobDescriptionText, .jobsearch-JobComponent-description');
+    const ghDesc = doc.querySelector('#content, .content');
+    const leverDesc = doc.querySelector('.section-wrapper.page-full-width, [data-qa="job-description"]');
+
+    if (liDesc) description = getCleanElementText(liDesc);
+    else if (indDesc) description = getCleanElementText(indDesc);
+    else if (ghDesc) description = getCleanElementText(ghDesc);
+    else if (leverDesc) description = getCleanElementText(leverDesc);
+
     return {
         title: role || cleanedTitle,
         company: company || '',
         location: location || '',
+        description: description || '',
         url: url
     };
 }
+
+let scrapedDescription = '';
 
 async function initPopup() {
     // Restore last-used resume link, label, and stage so rapid daily applying requires 0 re-pasting
@@ -219,6 +233,7 @@ async function initPopup() {
                 roleInput.value = cleanScrapedText(data.title);
                 companyInput.value = cleanScrapedText(data.company);
                 locationInput.value = cleanScrapedText(data.location);
+                scrapedDescription = data.description || '';
                 if (data.url) activeTabUrl = data.url;
                 statusNote.textContent = 'Details cleaned & ready to save.';
             }
@@ -255,6 +270,7 @@ saveBtn.addEventListener('click', async () => {
         if (cleanLocation) targetUrl += `&location=${encodeURIComponent(cleanLocation)}`;
         if (cleanResumeUrl) targetUrl += `&resumeUrl=${encodeURIComponent(cleanResumeUrl)}`;
         if (cleanResumeName) targetUrl += `&resumeName=${encodeURIComponent(cleanResumeName)}`;
+        if (scrapedDescription) targetUrl += `&description=${encodeURIComponent(scrapedDescription.slice(0, 3000))}`;
 
         chrome.tabs.create({ url: targetUrl });
     } catch (error) {
