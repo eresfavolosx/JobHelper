@@ -40,6 +40,6 @@ export function mapPasswordActionError(err) {
         case 'auth/provider-already-linked':
             return 'An email & password sign-in is already linked to this account. You can update it or send a reset email.';
         default:
-            return err?.message || 'Unable to update password right now. Please try again.';
+            return 'Unable to update password right now. Please try again.';
     }
 }

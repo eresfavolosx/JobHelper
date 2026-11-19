@@ -7,7 +7,12 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
-    // --- Existing Shared Project Collections (NovuJobs / jobhelper-c3cd7) ---
+    // Shared Firebase Project: jobhelper-c3cd7
+    // Shared by:
+    //   1. NovuJobs / JobHelper (hosting: jobhelper-c3cd7)
+    //   2. CTRL Orange (hosting: ctrlorange-novuworks)
+    //
+    // --- NovuJobs Collections ---
     //
     // Collection: /users/{userId}/data/profile (single document 'profile')
     // Document ID: 'profile'
@@ -17,113 +22,126 @@ service cloud.firestore {
     //   - location: string (optional, 0..200 chars) - User's home location
     //   - keywords: string (optional, 0..1000 chars) - Comma-separated search keywords
     //   - isRemote: bool (optional) - Remote work preference
-    //   - experienceLevel: string or list (optional, 0..250 chars or max 10 items) - Experience level(s)
+    //   - experienceLevel: string or list<string> (optional, 0..250 chars or max 10 items <= 64 chars)
     //   - country: string (optional, 0..100 chars) - User country
-    //   - modality: string or list (optional, 0..250 chars or max 10 items) - Work modality (Remote, Hybrid, On-site)
-    //   - minimumSalary: string/int/number/null (optional, 0..50 chars if string) - Desired minimum salary
-    //   - contextDocuments: list (optional, max 20 items) - Uploaded resume/context documents
-    //   - resumeAnalysis: map or null (optional, max 50 keys) - AI-extracted resume analysis
+    //   - modality: string or list<string> (optional, 0..250 chars or max 10 items <= 64 chars)
+    //   - minimumSalary: string/number/null (optional, 0..50 chars or 0..100000000)
+    //   - contextDocuments: list<map> or null (optional, max 10 items, bounded map keys/content)
+    //   - resumeAnalysis: map or null (optional, max 16 known keys, bounded strings/lists)
     //   - geminiApiKey: string (optional, 0..200 chars) - User-provided Gemini API key
     //   - claudeApiKey: string (optional, 0..200 chars) - User-provided Claude API key
     //   - openaiApiKey: string (optional, 0..200 chars) - User-provided OpenAI API key
     //   - customAiApiKey: string (optional, 0..200 chars) - User-provided custom AI API key
     //   - customAiBaseUrl: string (optional, 0..250 chars) - Custom AI base URL
     //   - customAiModel: string (optional, 0..100 chars) - Custom AI model name
-    //   - activeAiProvider: string (optional, in ['gemini', 'claude', 'openai', 'custom']) - Selected active AI provider
+    //   - activeAiProvider: string/null (optional, in ['gemini', 'claude', 'openai', 'custom'])
     //   - googleMapsApiKey: string (optional, 0..200 chars) - User-provided Google Maps API key
-    //   - subscriptionStatus: string (optional, in ['free', 'premium', 'trial']) - Subscription status
-    //   - trialStartDate: string/timestamp/null (optional, 0..100 chars) - Trial start date
-    //   - trialEndDate: string/timestamp/null (optional, 0..100 chars) - Trial end date
-    //   - applicationGoal: map or null (optional, max 10 keys) - Goal tracking settings (target, cadence, targetRole, hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
-    //   - security2FA: map or null (optional, max 4 keys: enabled, secret, backupCodes, enabledAt) - Two-factor authentication configuration
-    //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
+    //   - subscriptionStatus: string (optional, in ['free', 'premium', 'trial'];
+    //       non-admin create rejects 'premium'; non-admin update cannot modify)
+    //   - trialStartDate: string/timestamp/null (optional, <= 100 chars; immutable for non-admins)
+    //   - trialEndDate: string/timestamp/null (optional, <= 100 chars; immutable for non-admins)
+    //   - applicationGoal: map or null (optional, max 10 keys: target, cadence, targetRole,
+    //       hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
+    //   - security2FA: map or null (optional, max 4 keys: enabled, secret, backupCodes, enabledAt;
+    //       backupCodes max 16 strings of 4..32 chars)
+    //   - updatedAt: string/timestamp/null (optional, <= 100 chars) - Last updated timestamp
     //
     // Collection: /users/{userId}/data/cycles (single document 'cycles')
     // Document ID: 'cycles'
-    // Fields: User search cycles data
+    // Fields:
+    //   - list: list<map> (required, max 100 cycle items; each item has id, cycleNumber, status,
+    //       optional name, startedAt, endedAt, acceptedJobId, acceptedCompany, acceptedRole,
+    //       targetRole, triggerType, notes, createdAt, updatedAt)
+    //   - updatedAt: string/timestamp/null (optional, <= 100 chars)
+    //   - jobSearchMode: bool (optional)
+    //   - oct2Reconciled: bool (optional)
+    //   - transitionLog: list<map> (optional, max 200 items; each item has id, type, date,
+    //       optional company, role, note, cycleId, cycleNumber, createdAt)
     //
     // Collection: /users/{userId}/jobs/{jobId}
     // Document ID: {jobId} (string, 1..100 chars)
     // Fields:
     //   - id: string (optional, 1..100 chars, immutable) - Must match {jobId} if present
-    //   - company: string (optional, 0..200 chars) - Company name
-    //   - role: string (optional, 0..200 chars) - Job title/role
-    //   - title: string (optional, 0..200 chars) - Alias for job title
-    //   - location: string (optional, 0..200 chars) - Job location
-    //   - status: string (required, in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted'])
-    //   - url: string (optional, 0..2048 chars) - Job URL
-    //   - link: string (optional, 0..2048 chars) - Alias for job URL
-    //   - description: string (optional, 0..200000 chars) - Job description text
-    //   - salary: string (optional, 0..100 chars) - Salary range
-    //   - notes: string (optional, 0..10000 chars) - Notes or AI match info
-    //   - commuteTime: string (optional, 0..200 chars) - Calculated commute time
-    //   - relevanceScore: int/float (optional, 0..100) - AI relevance score percentage
-    //   - matchReason: string (optional, 0..2000 chars) - AI match reasoning
-    //   - createdAt: string/timestamp (optional, 0..100 chars, immutable) - Creation timestamp
-    //   - dateAdded: string/timestamp (optional, 0..100 chars, immutable) - Alias creation timestamp
-    //   - updatedAt: string/timestamp/null (optional, 0..100 chars) - Last updated timestamp
-    //   - appliedAt: string/timestamp/null (optional, 0..100 chars) - Application date/timestamp
-    //   - deletedAt: string/timestamp/number/null (optional, 0..100 chars) - Deletion timestamp
-    //   - archivedAt: string/timestamp/number/null (optional, 0..100 chars) - Archive timestamp
-    //   - previousStatus: string (optional, in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'])
-    //   - source: string (optional, 0..100 chars) - Job source (e.g. RSS feed name)
-    //   - pubDate: string (optional, 0..100 chars) - Publication date
-    //   - tags: list or null (optional, max 25 items) - Job tags
-    //   - resumeUrl: string (optional, 0..2048 chars) - Resume download URL
-    //   - resumeName: string (optional, 0..200 chars) - Resume file name
-    //   - cycleId: string (optional, 0..100 chars) - Associated search cycle ID
-    //   - cycleNumber: int (optional) - Associated search cycle sequence number
-    //   - followUps: list (optional, max 100 items) - Follow-up history / notes
-    //   - lastFollowUpAt: string/timestamp/null (optional, 0..100 chars) - Last follow-up timestamp
-    //   - lastInteraction: string/timestamp/null (optional, 0..100 chars) - Last interaction date/timestamp
+    //   - company: string (optional, 0..200 chars)
+    //   - role: string (optional, 0..200 chars)
+    //   - title: string (optional, 0..200 chars)
+    //   - location: string (optional, 0..200 chars)
+    //   - status: string (required, in ['wishlist', 'applied', 'screening', 'interviewing',
+    //       'offer', 'accepted', 'rejected', 'archived', 'deleted'])
+    //   - url: string (optional, 0..2048 chars)
+    //   - link: string (optional, 0..2048 chars)
+    //   - description: string (optional, <= 200000 UTF-8 bytes)
+    //   - salary: string (optional, 0..100 chars)
+    //   - notes: string (optional, 0..10000 chars, <= 15000 UTF-8 bytes)
+    //   - commuteTime: string (optional, 0..200 chars)
+    //   - relevanceScore: int/float/null (optional, 0..100)
+    //   - matchReason: string (optional, 0..2000 chars)
+    //   - createdAt: string/timestamp (optional, <= 100 chars, immutable)
+    //   - dateAdded: string/timestamp (optional, <= 100 chars, immutable)
+    //   - updatedAt: string/timestamp/null (optional, <= 100 chars)
+    //   - appliedAt: string/timestamp/null (optional, <= 100 chars)
+    //   - deletedAt: string/timestamp/number/null (optional, <= 100 chars)
+    //   - archivedAt: string/timestamp/number/null (optional, <= 100 chars)
+    //   - previousStatus: string/null (optional, in ['wishlist', 'applied', 'screening',
+    //       'interviewing', 'offer', 'accepted', 'rejected', 'archived'])
+    //   - source: string (optional, 0..100 chars)
+    //   - pubDate: string (optional, 0..100 chars)
+    //   - tags: list<string> or null (optional, max 25 items, each 0..80 chars)
+    //   - resumeUrl: string (optional, 0..2048 chars)
+    //   - resumeName: string (optional, 0..200 chars)
+    //   - cycleId: string (optional, 0..100 chars)
+    //   - cycleNumber: int/null (optional, 1..10000)
+    //   - followUps: list<map> or null (optional, max 100 items: id, date, channel, note, createdAt)
+    //   - lastFollowUpAt: string/timestamp/null (optional, <= 100 chars)
+    //   - lastInteraction: string/timestamp/null (optional, <= 100 chars)
     //
     // --- CTRL Orange Collections ---
     //
-    // Collection: /remote_sessions/{sessionId}
+    // Collection: /remote_sessions/{document=**} (RETIRED)
+    //   - Legacy unauthenticated namespace; all reads and writes are denied.
+    //
+    // Collection: /remote_sessions_v2/{sessionId}
     // Document ID: {sessionId} (uppercase alphanumeric, 6-12 chars: ^[A-Z0-9]{6,12}$)
-    // Purpose: Real-time Desktop <-> Phone Mobile Mirror pairing state (no login required,
-    //          collection listing disabled so pairing codes cannot be enumerated).
+    // Purpose: Authenticated owner-scoped Desktop <-> Phone Mobile Mirror sync state.
+    //   Both Desktop and Phone Remote authenticate as the same Firebase Auth user (ownerUid).
     // Fields:
     //   - sessionId: string (required, immutable, must match document ID {sessionId})
-    //   - updatedAt: number (required, epoch ms >= 0 and <= 9999999999999)
+    //   - ownerUid: string (required, immutable, must equal request.auth.uid)
+    //   - updatedAt: number (required, epoch ms 0..9999999999999)
     //   - activeMode: string (required, enum: 'ask' | 'followup' | 'livecoach' | 'debrief')
     //   - isStreaming: bool (required)
     //   - isListening: bool (required)
     //   - stealth: map (required, exact keys: contentProtection, alwaysOnTop, hideFromDock,
-    //              skipTaskbar, clickThrough, mobileOnlyHidden, focusSafePassive [all bool],
-    //              opacity [number 0..1], processTitle [string 0..120])
-    //   - activeProvider: string (required, length 0..64)
-    //   - activeModel: string (required, length 0..120)
-    //   - bufferSummary: list (required, max 30 items; each item map with exact keys:
-    //                    id [string 1..128], type ['screenshot'|'text'|'audio'|'code'],
-    //                    label [string 0..200], preview [string 0..2000], createdAt [number])
-    //   - latestResponse: string (required, length 0..200000)
-    //   - messages: list (required, max 100 items; each item map with required keys:
-    //               id [string 1..128], role ['user'|'assistant'],
-    //               mode ['ask'|'followup'|'livecoach'|'debrief'], content [string 0..200000],
-    //               timestamp [number], and optional key: providerUsed [string 0..120])
-    //   - liveTranscript: string (required, length 0..100000)
-    //   - debriefReport: string (required, length 0..200000)
+    //       skipTaskbar, clickThrough, mobileOnlyHidden, focusSafePassive [bool],
+    //       opacity [number 0..1], processTitle [string 0..120])
+    //   - activeProvider: string (required, 0..64 chars)
+    //   - activeModel: string (required, 0..120 chars)
+    //   - bufferSummary: list (required, max 30 items)
+    //   - latestResponse: string (required, <= 200000 chars, <= 250000 UTF-8 bytes)
+    //   - messages: list (required, max 20 items on root doc; full history stored in subcollection)
+    //   - liveTranscript: string (required, <= 100000 chars, <= 150000 UTF-8 bytes)
+    //   - debriefReport: string (required, <= 200000 chars, <= 250000 UTF-8 bytes)
+    //   - optional fields: historyId, workflowMode, instantAiAnswer, availableProviders (enum list),
+    //       availableModels (map of provider -> model list), twoFactorLocked,
+    //       twoFactorRequirePasscode, areaCapture, commandReceipt, commandResultsAvailable,
+    //       activeConversationId, contextImageCount, conversationCatalogAvailable,
+    //       requestDiagnostic, requestDiagnosticAvailable, readingPositionAvailable
     //
-    // Subcollection: /remote_sessions/{sessionId}/commands/{commandId}
-    // Document ID: {commandId} (1..128 chars)
-    // Purpose: Append-only remote control commands sent from Phone Remote to Desktop.
-    // Fields:
-    //   - id: string (required, length 1..128)
-    //   - type: string (required, enum: CAPTURE_SCREENSHOT, CAPTURE_CLIPBOARD, TOGGLE_AUDIO,
-    //           ASK_AI, FOLLOW_UP, LIVE_COACH, DEBRIEF, HIDE_DESKTOP, TOGGLE_GHOST_MODE,
-    //           CLEAR_BUFFER, SWITCH_MODEL)
-    //   - payload: string (optional, length 0..4000)
-    //   - createdAt: number (required, epoch ms >= 0 and <= 9999999999999)
+    // Subcollections under /remote_sessions_v2/{sessionId} (all require authenticated ownerUid):
+    //   - /conversations/{historyId}/messages/{messageId}
+    //   - /command_results/{commandId}
+    //   - /diagnostics/{diagnosticId} (diagnosticId == 'latest')
+    //   - /reading_positions/{positionId} (positionId == 'current')
+    //   - /conversation_catalog/{conversationId}
+    //   - /commands/{commandId} (append-only commands created by authenticated owner)
     //
     // Collection: /platform_debriefs/{debriefId}
     // Document ID: {debriefId} (1..128 chars)
-    // Purpose: Authenticated user-owned post-session debrief records synced to Firebase.
     // Fields:
     //   - userId: string (required, immutable, must equal request.auth.uid)
-    //   - sessionTag: string (required, length 0..120)
-    //   - reportMarkdown: string (required, length 1..200000)
-    //   - createdAt: number (required, immutable, epoch ms >= 0 and <= 9999999999999)
+    //   - sessionTag: string (required, 0..120 chars)
+    //   - reportMarkdown: string (required, 1..200000 chars, <= 250000 UTF-8 bytes)
+    //   - createdAt: number (required, immutable, epoch ms 0..9999999999999)
     //
     // ===============================================================
 
@@ -144,12 +162,40 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // --- NovuJobs Helpers ---
-
     function isPlatformAdmin() {
       return isAuthenticated() &&
-             request.auth.token.email != null &&
-             request.auth.token.email == 'fabian.velez1996@gmail.com';
+             ('email' in request.auth.token) &&
+             request.auth.token.email is string &&
+             ('email_verified' in request.auth.token) &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email.lower() in [
+               'fabian.velez1996@gmail.com',
+               'fabianvvicente1@gmail.com'
+             ];
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isBoundedString(value, minLen, maxLen) {
+      return value is string &&
+             value.size() >= minLen &&
+             value.size() <= maxLen;
+    }
+
+    function isBoundedUtf8String(value, minLen, maxBytes) {
+      return value is string &&
+             value.size() >= minLen &&
+             value.toUtf8().size() <= maxBytes;
     }
 
     function isValidOptionalString(data, field, minLen, maxLen) {
@@ -167,67 +213,67 @@ service cloud.firestore {
              (data[field] is string && data[field].size() <= 100);
     }
 
-    function isValidDeletedAt(data) {
-      return !('deletedAt' in data) ||
-             data.deletedAt == null ||
-             data.deletedAt is timestamp ||
-             data.deletedAt is number ||
-             (data.deletedAt is string && data.deletedAt.size() <= 100);
-    }
-
-    // --- CTRL Orange Helpers ---
-
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    function areImmutableFieldsUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
-    }
-
-    function isBoundedString(value, minLen, maxLen) {
-      return value is string &&
-        value.size() >= minLen &&
-        value.size() <= maxLen;
+    function isValidDateTimestampOrNumber(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is timestamp ||
+             data[field] is number ||
+             (data[field] is string && data[field].size() <= 100);
     }
 
     function isValidList(listVal, maxSize) {
       return listVal is list && listVal.size() <= maxSize;
     }
 
+    function isValidOptionalStringList(data, field, maxItems, maxItemLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is list &&
+              data[field].size() <= maxItems &&
+              (data[field].size() == 0 ||
+               (isBoundedString(data[field][0], 0, maxItemLen) &&
+                isBoundedString(data[field][data[field].size() - 1], 0, maxItemLen))));
+    }
+
+    function isValidBoundedStringOrList(data, field, maxStrLen, maxItems, maxItemLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxStrLen) ||
+             (data[field] is list &&
+              data[field].size() <= maxItems &&
+              (data[field].size() == 0 ||
+               (isBoundedString(data[field][0], 0, maxItemLen) &&
+                isBoundedString(data[field][data[field].size() - 1], 0, maxItemLen))));
+    }
+
     function isValidMapKeys(mapData, requiredKeys, allowedKeys) {
       return mapData is map &&
-        mapData.keys().hasAll(requiredKeys) &&
-        mapData.keys().hasOnly(allowedKeys);
+             mapData.keys().hasAll(requiredKeys) &&
+             mapData.keys().hasOnly(allowedKeys);
     }
 
     function isValidEpochMs(value) {
       return value is number &&
-        value >= 0 &&
-        value <= 9999999999999;
+             value >= 0 &&
+             value <= 9999999999999;
     }
 
     function isValidSessionId(sessionId) {
       return sessionId is string &&
-        sessionId.size() >= 6 &&
-        sessionId.size() <= 12 &&
-        sessionId.matches('^[A-Z0-9]{6,12}$');
+             sessionId.size() >= 6 &&
+             sessionId.size() <= 12 &&
+             sessionId.matches('^[A-Z0-9]{6,12}$');
     }
 
     function isValidAIMode(mode) {
       return mode is string &&
-        mode in ['ask', 'followup', 'livecoach', 'debrief'];
+             mode in ['ask', 'followup', 'livecoach', 'debrief'];
     }
 
     // ===============================================================
-    // Domain Validators — NovuJobs (Existing Shared Project)
+    // Domain Validators — NovuJobs
     // ===============================================================
 
-    // Validator for /users/{userId}/data/profile applicationGoal map
     function isValidApplicationGoal(goal) {
       return goal is map &&
              goal.keys().size() <= 10 &&
@@ -236,12 +282,14 @@ service cloud.firestore {
                'reminderEnabled', 'enabled', 'startDate', 'updatedAt'
              ]) &&
              ('target' in goal &&
-              (goal.target is int || goal.target is number) &&
+              goal.target is number &&
               goal.target >= 1 && goal.target <= 1000) &&
-             ('cadence' in goal && goal.cadence is string && goal.cadence in ['daily', 'weekly', 'monthly', 'total']) &&
+             ('cadence' in goal &&
+              goal.cadence is string &&
+              goal.cadence in ['daily', 'weekly', 'monthly', 'total']) &&
              isValidOptionalString(goal, 'targetRole', 0, 100) &&
              (!('hoursPerWeek' in goal) ||
-              ((goal.hoursPerWeek is int || goal.hoursPerWeek is number) &&
+              (goal.hoursPerWeek is number &&
                goal.hoursPerWeek >= 0 && goal.hoursPerWeek <= 168)) &&
              (!('reminderEnabled' in goal) || goal.reminderEnabled is bool) &&
              (!('enabled' in goal) || goal.enabled is bool) &&
@@ -249,7 +297,6 @@ service cloud.firestore {
              isValidDateOrTimestamp(goal, 'updatedAt');
     }
 
-    // Validator for /users/{userId}/data/profile security2FA map
     function isValidSecurity2FA(sec) {
       return sec == null ||
              (sec is map &&
@@ -257,11 +304,68 @@ service cloud.firestore {
               sec.keys().hasOnly(['enabled', 'secret', 'backupCodes', 'enabledAt']) &&
               (!('enabled' in sec) || sec.enabled is bool) &&
               isValidOptionalString(sec, 'secret', 0, 128) &&
-              (!('backupCodes' in sec) || (sec.backupCodes is list && sec.backupCodes.size() <= 16)) &&
+              (!('backupCodes' in sec) ||
+               (sec.backupCodes is list &&
+                sec.backupCodes.size() <= 16 &&
+                (sec.backupCodes.size() == 0 ||
+                 (isBoundedString(sec.backupCodes[0], 4, 32) &&
+                  isBoundedString(sec.backupCodes[sec.backupCodes.size() - 1], 4, 32))))) &&
               isValidDateOrTimestamp(sec, 'enabledAt'));
     }
 
-    // Validator for /users/{userId}/data/profile
+    function isValidContextDocument(docItem) {
+      return docItem is map &&
+             docItem.keys().size() <= 7 &&
+             docItem.keys().hasOnly([
+               'id', 'name', 'content', 'type', 'size', 'uploadedAt', 'createdAt'
+             ]) &&
+             isValidOptionalString(docItem, 'id', 0, 100) &&
+             isValidOptionalString(docItem, 'name', 0, 200) &&
+             isValidOptionalString(docItem, 'type', 0, 100) &&
+             (!('content' in docItem) ||
+              docItem.content == null ||
+              isBoundedUtf8String(docItem.content, 0, 50000)) &&
+             (!('size' in docItem) ||
+              docItem.size == null ||
+              (docItem.size is number && docItem.size >= 0 && docItem.size <= 5242880)) &&
+             isValidDateOrTimestamp(docItem, 'uploadedAt') &&
+             isValidDateOrTimestamp(docItem, 'createdAt');
+    }
+
+    function isValidResumeAnalysis(res) {
+      return res is map &&
+             res.keys().size() <= 16 &&
+             res.keys().hasOnly([
+               'skills', 'experienceLevel', 'targetRoles', 'summary', 'keywords',
+               'strengths', 'yearsOfExperience', 'education', 'certifications',
+               'highlights', 'languages', 'industries', 'locations', 'location',
+               'roles', 'experience'
+             ]) &&
+             isValidOptionalStringList(res, 'skills', 50, 120) &&
+             isValidBoundedStringOrList(res, 'experienceLevel', 100, 10, 50) &&
+             isValidOptionalStringList(res, 'targetRoles', 20, 150) &&
+             (!('summary' in res) ||
+              res.summary == null ||
+              isBoundedUtf8String(res.summary, 0, 5000)) &&
+             isValidOptionalStringList(res, 'keywords', 50, 120) &&
+             isValidOptionalStringList(res, 'strengths', 30, 300) &&
+             (!('yearsOfExperience' in res) ||
+              res.yearsOfExperience == null ||
+              (res.yearsOfExperience is number &&
+               res.yearsOfExperience >= 0 && res.yearsOfExperience <= 80) ||
+              (res.yearsOfExperience is string && res.yearsOfExperience.size() <= 50)) &&
+             isValidOptionalStringList(res, 'education', 20, 300) &&
+             isValidOptionalStringList(res, 'certifications', 30, 200) &&
+             isValidOptionalStringList(res, 'highlights', 30, 500) &&
+             isValidOptionalStringList(res, 'languages', 20, 100) &&
+             isValidOptionalStringList(res, 'industries', 20, 120) &&
+             isValidOptionalStringList(res, 'locations', 20, 150) &&
+             isValidOptionalString(res, 'location', 0, 200) &&
+             isValidOptionalStringList(res, 'roles', 20, 150) &&
+             (isValidOptionalString(res, 'experience', 0, 2000) ||
+              isValidOptionalStringList(res, 'experience', 20, 500));
+    }
+
     function isValidProfile(data) {
       return data.keys().hasOnly([
                'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
@@ -277,14 +381,12 @@ service cloud.firestore {
              isValidOptionalString(data, 'location', 0, 200) &&
              isValidOptionalString(data, 'keywords', 0, 1000) &&
              (!('isRemote' in data) || data.isRemote is bool) &&
-             (isValidOptionalString(data, 'experienceLevel', 0, 250) ||
-              (data.experienceLevel is list && data.experienceLevel.size() <= 10)) &&
+             isValidBoundedStringOrList(data, 'experienceLevel', 250, 10, 64) &&
              isValidOptionalString(data, 'country', 0, 100) &&
-             (isValidOptionalString(data, 'modality', 0, 250) ||
-              (data.modality is list && data.modality.size() <= 10)) &&
+             isValidBoundedStringOrList(data, 'modality', 250, 10, 64) &&
              (isValidOptionalString(data, 'minimumSalary', 0, 50) ||
-              data.minimumSalary is int ||
-              data.minimumSalary is number) &&
+              (data.minimumSalary is number &&
+               data.minimumSalary >= 0 && data.minimumSalary <= 100000000)) &&
              isValidOptionalString(data, 'geminiApiKey', 0, 200) &&
              isValidOptionalString(data, 'claudeApiKey', 0, 200) &&
              isValidOptionalString(data, 'openaiApiKey', 0, 200) &&
@@ -292,18 +394,26 @@ service cloud.firestore {
              isValidOptionalString(data, 'customAiBaseUrl', 0, 250) &&
              isValidOptionalString(data, 'customAiModel', 0, 100) &&
              (!('activeAiProvider' in data) ||
-              (data.activeAiProvider is string && data.activeAiProvider in ['gemini', 'claude', 'openai', 'custom'])) &&
+              data.activeAiProvider == null ||
+              (data.activeAiProvider is string &&
+               data.activeAiProvider in ['gemini', 'claude', 'openai', 'custom'])) &&
              isValidOptionalString(data, 'googleMapsApiKey', 0, 200) &&
              (!('subscriptionStatus' in data) ||
-              (data.subscriptionStatus is string && data.subscriptionStatus in ['free', 'premium', 'trial'])) &&
+              (data.subscriptionStatus is string &&
+               data.subscriptionStatus in ['free', 'premium', 'trial'])) &&
              isValidDateOrTimestamp(data, 'trialStartDate') &&
              isValidDateOrTimestamp(data, 'trialEndDate') &&
              isValidDateOrTimestamp(data, 'updatedAt') &&
              (!('contextDocuments' in data) ||
-              (data.contextDocuments is list && data.contextDocuments.size() <= 20)) &&
+              data.contextDocuments == null ||
+              (data.contextDocuments is list &&
+               data.contextDocuments.size() <= 10 &&
+               (data.contextDocuments.size() == 0 ||
+                (isValidContextDocument(data.contextDocuments[0]) &&
+                 isValidContextDocument(data.contextDocuments[data.contextDocuments.size() - 1]))))) &&
              (!('resumeAnalysis' in data) ||
               data.resumeAnalysis == null ||
-              (data.resumeAnalysis is map && data.resumeAnalysis.keys().size() <= 50)) &&
+              isValidResumeAnalysis(data.resumeAnalysis)) &&
              (!('applicationGoal' in data) ||
               data.applicationGoal == null ||
               isValidApplicationGoal(data.applicationGoal)) &&
@@ -313,20 +423,108 @@ service cloud.firestore {
 
     // RBAC: Profile privilege escalation protection
     function canCreateProfile(data) {
-      return !('subscriptionStatus' in data) ||
-             data.subscriptionStatus in ['free', 'trial'] ||
-             isPlatformAdmin();
+      return isPlatformAdmin() ||
+             !('subscriptionStatus' in data) ||
+             data.subscriptionStatus in ['free', 'trial'];
     }
 
-    function canUpdateProfile(data) {
-      return !('subscriptionStatus' in data) ||
-             data.subscriptionStatus in ['free', 'premium', 'trial'] ||
-             isPlatformAdmin();
+    function canUpdateProfile() {
+      return isPlatformAdmin() ||
+             !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+               'subscriptionStatus', 'trialStartDate', 'trialEndDate'
+             ]);
     }
 
-    // Validator for /users/{userId}/jobs/{jobId}
+    function isValidCycleItem(cycle) {
+      return isValidMapKeys(
+               cycle,
+               ['id', 'cycleNumber', 'status'],
+               [
+                 'id', 'cycleNumber', 'name', 'status', 'startedAt', 'endedAt',
+                 'acceptedJobId', 'acceptedCompany', 'acceptedRole', 'targetRole',
+                 'triggerType', 'notes', 'createdAt', 'updatedAt'
+               ]
+             ) &&
+             isBoundedString(cycle.id, 1, 100) &&
+             cycle.cycleNumber is int &&
+             cycle.cycleNumber >= 1 &&
+             cycle.cycleNumber <= 10000 &&
+             isValidOptionalString(cycle, 'name', 0, 200) &&
+             cycle.status is string &&
+             cycle.status in ['active', 'completed', 'archived'] &&
+             isValidDateOrTimestamp(cycle, 'startedAt') &&
+             isValidDateOrTimestamp(cycle, 'endedAt') &&
+             isValidOptionalString(cycle, 'acceptedJobId', 0, 100) &&
+             isValidOptionalString(cycle, 'acceptedCompany', 0, 200) &&
+             isValidOptionalString(cycle, 'acceptedRole', 0, 200) &&
+             isValidOptionalString(cycle, 'targetRole', 0, 200) &&
+             (!('triggerType' in cycle) ||
+              cycle.triggerType == null ||
+              (cycle.triggerType is string &&
+               cycle.triggerType in [
+                 'initial', 'offer_accepted', 'activity_spike', 'auto_spike',
+                 'job_loss', 'manual_toggle', 'manual', 'manual_split'
+               ])) &&
+             isValidOptionalString(cycle, 'notes', 0, 2000) &&
+             isValidDateOrTimestamp(cycle, 'createdAt') &&
+             isValidDateOrTimestamp(cycle, 'updatedAt');
+    }
+
+    function isValidTransitionEvent(evt) {
+      return isValidMapKeys(
+               evt,
+               ['id', 'type', 'date'],
+               ['id', 'type', 'date', 'company', 'role', 'note', 'cycleId', 'cycleNumber', 'createdAt']
+             ) &&
+             isBoundedString(evt.id, 1, 100) &&
+             evt.type is string &&
+             evt.type in ['job_loss', 'new_search', 'search_paused', 'activity_spike', 'offer_accepted'] &&
+             (evt.date is timestamp || (evt.date is string && evt.date.size() <= 100)) &&
+             isValidOptionalString(evt, 'company', 0, 200) &&
+             isValidOptionalString(evt, 'role', 0, 200) &&
+             isValidOptionalString(evt, 'note', 0, 1000) &&
+             isValidOptionalString(evt, 'cycleId', 0, 100) &&
+             (!('cycleNumber' in evt) ||
+              evt.cycleNumber == null ||
+              (evt.cycleNumber is int && evt.cycleNumber >= 1 && evt.cycleNumber <= 10000)) &&
+             isValidDateOrTimestamp(evt, 'createdAt');
+    }
+
+    function isValidCyclesDoc(data) {
+      return data.keys().hasAll(['list']) &&
+             data.keys().hasOnly([
+               'list', 'updatedAt', 'jobSearchMode', 'transitionLog', 'oct2Reconciled'
+             ]) &&
+             isValidList(data.list, 100) &&
+             (data.list.size() == 0 ||
+              (isValidCycleItem(data.list[0]) &&
+               isValidCycleItem(data.list[data.list.size() - 1]))) &&
+             isValidDateOrTimestamp(data, 'updatedAt') &&
+             (!('jobSearchMode' in data) || data.jobSearchMode is bool) &&
+             (!('oct2Reconciled' in data) || data.oct2Reconciled is bool) &&
+             (!('transitionLog' in data) ||
+              (isValidList(data.transitionLog, 200) &&
+               (data.transitionLog.size() == 0 ||
+                (isValidTransitionEvent(data.transitionLog[0]) &&
+                 isValidTransitionEvent(data.transitionLog[data.transitionLog.size() - 1])))));
+    }
+
+    function isValidFollowUpItem(item) {
+      return isValidMapKeys(
+               item,
+               ['id', 'date'],
+               ['id', 'date', 'channel', 'note', 'createdAt']
+             ) &&
+             isBoundedString(item.id, 1, 100) &&
+             (item.date is timestamp || (item.date is string && item.date.size() <= 100)) &&
+             isValidOptionalString(item, 'channel', 0, 50) &&
+             isValidOptionalString(item, 'note', 0, 2000) &&
+             isValidDateOrTimestamp(item, 'createdAt');
+    }
+
     function isValidJob(data, jobId) {
-      return data.keys().hasOnly([
+      return isBoundedString(jobId, 1, 100) &&
+             data.keys().hasOnly([
                'id', 'role', 'title', 'company', 'location', 'salary',
                'url', 'link', 'description', 'notes', 'commuteTime',
                'relevanceScore', 'matchReason', 'status', 'createdAt',
@@ -337,13 +535,22 @@ service cloud.firestore {
              ]) &&
              ('status' in data &&
               data.status is string &&
-              data.status in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived', 'deleted']) &&
+              data.status in [
+                'wishlist', 'applied', 'screening', 'interviewing',
+                'offer', 'accepted', 'rejected', 'archived', 'deleted'
+              ]) &&
              (!('previousStatus' in data) ||
               data.previousStatus == null ||
               (data.previousStatus is string &&
-               data.previousStatus in ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'])) &&
+               data.previousStatus in [
+                 'wishlist', 'applied', 'screening', 'interviewing',
+                 'offer', 'accepted', 'rejected', 'archived'
+               ])) &&
              (!('id' in data) ||
-              (data.id is string && data.id.size() >= 1 && data.id.size() <= 100 && data.id == jobId)) &&
+              (data.id is string &&
+               data.id.size() >= 1 &&
+               data.id.size() <= 100 &&
+               data.id == jobId)) &&
              isValidOptionalString(data, 'role', 0, 200) &&
              isValidOptionalString(data, 'title', 0, 200) &&
              isValidOptionalString(data, 'company', 0, 200) &&
@@ -351,8 +558,13 @@ service cloud.firestore {
              isValidOptionalString(data, 'salary', 0, 100) &&
              isValidOptionalString(data, 'url', 0, 2048) &&
              isValidOptionalString(data, 'link', 0, 2048) &&
-             isValidOptionalString(data, 'description', 0, 200000) &&
-             isValidOptionalString(data, 'notes', 0, 10000) &&
+             (!('description' in data) ||
+              data.description == null ||
+              isBoundedUtf8String(data.description, 0, 200000)) &&
+             (!('notes' in data) ||
+              data.notes == null ||
+              (isBoundedString(data.notes, 0, 10000) &&
+               isBoundedUtf8String(data.notes, 0, 15000))) &&
              isValidOptionalString(data, 'commuteTime', 0, 200) &&
              isValidOptionalString(data, 'matchReason', 0, 2000) &&
              isValidOptionalString(data, 'source', 0, 100) &&
@@ -360,27 +572,31 @@ service cloud.firestore {
              isValidOptionalString(data, 'resumeUrl', 0, 2048) &&
              isValidOptionalString(data, 'resumeName', 0, 200) &&
              isValidOptionalString(data, 'cycleId', 0, 100) &&
-             (!('cycleNumber' in data) || data.cycleNumber is int) &&
+             (!('cycleNumber' in data) ||
+              data.cycleNumber == null ||
+              (data.cycleNumber is int && data.cycleNumber >= 1 && data.cycleNumber <= 10000)) &&
              isValidDateOrTimestamp(data, 'createdAt') &&
              isValidDateOrTimestamp(data, 'dateAdded') &&
              isValidDateOrTimestamp(data, 'updatedAt') &&
              isValidDateOrTimestamp(data, 'appliedAt') &&
              isValidDateOrTimestamp(data, 'lastFollowUpAt') &&
              isValidDateOrTimestamp(data, 'lastInteraction') &&
-             isValidDeletedAt(data) &&
-             (isValidDateOrTimestamp(data, 'archivedAt') || data.archivedAt is number) &&
-             (!('tags' in data) ||
-              data.tags == null ||
-              (data.tags is list && data.tags.size() <= 25)) &&
+             isValidDateTimestampOrNumber(data, 'deletedAt') &&
+             isValidDateTimestampOrNumber(data, 'archivedAt') &&
+             isValidOptionalStringList(data, 'tags', 25, 80) &&
              (!('followUps' in data) ||
               data.followUps == null ||
-              (data.followUps is list && data.followUps.size() <= 100)) &&
+              (data.followUps is list &&
+               data.followUps.size() <= 100 &&
+               (data.followUps.size() == 0 ||
+                (isValidFollowUpItem(data.followUps[0]) &&
+                 isValidFollowUpItem(data.followUps[data.followUps.size() - 1]))))) &&
              (!('relevanceScore' in data) ||
+              data.relevanceScore == null ||
               ((data.relevanceScore is int || data.relevanceScore is float) &&
                data.relevanceScore >= 0 && data.relevanceScore <= 100));
     }
 
-    // Protect immutable job fields on update
     function isJobUpdateImmutable(current, incoming) {
       return (!('id' in current) || (('id' in incoming) && incoming.id == current.id)) &&
              (!('createdAt' in current) || (('createdAt' in incoming) && incoming.createdAt == current.createdAt)) &&
@@ -390,6 +606,17 @@ service cloud.firestore {
     // ===============================================================
     // Domain Validators — CTRL Orange
     // ===============================================================
+
+    function remoteSessionRef(sessionId) {
+      return /databases/$(database)/documents/remote_sessions_v2/$(sessionId);
+    }
+
+    function remoteOwner(sessionId) {
+      let ref = remoteSessionRef(sessionId);
+      return isAuthenticated() &&
+             exists(ref) &&
+             get(ref).data.ownerUid == request.auth.uid;
+    }
 
     function isValidStealthConfig(stealth) {
       let stealthKeys = [
@@ -404,46 +631,157 @@ service cloud.firestore {
         'processTitle'
       ];
       return isValidMapKeys(stealth, stealthKeys, stealthKeys) &&
-        stealth.contentProtection is bool &&
-        stealth.alwaysOnTop is bool &&
-        stealth.hideFromDock is bool &&
-        stealth.skipTaskbar is bool &&
-        stealth.clickThrough is bool &&
-        stealth.mobileOnlyHidden is bool &&
-        stealth.focusSafePassive is bool &&
-        stealth.opacity is number &&
-        stealth.opacity >= 0 &&
-        stealth.opacity <= 1 &&
-        isBoundedString(stealth.processTitle, 0, 120);
+             stealth.contentProtection is bool &&
+             stealth.alwaysOnTop is bool &&
+             stealth.hideFromDock is bool &&
+             stealth.skipTaskbar is bool &&
+             stealth.clickThrough is bool &&
+             stealth.mobileOnlyHidden is bool &&
+             stealth.focusSafePassive is bool &&
+             stealth.opacity is number &&
+             stealth.opacity >= 0 &&
+             stealth.opacity <= 1 &&
+             isBoundedString(stealth.processTitle, 0, 120);
     }
 
     function isValidBufferSummaryItem(item) {
       let itemKeys = ['id', 'type', 'label', 'preview', 'createdAt'];
       return isValidMapKeys(item, itemKeys, itemKeys) &&
-        isBoundedString(item.id, 1, 128) &&
-        item.type is string &&
-        item.type in ['screenshot', 'text', 'audio', 'code'] &&
-        isBoundedString(item.label, 0, 200) &&
-        isBoundedString(item.preview, 0, 2000) &&
-        isValidEpochMs(item.createdAt);
+             isBoundedString(item.id, 1, 128) &&
+             item.type is string &&
+             item.type in ['screenshot', 'text', 'audio', 'code'] &&
+             isBoundedString(item.label, 0, 200) &&
+             isBoundedString(item.preview, 0, 2000) &&
+             isValidEpochMs(item.createdAt);
     }
 
     function isValidMessageItem(msg) {
       let requiredKeys = ['id', 'role', 'mode', 'content', 'timestamp'];
-      let allowedKeys = ['id', 'role', 'mode', 'content', 'timestamp', 'providerUsed'];
+      let allowedKeys = ['id', 'role', 'mode', 'content', 'timestamp', 'providerUsed', 'sequence'];
       return isValidMapKeys(msg, requiredKeys, allowedKeys) &&
-        isBoundedString(msg.id, 1, 128) &&
-        msg.role is string &&
-        msg.role in ['user', 'assistant'] &&
-        isValidAIMode(msg.mode) &&
-        isBoundedString(msg.content, 0, 200000) &&
-        isValidEpochMs(msg.timestamp) &&
-        (!('providerUsed' in msg) || isBoundedString(msg.providerUsed, 0, 120));
+             isBoundedString(msg.id, 1, 128) &&
+             msg.role is string &&
+             msg.role in ['user', 'assistant'] &&
+             isValidAIMode(msg.mode) &&
+             isBoundedString(msg.content, 0, 200000) &&
+             isBoundedUtf8String(msg.content, 0, 250000) &&
+             isValidEpochMs(msg.timestamp) &&
+             (!('providerUsed' in msg) || isBoundedString(msg.providerUsed, 0, 120)) &&
+             (!('sequence' in msg) || (msg.sequence is int && msg.sequence >= 0 && msg.sequence <= 100000));
+    }
+
+    function isValidCommandResult(result) {
+      return isValidMapKeys(result, ['id', 'receivedAt', 'state'], ['id', 'receivedAt', 'state']) &&
+             isBoundedString(result.id, 1, 128) &&
+             isValidEpochMs(result.receivedAt) &&
+             result.state is string &&
+             result.state in ['received', 'working', 'completed', 'stopped', 'failed'];
+    }
+
+    function validDiagnosticNumber(data, key) {
+      return !(key in data) || (data[key] is number && data[key] >= 0 && data[key] <= 1000000000);
+    }
+
+    function isValidRequestDiagnostic(data) {
+      return isValidMapKeys(
+               data,
+               ['at', 'kind', 'outcome'],
+               [
+                 'at', 'kind', 'outcome', 'requestId', 'provider', 'finishReason',
+                 'durationMs', 'count', 'httpStatus', 'imageCount', 'historyCount',
+                 'requestBytes', 'outputTokenLimit', 'inputTokens', 'outputTokens', 'thinkingTokens'
+               ]
+             ) &&
+             isValidEpochMs(data.at) &&
+             data.kind == 'ai' &&
+             data.outcome in ['started', 'completed', 'failed', 'stopped'] &&
+             (!('requestId' in data) ||
+              (data.requestId is string && data.requestId.matches('^[a-f0-9-]{36}$'))) &&
+             (!('provider' in data) ||
+              data.provider in ['gemini', 'openai', 'anthropic', 'platform', 'demo']) &&
+             (!('finishReason' in data) ||
+              data.finishReason in [
+                'STOP', 'MAX_TOKENS', 'SAFETY', 'RECITATION', 'LANGUAGE', 'OTHER',
+                'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'MALFORMED_FUNCTION_CALL',
+                'IMAGE_SAFETY', 'UNEXPECTED_TOOL_CALL', 'TOO_MANY_TOOL_CALLS', 'MISSING',
+                'UNKNOWN', 'NETWORK_ERROR', 'ABORTED', 'LENGTH', 'END_TURN',
+                'STOP_SEQUENCE', 'REFUSAL'
+              ]) &&
+             validDiagnosticNumber(data, 'durationMs') &&
+             validDiagnosticNumber(data, 'count') &&
+             validDiagnosticNumber(data, 'httpStatus') &&
+             validDiagnosticNumber(data, 'imageCount') &&
+             validDiagnosticNumber(data, 'historyCount') &&
+             validDiagnosticNumber(data, 'requestBytes') &&
+             validDiagnosticNumber(data, 'outputTokenLimit') &&
+             validDiagnosticNumber(data, 'inputTokens') &&
+             validDiagnosticNumber(data, 'outputTokens') &&
+             validDiagnosticNumber(data, 'thinkingTokens');
+    }
+
+    function isValidReadingPosition(data, sessionId) {
+      let fields = [
+        'id', 'conversationId', 'messageId', 'characterOffset',
+        'progress', 'clientId', 'sequence', 'updatedAt'
+      ];
+      return isValidMapKeys(data, fields, fields) &&
+             data.id is string && data.id.matches('^[a-f0-9-]{36}$') &&
+             data.clientId is string && data.clientId.matches('^[a-f0-9-]{36}$') &&
+             data.conversationId is string && data.conversationId.matches('^[A-Za-z0-9_-]{1,128}$') &&
+             data.messageId is string && data.messageId.matches('^[A-Za-z0-9_-]{1,128}$') &&
+             data.characterOffset is int &&
+             data.characterOffset >= -1 &&
+             data.characterOffset <= 200000 &&
+             data.progress is number &&
+             data.progress >= 0 &&
+             data.progress <= 1 &&
+             data.sequence is int &&
+             data.sequence >= 1 &&
+             data.sequence <= 1000000000 &&
+             isValidEpochMs(data.updatedAt) &&
+             data.updatedAt >= request.time.toMillis() - 30000 &&
+             data.updatedAt <= request.time.toMillis() + 5000 &&
+             get(remoteSessionRef(sessionId)).data.activeConversationId == data.conversationId;
+    }
+
+    function isValidModelList(modelsMap, providerKey) {
+      return !(providerKey in modelsMap) ||
+             (modelsMap[providerKey] is list &&
+              modelsMap[providerKey].size() <= 100 &&
+              (modelsMap[providerKey].size() == 0 ||
+               (isBoundedString(modelsMap[providerKey][0], 1, 120) &&
+                isBoundedString(modelsMap[providerKey][modelsMap[providerKey].size() - 1], 1, 120))));
+    }
+
+    function isValidAvailableModels(modelsMap) {
+      return modelsMap is map &&
+             modelsMap.keys().hasOnly(['gemini', 'openai', 'anthropic', 'platform', 'demo']) &&
+             isValidModelList(modelsMap, 'gemini') &&
+             isValidModelList(modelsMap, 'openai') &&
+             isValidModelList(modelsMap, 'anthropic') &&
+             isValidModelList(modelsMap, 'platform') &&
+             isValidModelList(modelsMap, 'demo');
+    }
+
+    function isValidCatalogItem(data, conversationId) {
+      let fields = ['id', 'title', 'updatedAt', 'messageCount', 'imageCount'];
+      return isValidMapKeys(data, fields, fields) &&
+             isBoundedString(conversationId, 1, 128) &&
+             data.id == conversationId &&
+             isBoundedString(data.title, 1, 100) &&
+             isValidEpochMs(data.updatedAt) &&
+             data.messageCount is int &&
+             data.messageCount >= 0 &&
+             data.messageCount <= 402 &&
+             data.imageCount is int &&
+             data.imageCount >= 0 &&
+             data.imageCount <= 76;
     }
 
     function isValidRemoteSession(data, sessionId) {
       let sessionFields = [
         'sessionId',
+        'ownerUid',
         'updatedAt',
         'activeMode',
         'isStreaming',
@@ -457,28 +795,104 @@ service cloud.firestore {
         'liveTranscript',
         'debriefReport'
       ];
+      // Revalidate changed values; required/allowed keys and owner immutability remain mandatory.
+      let changed = request.method == 'update' ? data.diff(resource.data).affectedKeys() : data.keys().toSet();
       return hasRequiredFields(sessionFields) &&
-        hasOnlyAllowedFields(sessionFields) &&
-        isValidSessionId(data.sessionId) &&
-        data.sessionId == sessionId &&
-        isValidEpochMs(data.updatedAt) &&
-        isValidAIMode(data.activeMode) &&
-        data.isStreaming is bool &&
-        data.isListening is bool &&
-        isValidStealthConfig(data.stealth) &&
-        isBoundedString(data.activeProvider, 0, 64) &&
-        isBoundedString(data.activeModel, 0, 120) &&
-        isValidList(data.bufferSummary, 30) &&
-        (data.bufferSummary.size() == 0 ||
-          (isValidBufferSummaryItem(data.bufferSummary[0]) &&
-           isValidBufferSummaryItem(data.bufferSummary[data.bufferSummary.size() - 1]))) &&
-        isBoundedString(data.latestResponse, 0, 200000) &&
-        isValidList(data.messages, 100) &&
-        (data.messages.size() == 0 ||
-          (isValidMessageItem(data.messages[0]) &&
-           isValidMessageItem(data.messages[data.messages.size() - 1]))) &&
-        isBoundedString(data.liveTranscript, 0, 100000) &&
-        isBoundedString(data.debriefReport, 0, 200000);
+             hasOnlyAllowedFields(sessionFields.concat([
+               'historyId', 'workflowMode', 'instantAiAnswer',
+               'availableProviders', 'availableModels', 'twoFactorLocked',
+               'twoFactorRequirePasscode', 'areaCapture', 'commandReceipt',
+               'commandResultsAvailable', 'activeConversationId', 'contextImageCount',
+               'conversationCatalogAvailable', 'requestDiagnostic',
+               'requestDiagnosticAvailable', 'readingPositionAvailable'
+             ])) &&
+             isBoundedString(data.ownerUid, 1, 128) &&
+             (!changed.hasAny(['readingPositionAvailable']) ||
+              (!('readingPositionAvailable' in data) || data.readingPositionAvailable is bool)) &&
+             (!changed.hasAny(['requestDiagnosticAvailable']) ||
+              (!('requestDiagnosticAvailable' in data) || data.requestDiagnosticAvailable is bool)) &&
+             (!changed.hasAny(['activeConversationId']) ||
+              (!('activeConversationId' in data) || isBoundedString(data.activeConversationId, 0, 128))) &&
+             (!changed.hasAny(['contextImageCount']) ||
+              (!('contextImageCount' in data) ||
+               (data.contextImageCount is int &&
+                data.contextImageCount >= 0 &&
+                data.contextImageCount <= 76))) &&
+             (!changed.hasAny(['conversationCatalogAvailable']) ||
+              (!('conversationCatalogAvailable' in data) || data.conversationCatalogAvailable is bool)) &&
+             (!changed.hasAny(['requestDiagnostic']) ||
+              (!('requestDiagnostic' in data) ||
+               data.requestDiagnostic == null ||
+               isValidRequestDiagnostic(data.requestDiagnostic))) &&
+             (!changed.hasAny(['commandResultsAvailable']) ||
+              (!('commandResultsAvailable' in data) || data.commandResultsAvailable is bool)) &&
+             (!changed.hasAny(['commandReceipt']) ||
+              (!('commandReceipt' in data) ||
+               data.commandReceipt == null ||
+               (isValidMapKeys(data.commandReceipt, ['id', 'receivedAt'], ['id', 'receivedAt']) &&
+                isBoundedString(data.commandReceipt.id, 1, 128) &&
+                isValidEpochMs(data.commandReceipt.receivedAt)))) &&
+             (!changed.hasAny(['areaCapture']) ||
+              (!('areaCapture' in data) ||
+               data.areaCapture == null ||
+               (isValidMapKeys(
+                  data.areaCapture,
+                  ['id', 'image', 'width', 'height', 'expiresAt'],
+                  ['id', 'image', 'width', 'height', 'expiresAt']
+                ) &&
+                isBoundedString(data.areaCapture.id, 1, 128) &&
+                isBoundedUtf8String(data.areaCapture.image, 1, 350100) &&
+                data.areaCapture.width is int &&
+                data.areaCapture.width > 0 &&
+                data.areaCapture.width <= 960 &&
+                data.areaCapture.height is int &&
+                data.areaCapture.height > 0 &&
+                data.areaCapture.height <= 20000 &&
+                isValidEpochMs(data.areaCapture.expiresAt)))) &&
+             (!changed.hasAny(['historyId']) ||
+              (!('historyId' in data) || isBoundedString(data.historyId, 0, 128))) &&
+             (!changed.hasAny(['workflowMode']) ||
+              (!('workflowMode' in data) || data.workflowMode in ['oa', 'interview'])) &&
+             (!changed.hasAny(['instantAiAnswer']) ||
+              (!('instantAiAnswer' in data) || data.instantAiAnswer is bool)) &&
+             (!changed.hasAny(['availableProviders']) ||
+              (!('availableProviders' in data) ||
+               (isValidList(data.availableProviders, 10) &&
+                data.availableProviders.hasOnly(['gemini', 'openai', 'anthropic', 'platform', 'demo'])))) &&
+             (!changed.hasAny(['availableModels']) ||
+              (!('availableModels' in data) || isValidAvailableModels(data.availableModels))) &&
+             (!changed.hasAny(['twoFactorLocked']) ||
+              (!('twoFactorLocked' in data) || data.twoFactorLocked is bool)) &&
+             (!changed.hasAny(['twoFactorRequirePasscode']) ||
+              (!('twoFactorRequirePasscode' in data) || data.twoFactorRequirePasscode is bool)) &&
+             (!changed.hasAny(['sessionId']) ||
+              (isValidSessionId(data.sessionId) && data.sessionId == sessionId)) &&
+             (!changed.hasAny(['updatedAt']) || isValidEpochMs(data.updatedAt)) &&
+             (!changed.hasAny(['activeMode']) || isValidAIMode(data.activeMode)) &&
+             (!changed.hasAny(['isStreaming']) || data.isStreaming is bool) &&
+             (!changed.hasAny(['isListening']) || data.isListening is bool) &&
+             (!changed.hasAny(['stealth']) || isValidStealthConfig(data.stealth)) &&
+             (!changed.hasAny(['activeProvider']) || isBoundedString(data.activeProvider, 0, 64)) &&
+             (!changed.hasAny(['activeModel']) || isBoundedString(data.activeModel, 0, 120)) &&
+             (!changed.hasAny(['bufferSummary']) ||
+              (isValidList(data.bufferSummary, 30) &&
+               (data.bufferSummary.size() == 0 ||
+                (isValidBufferSummaryItem(data.bufferSummary[0]) &&
+                 isValidBufferSummaryItem(data.bufferSummary[data.bufferSummary.size() - 1]))))) &&
+             (!changed.hasAny(['latestResponse']) ||
+              (isBoundedString(data.latestResponse, 0, 200000) &&
+               isBoundedUtf8String(data.latestResponse, 0, 250000))) &&
+             (!changed.hasAny(['messages']) ||
+              (isValidList(data.messages, 20) &&
+               (data.messages.size() == 0 ||
+                (isValidMessageItem(data.messages[0]) &&
+                 isValidMessageItem(data.messages[data.messages.size() - 1]))))) &&
+             (!changed.hasAny(['liveTranscript']) ||
+              (isBoundedString(data.liveTranscript, 0, 100000) &&
+               isBoundedUtf8String(data.liveTranscript, 0, 150000))) &&
+             (!changed.hasAny(['debriefReport']) ||
+              (isBoundedString(data.debriefReport, 0, 200000) &&
+               isBoundedUtf8String(data.debriefReport, 0, 250000)));
     }
 
     function isValidRemoteCommand(data) {
@@ -486,7 +900,19 @@ service cloud.firestore {
       let allowedFields = ['id', 'type', 'payload', 'createdAt'];
       let allowedTypes = [
         'CAPTURE_SCREENSHOT',
+        'CAPTURE_AREA_SCREENSHOT',
+        'COMPLETE_AREA_CAPTURE',
+        'CANCEL_AREA_CAPTURE',
         'CAPTURE_CLIPBOARD',
+        'PAUSE_RESUME_AUDIO',
+        'ASK_AI_WITH_CONTEXT',
+        'FRESH_ASK',
+        'OPEN_CONVERSATION',
+        'SET_WORKFLOW_MODE',
+        'TOGGLE_INSTANT_AI',
+        'EXIT_STEALTH',
+        'OPEN_MIRROR',
+        'OPEN_GUIDE',
         'TOGGLE_AUDIO',
         'ASK_AI',
         'FOLLOW_UP',
@@ -498,27 +924,28 @@ service cloud.firestore {
         'SWITCH_MODEL'
       ];
       return hasRequiredFields(requiredFields) &&
-        hasOnlyAllowedFields(allowedFields) &&
-        isBoundedString(data.id, 1, 128) &&
-        data.type is string &&
-        data.type in allowedTypes &&
-        (!('payload' in data) || isBoundedString(data.payload, 0, 4000)) &&
-        isValidEpochMs(data.createdAt);
+             hasOnlyAllowedFields(allowedFields) &&
+             isBoundedString(data.id, 1, 128) &&
+             data.type is string &&
+             data.type in allowedTypes &&
+             (!('payload' in data) || isBoundedString(data.payload, 0, 4000)) &&
+             isValidEpochMs(data.createdAt);
     }
 
     function isValidPlatformDebrief(data) {
       let fields = ['userId', 'sessionTag', 'reportMarkdown', 'createdAt'];
       return hasRequiredFields(fields) &&
-        hasOnlyAllowedFields(fields) &&
-        isBoundedString(data.userId, 1, 128) &&
-        isOwner(data.userId) &&
-        isBoundedString(data.sessionTag, 0, 120) &&
-        isBoundedString(data.reportMarkdown, 1, 200000) &&
-        isValidEpochMs(data.createdAt);
+             hasOnlyAllowedFields(fields) &&
+             isBoundedString(data.userId, 1, 128) &&
+             isOwner(data.userId) &&
+             isBoundedString(data.sessionTag, 0, 120) &&
+             isBoundedString(data.reportMarkdown, 1, 200000) &&
+             isBoundedUtf8String(data.reportMarkdown, 1, 250000) &&
+             isValidEpochMs(data.createdAt);
     }
 
     // ===============================================================
-    // Collection Match Rules — NovuJobs (Existing Shared Project)
+    // Collection Match Rules — NovuJobs
     // ===============================================================
 
     match /users/{userId} {
@@ -530,14 +957,15 @@ service cloud.firestore {
                         canCreateProfile(request.resource.data);
         allow update: if isOwner(userId) &&
                         isValidProfile(request.resource.data) &&
-                        canUpdateProfile(request.resource.data);
+                        canUpdateProfile();
         allow delete: if isOwner(userId);
       }
 
       // User search cycles document: /users/{userId}/data/cycles
       match /data/cycles {
         allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId);
+        allow create, update: if isOwner(userId) &&
+                                isValidCyclesDoc(request.resource.data);
         allow delete: if isOwner(userId);
       }
 
@@ -557,36 +985,97 @@ service cloud.firestore {
     // Collection Match Rules — CTRL Orange
     // ===============================================================
 
-    // Desktop <-> Phone Mobile Mirror sync state (QR-paired by secret sessionId).
-    // Collection listing is disabled to prevent enumerating active session codes.
-    match /remote_sessions/{sessionId} {
-      allow get: if isValidSessionId(sessionId);
+    // Retire the legacy unauthenticated writer namespace without deleting history.
+    match /remote_sessions/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Authenticated owner-scoped Desktop <-> Phone Mobile Mirror sessions.
+    match /remote_sessions_v2/{sessionId} {
+      allow get: if isValidSessionId(sessionId) &&
+                    isAuthenticated() &&
+                    resource != null &&
+                    resource.data.ownerUid == request.auth.uid;
       allow list: if false;
       allow create: if isValidSessionId(sessionId) &&
-        isValidRemoteSession(request.resource.data, sessionId);
+                       isAuthenticated() &&
+                       request.resource.data.ownerUid == request.auth.uid &&
+                       isValidRemoteSession(request.resource.data, sessionId);
       allow update: if isValidSessionId(sessionId) &&
-        isValidRemoteSession(request.resource.data, sessionId) &&
-        areImmutableFieldsUnchanged(['sessionId']);
+                       isAuthenticated() &&
+                       resource.data.ownerUid == request.auth.uid &&
+                       request.resource.data.ownerUid == request.auth.uid &&
+                       isValidRemoteSession(request.resource.data, sessionId) &&
+                       areImmutableFieldsUnchanged(['sessionId', 'ownerUid']);
       allow delete: if false;
 
-      // Append-only remote commands sent from Phone Remote to Desktop listener.
+      match /conversations/{historyId}/messages/{messageId} {
+        allow read: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+        allow create, update: if isValidSessionId(sessionId) &&
+                                remoteOwner(sessionId) &&
+                                isBoundedString(historyId, 1, 128) &&
+                                isBoundedString(messageId, 1, 128) &&
+                                request.resource.data.id == messageId &&
+                                isValidMessageItem(request.resource.data);
+        allow delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+      }
+
+      match /command_results/{commandId} {
+        allow read: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+        allow create, update: if isValidSessionId(sessionId) &&
+                                remoteOwner(sessionId) &&
+                                isBoundedString(commandId, 1, 128) &&
+                                request.resource.data.id == commandId &&
+                                isValidCommandResult(request.resource.data);
+        allow delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+      }
+
+      match /diagnostics/{diagnosticId} {
+        allow read: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+        allow create, update: if isValidSessionId(sessionId) &&
+                                diagnosticId == 'latest' &&
+                                remoteOwner(sessionId) &&
+                                isValidRequestDiagnostic(request.resource.data);
+        allow delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+      }
+
+      match /reading_positions/{positionId} {
+        allow read: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+        allow create, update: if isValidSessionId(sessionId) &&
+                                positionId == 'current' &&
+                                remoteOwner(sessionId) &&
+                                isValidReadingPosition(request.resource.data, sessionId);
+        allow delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+      }
+
+      match /conversation_catalog/{conversationId} {
+        allow read: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+        allow create, update: if isValidSessionId(sessionId) &&
+                                remoteOwner(sessionId) &&
+                                isValidCatalogItem(request.resource.data, conversationId);
+        allow delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
+      }
+
       match /commands/{commandId} {
-        allow get, list: if isValidSessionId(sessionId);
+        allow get, list, delete: if isValidSessionId(sessionId) && remoteOwner(sessionId);
         allow create: if isValidSessionId(sessionId) &&
-          isBoundedString(commandId, 1, 128) &&
-          isValidRemoteCommand(request.resource.data);
-        allow update, delete: if false;
+                         remoteOwner(sessionId) &&
+                         isBoundedString(commandId, 1, 128) &&
+                         isValidRemoteCommand(request.resource.data) &&
+                         request.resource.data.createdAt >= request.time.toMillis() - 30000 &&
+                         request.resource.data.createdAt <= request.time.toMillis() + 5000;
+        allow update: if false;
       }
     }
 
     // Authenticated user-owned post-session debrief records.
     match /platform_debriefs/{debriefId} {
-      allow read: if isOwner(resource.data.userId);
+      allow read: if resource != null && isOwner(resource.data.userId);
       allow create: if isBoundedString(debriefId, 1, 128) &&
-        isValidPlatformDebrief(request.resource.data);
+                       isValidPlatformDebrief(request.resource.data);
       allow update: if isOwner(resource.data.userId) &&
-        isValidPlatformDebrief(request.resource.data) &&
-        areImmutableFieldsUnchanged(['userId', 'createdAt']);
+                       isValidPlatformDebrief(request.resource.data) &&
+                       areImmutableFieldsUnchanged(['userId', 'createdAt']);
       allow delete: if isOwner(resource.data.userId);
     }
   }

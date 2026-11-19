@@ -1,6 +1,6 @@
-import { cleanObject } from './utils.js';
+import { cleanObject, sanitizeUrl, sanitizeCustomAiBaseUrl } from './utils.js';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { doc, onSnapshot, collection } from 'firebase/firestore';
 import { db, auth } from './firebase.js';
 import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription.js';
@@ -17,12 +17,66 @@ import {
     reconcileOctoberSpikeIfNeeded,
     normalizeToDayStartIso
 } from './cycle-utils.js';
-import { clearSession2FAVerification } from './totp.js';
+import { clearSession2FAVerification, isSession2FAVerified } from './totp.js';
+import { disconnectGmailAccount } from './gmail-service.js';
+import { clearMapsCache } from './maps-service.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const OCT2_RECONCILE_KEY = 'novujobs_oct2_cycle_reconciled_v2';
+const RECOMMENDATIONS_CACHE_KEY = 'jobhelper_recommendations_cache_v2';
+const RECOMMENDATIONS_FP_CACHE_KEY = 'jobhelper_recommendations_fp_cache_v1';
 const appliedAtCleanupInFlight = new Set();
 const oct2ReconcileInFlight = new Set();
+let activeSubscriptionController = null;
+
+const PLATFORM_ADMIN_EMAILS = new Set([
+    'fabian.velez1996@gmail.com',
+    'fabianvvicente1@gmail.com'
+]);
+
+function isPlatformAdminUser(user) {
+    if (!user || typeof user.email !== 'string') return false;
+    return user.emailVerified === true && PLATFORM_ADMIN_EMAILS.has(user.email.toLowerCase().trim());
+}
+
+function clearTransientUserCaches() {
+    disconnectGmailAccount();
+    clearMapsCache();
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        try {
+            localStorage.removeItem(RECOMMENDATIONS_CACHE_KEY);
+            localStorage.removeItem(RECOMMENDATIONS_FP_CACHE_KEY);
+        } catch {
+            // Ignore storage errors
+        }
+    }
+}
+
+const DEFAULT_PROFILE = {
+    fullName: '',
+    targetRole: '',
+    location: 'Puerto Rico',
+    keywords: '',
+    isRemote: false,
+    experienceLevel: 'Mid-Senior',
+    country: '',
+    modality: 'Remote',
+    minimumSalary: '',
+    contextDocuments: [],
+    resumeAnalysis: null,
+    geminiApiKey: '',
+    claudeApiKey: '',
+    openaiApiKey: '',
+    customAiApiKey: '',
+    customAiBaseUrl: '',
+    customAiModel: '',
+    activeAiProvider: 'gemini',
+    googleMapsApiKey: '',
+    subscriptionStatus: 'free',
+    trialStartDate: null,
+    trialEndDate: null,
+    security2FA: null
+};
 
 /**
  * Runs the one-time appliedAt repair for a user (once per device; safe to re-run because
@@ -166,34 +220,181 @@ const VALID_PREVIOUS_STATUSES = new Set([
     'wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'
 ]);
 
-export function sanitizeProfileForFirestore(rawProfile) {
-    if (!rawProfile || typeof rawProfile !== 'object') return {};
+const VALID_AI_PROVIDERS = new Set(['gemini', 'claude', 'openai', 'custom']);
+const VALID_SUBSCRIPTION_STATUSES = new Set(['free', 'premium', 'trial']);
+const SUBSCRIPTION_KEYS = new Set(['subscriptionStatus', 'trialStartDate', 'trialEndDate']);
+
+const RESUME_ANALYSIS_LIST_LIMITS = {
+    skills: [50, 120],
+    targetRoles: [20, 150],
+    keywords: [50, 120],
+    strengths: [30, 300],
+    education: [20, 300],
+    certifications: [30, 200],
+    highlights: [30, 500],
+    languages: [20, 100],
+    industries: [20, 120],
+    locations: [20, 150],
+    roles: [20, 150]
+};
+
+const utf8Encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+const utf8Decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null;
+
+function sliceUtf8Bytes(value, maxBytes) {
+    const str = String(value ?? '');
+    if (!utf8Encoder || !utf8Decoder) {
+        return str.slice(0, maxBytes);
+    }
+    if (str.length * 3 <= maxBytes) {
+        return str;
+    }
+    const encoded = utf8Encoder.encode(str);
+    if (encoded.byteLength <= maxBytes) {
+        return str;
+    }
+    return utf8Decoder.decode(encoded.subarray(0, maxBytes)).replace(/\uFFFD+$/, '');
+}
+
+function sanitizeBoundedStringList(value, maxItems, maxItemLen) {
+    if (!Array.isArray(value)) return [];
+    const out = [];
+    for (let i = 0; i < value.length && out.length < maxItems; i++) {
+        const item = value[i];
+        if (item === null || item === undefined) continue;
+        const text = typeof item === 'string'
+            ? item.trim()
+            : (typeof item === 'object' ? JSON.stringify(item) : String(item)).trim();
+        if (text) {
+            out.push(text.slice(0, maxItemLen));
+        }
+    }
+    return out;
+}
+
+function sanitizeBoundedStringOrList(value, maxStrLen, maxItems, maxItemLen) {
+    if (value === null) return null;
+    if (Array.isArray(value)) {
+        return sanitizeBoundedStringList(value, maxItems, maxItemLen);
+    }
+    if (typeof value === 'string') {
+        return value.slice(0, maxStrLen);
+    }
+    return String(value).slice(0, maxStrLen);
+}
+
+export function sanitizeResumeAnalysisForFirestore(rawResume) {
+    if (rawResume === null) return null;
+    if (!rawResume || typeof rawResume !== 'object') return null;
     const cleaned = {};
-    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim() : '';
-    const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim() : '';
+
+    for (const [listKey, [maxItems, maxItemLen]] of Object.entries(RESUME_ANALYSIS_LIST_LIMITS)) {
+        if (rawResume[listKey] !== undefined) {
+            cleaned[listKey] = rawResume[listKey] === null
+                ? null
+                : sanitizeBoundedStringList(rawResume[listKey], maxItems, maxItemLen);
+        }
+    }
+
+    if (rawResume.experienceLevel !== undefined) {
+        cleaned.experienceLevel = sanitizeBoundedStringOrList(rawResume.experienceLevel, 100, 10, 50);
+    }
+    if (rawResume.summary !== undefined) {
+        cleaned.summary = rawResume.summary === null ? null : sliceUtf8Bytes(rawResume.summary, 5000);
+    }
+    if (rawResume.yearsOfExperience !== undefined) {
+        const yoe = rawResume.yearsOfExperience;
+        if (yoe === null) {
+            cleaned.yearsOfExperience = null;
+        } else if (typeof yoe === 'number' && Number.isFinite(yoe)) {
+            cleaned.yearsOfExperience = Math.max(0, Math.min(80, yoe));
+        } else {
+            cleaned.yearsOfExperience = String(yoe).slice(0, 50);
+        }
+    }
+    if (rawResume.location !== undefined) {
+        cleaned.location = rawResume.location === null ? null : String(rawResume.location).slice(0, 200);
+    }
+    if (rawResume.experience !== undefined) {
+        cleaned.experience = rawResume.experience === null
+            ? null
+            : Array.isArray(rawResume.experience)
+                ? sanitizeBoundedStringList(rawResume.experience, 20, 500)
+                : String(rawResume.experience).slice(0, 2000);
+    }
+
+    return cleaned;
+}
+
+export function sanitizeProfileForFirestore(rawProfile, options = {}) {
+    if (!rawProfile || typeof rawProfile !== 'object') return {};
+    const { allowSubscriptionFields = false, isAdmin = false } = options;
+    const cleaned = {};
+    const envGemini = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '').trim() : '';
     const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
 
     for (const key of Object.keys(rawProfile)) {
         if (!ALLOWED_PROFILE_KEYS.has(key) || key === 'contextDocuments') continue;
+        if (SUBSCRIPTION_KEYS.has(key) && !allowSubscriptionFields) continue;
+
         const val = rawProfile[key];
         if (val === undefined) continue;
         if (key === 'geminiApiKey' && envGemini && String(val).trim() === envGemini) {
             cleaned[key] = '';
             continue;
         }
-        if (key === 'googleMapsApiKey' && ((envMaps && String(val).trim() === envMaps) || (envFirebase && String(val).trim() === envFirebase))) {
+        if (key === 'googleMapsApiKey' && envFirebase && String(val).trim() === envFirebase) {
             cleaned[key] = '';
             continue;
         }
-        if (key === 'minimumSalary') {
-            cleaned[key] = val === null ? '' : String(val).slice(0, 50);
+        if (key === 'subscriptionStatus') {
+            const statusStr = String(val || '').trim();
+            if (!isAdmin) {
+                cleaned[key] = statusStr === 'free' ? 'free' : 'trial';
+            } else {
+                cleaned[key] = VALID_SUBSCRIPTION_STATUSES.has(statusStr) ? statusStr : 'free';
+            }
+        } else if (key === 'trialStartDate' || key === 'trialEndDate' || key === 'updatedAt') {
+            cleaned[key] = val === null ? null : (typeof val === 'string' ? val.slice(0, 100) : val);
+        } else if (key === 'customAiBaseUrl') {
+            if (!val) {
+                cleaned[key] = '';
+            } else {
+                const safeBase = sanitizeCustomAiBaseUrl(String(val));
+                cleaned[key] = safeBase || '';
+            }
+        } else if (key === 'activeAiProvider') {
+            if (val === null) {
+                cleaned[key] = null;
+            } else {
+                const prov = String(val).trim();
+                cleaned[key] = VALID_AI_PROVIDERS.has(prov) ? prov : 'gemini';
+            }
+        } else if (key === 'experienceLevel' || key === 'modality') {
+            cleaned[key] = sanitizeBoundedStringOrList(val, 250, 10, 64);
+        } else if (key === 'minimumSalary') {
+            if (val === null) {
+                cleaned[key] = '';
+            } else if (typeof val === 'number' && Number.isFinite(val)) {
+                cleaned[key] = Math.max(0, Math.min(100000000, val));
+            } else {
+                cleaned[key] = String(val).slice(0, 50);
+            }
+        } else if (key === 'resumeAnalysis') {
+            cleaned[key] = sanitizeResumeAnalysisForFirestore(val);
         } else if (key === 'security2FA') {
             if (val && typeof val === 'object') {
+                const codes = Array.isArray(val.backupCodes)
+                    ? val.backupCodes
+                        .map(c => String(c || '').trim().slice(0, 32))
+                        .filter(c => c.length >= 4)
+                        .slice(0, 16)
+                    : [];
                 cleaned[key] = {
                     enabled: Boolean(val.enabled),
-                    secret: typeof val.secret === 'string' ? val.secret.trim() : '',
-                    backupCodes: Array.isArray(val.backupCodes) ? val.backupCodes.map(String).slice(0, 16) : [],
-                    enabledAt: typeof val.enabledAt === 'string' ? val.enabledAt : null
+                    secret: typeof val.secret === 'string' ? val.secret.trim().slice(0, 128) : '',
+                    backupCodes: codes,
+                    enabledAt: typeof val.enabledAt === 'string' ? val.enabledAt.slice(0, 100) : null
                 };
             } else {
                 cleaned[key] = null;
@@ -225,6 +426,8 @@ export function sanitizeProfileForFirestore(rawProfile) {
     return cleaned;
 }
 
+const URL_JOB_FIELDS = new Set(['url', 'link', 'resumeUrl']);
+
 export function sanitizeJobForFirestore(rawJob) {
     if (!rawJob || typeof rawJob !== 'object') return {};
     const cleaned = {};
@@ -240,6 +443,16 @@ export function sanitizeJobForFirestore(rawJob) {
             } else if (VALID_PREVIOUS_STATUSES.has(val)) {
                 cleaned[key] = val;
             }
+        } else if (URL_JOB_FIELDS.has(key)) {
+            if (val === null || val === '') {
+                cleaned[key] = val === null ? null : '';
+            } else {
+                cleaned[key] = sanitizeUrl(String(val)) || '';
+            }
+        } else if (key === 'description') {
+            cleaned[key] = val === null ? null : sliceUtf8Bytes(val, 200000);
+        } else if (key === 'notes') {
+            cleaned[key] = val === null ? null : sliceUtf8Bytes(String(val).slice(0, 10000), 15000);
         } else if (typeof val === 'string' && JOB_STRING_LIMITS[key]) {
             cleaned[key] = val.slice(0, JOB_STRING_LIMITS[key]);
         } else {
@@ -248,6 +461,33 @@ export function sanitizeJobForFirestore(rawJob) {
     }
     return cleaned;
 }
+
+const safePersistStorage = createJSONStorage(() => ({
+    getItem: (name) => {
+        if (typeof localStorage === 'undefined') return null;
+        try {
+            return localStorage.getItem(name);
+        } catch {
+            return null;
+        }
+    },
+    setItem: (name, value) => {
+        if (typeof localStorage === 'undefined') return;
+        try {
+            localStorage.setItem(name, value);
+        } catch (err) {
+            console.warn('[Store] Failed to persist state to localStorage:', err?.message || err);
+        }
+    },
+    removeItem: (name) => {
+        if (typeof localStorage === 'undefined') return;
+        try {
+            localStorage.removeItem(name);
+        } catch {
+            // ignore
+        }
+    }
+}));
 
 export const useAppStore = create(
     persist(
@@ -260,6 +500,8 @@ export const useAppStore = create(
             oct2Reconciled: false,
             offerCelebrationModal: null,
             currentUserId: null, // Track which user's data this is
+            profileLoaded: false,
+            profileLoadError: null,
 
             // Cycle Management Actions
             setSelectedCycleId: (cycleId) => set({ selectedCycleId: cycleId }),
@@ -500,14 +742,18 @@ export const useAppStore = create(
             // Set the current user ID and clear data if user changed
             setCurrentUser: (userId) => {
                 const currentUserId = get().currentUserId;
-                // Do nothing if same user
+                // Do nothing if same user (only reset profileLoaded so fresh Firestore snapshot gates 2FA)
                 if (currentUserId === userId) {
-                    console.log("Same user, skipping state update");
+                    console.log("Same user, resetting profileLoaded until fresh snapshot");
+                    set({ profileLoaded: false, profileLoadError: null });
                     return;
                 }
 
                 // Different user or fresh login after logout - always start with clean state for this userId
                 // so previous browser session data never leaks across accounts
+                if (currentUserId) {
+                    clearTransientUserCaches();
+                }
                 console.log("User changed or initialized, resetting local cache for user:", userId);
                 set({
                     jobs: [],
@@ -517,30 +763,9 @@ export const useAppStore = create(
                     transitionLog: [],
                     oct2Reconciled: false,
                     offerCelebrationModal: null,
-                    profile: {
-                        fullName: '',
-                        targetRole: '',
-                        location: 'Puerto Rico',
-                        keywords: '',
-                        isRemote: false,
-                        experienceLevel: 'Mid-Senior',
-                        country: '',
-                        modality: 'Remote',
-                        minimumSalary: '',
-                        contextDocuments: [],
-                        geminiApiKey: '',
-                        claudeApiKey: '',
-                        openaiApiKey: '',
-                        customAiApiKey: '',
-                        customAiBaseUrl: '',
-                        customAiModel: '',
-                        activeAiProvider: 'gemini',
-                        googleMapsApiKey: '',
-                        subscriptionStatus: 'free', // 'free', 'premium', 'trial'
-                        trialStartDate: null,
-                        trialEndDate: null,
-                        security2FA: null
-                    },
+                    profileLoaded: false,
+                    profileLoadError: null,
+                    profile: { ...DEFAULT_PROFILE },
                     currentUserId: userId
                 });
             },
@@ -549,6 +774,7 @@ export const useAppStore = create(
             clearUserData: () => {
                 console.log("Clearing user data on logout");
                 clearSession2FAVerification();
+                clearTransientUserCaches();
                 set({
                     jobs: [],
                     cycles: [],
@@ -558,30 +784,9 @@ export const useAppStore = create(
                     oct2Reconciled: false,
                     offerCelebrationModal: null,
                     currentUserId: null,
-                    profile: {
-                        fullName: '',
-                        targetRole: '',
-                        location: 'Puerto Rico',
-                        keywords: '',
-                        isRemote: false,
-                        experienceLevel: 'Mid-Senior',
-                        country: '',
-                        modality: 'Remote',
-                        minimumSalary: '',
-                        contextDocuments: [],
-                        geminiApiKey: '',
-                        claudeApiKey: '',
-                        openaiApiKey: '',
-                        customAiApiKey: '',
-                        customAiBaseUrl: '',
-                        customAiModel: '',
-                        activeAiProvider: 'gemini',
-                        googleMapsApiKey: '',
-                        subscriptionStatus: 'free',
-                        trialStartDate: null,
-                        trialEndDate: null,
-                        security2FA: null
-                    }
+                    profileLoaded: false,
+                    profileLoadError: null,
+                    profile: { ...DEFAULT_PROFILE }
                 });
             },
 
@@ -924,55 +1129,52 @@ export const useAppStore = create(
             },
 
             // Profile State
-            profile: {
-                fullName: '',
-                targetRole: '',
-                location: 'Puerto Rico',
-                keywords: '',
-                isRemote: false,
-                experienceLevel: 'Mid-Senior',
-                country: '',
-                modality: 'Remote',
-                minimumSalary: '',
-                contextDocuments: [], // { name, content, type }
-                resumeAnalysis: null, // { skills, summary, targetRoles, etc }
-                geminiApiKey: '', // User provided API key (overrides env var)
-                claudeApiKey: '', // User provided Anthropic Claude API key
-                openaiApiKey: '', // User provided OpenAI API key
-                customAiApiKey: '', // User provided custom API key (e.g. DeepSeek, Groq, OpenRouter)
-                customAiBaseUrl: '', // e.g. https://api.deepseek.com/v1 or https://api.groq.com/openai/v1
-                customAiModel: '', // e.g. deepseek-chat or llama-3.3-70b-versatile
-                activeAiProvider: 'gemini', // 'gemini' | 'claude' | 'openai' | 'custom'
-                googleMapsApiKey: '', // Google Maps API Key for commute & location intelligence
-                subscriptionStatus: 'free',
-                trialStartDate: null,
-                trialEndDate: null,
-                security2FA: null
-            },
+            profile: { ...DEFAULT_PROFILE },
             isPremium: () => {
                 const currentUser = auth?.currentUser;
                 const profile = get().profile;
                 return isOwner(currentUser) || isProUser(currentUser, profile);
             },
             updateProfile: async (newProfile) => {
+                const currentUser = auth?.currentUser;
+                const isAdmin = isPlatformAdminUser(currentUser);
                 const nowIso = new Date().toISOString();
+
+                const incoming = newProfile && typeof newProfile === 'object' ? { ...newProfile } : {};
+                const hasExplicitSubChange = Boolean(
+                    'subscriptionStatus' in incoming ||
+                    'trialStartDate' in incoming ||
+                    'trialEndDate' in incoming
+                );
+                if (!isAdmin) {
+                    delete incoming.subscriptionStatus;
+                    delete incoming.trialStartDate;
+                    delete incoming.trialEndDate;
+                }
+
                 const payloadWithTimestamp = {
-                    ...newProfile,
+                    ...incoming,
                     updatedAt: nowIso
                 };
                 set((state) => ({
                     profile: { ...state.profile, ...payloadWithTimestamp }
                 }));
-                const userId = get().currentUserId || auth?.currentUser?.uid;
+                const userId = get().currentUserId || currentUser?.uid;
                 if (userId) {
                     try {
                         const { setDoc, doc } = await import('firebase/firestore');
                         const profileRef = doc(db, "users", userId, "data", "profile");
                         const fullCurrentProfile = get().profile;
-                        const cleanProfile = sanitizeProfileForFirestore({
-                            ...fullCurrentProfile,
-                            ...payloadWithTimestamp
-                        });
+                        const cleanProfile = sanitizeProfileForFirestore(
+                            {
+                                ...fullCurrentProfile,
+                                ...payloadWithTimestamp
+                            },
+                            {
+                                allowSubscriptionFields: Boolean(isAdmin && hasExplicitSubChange),
+                                isAdmin
+                            }
+                        );
                         if (Object.keys(cleanProfile).length > 0) {
                             await setDoc(profileRef, cleanProfile, { merge: true });
                         }
@@ -997,114 +1199,27 @@ export const useAppStore = create(
                 }
             })),
 
+            resumePost2FASubscriptions: () => {
+                const uid = get().currentUserId || auth?.currentUser?.uid;
+                if (uid && activeSubscriptionController && activeSubscriptionController.userId === uid) {
+                    activeSubscriptionController.startDataListeners();
+                }
+            },
+
             // Firestore Sync
             subscribeToFirestore: (userId) => {
-                if (!userId) {
-                    console.warn("[Store] No userId provided to subscribeToFirestore");
+                if (!userId || !db) {
+                    console.warn("[Store] No userId or Firestore instance provided to subscribeToFirestore");
                     return () => { };
                 }
 
                 console.log("[Store] Subscribing to Firestore for user:", userId);
+                set({ profileLoaded: false, profileLoadError: null });
 
-                // 1. Profile Listener
-                const profileRef = doc(db, "users", userId, "data", "profile");
-                const profileUnsub = onSnapshot(profileRef,
-                    (docSnap) => {
-                        if (docSnap.exists()) {
-                            console.log("[Store] Profile data received from Firestore");
-                            const remoteData = docSnap.data() || {};
-                            const localProfile = get().profile || {};
-
-                            const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
-                            const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
-
-                            // Preserve local non-empty user fields if local state is newer or if remote was missing fields
-                            const mergedProfile = { ...localProfile, ...remoteData };
-                            let needsCloudCatchup = false;
-
-                            const userEditableFields = [
-                                'fullName', 'targetRole', 'location', 'keywords',
-                                'experienceLevel', 'country', 'modality', 'minimumSalary',
-                                'geminiApiKey', 'claudeApiKey', 'openaiApiKey',
-                                'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
-                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis', 'security2FA'
-                            ];
-
-                            if (localTime > remoteTime) {
-                                for (const field of userEditableFields) {
-                                    if (localProfile[field] !== undefined && localProfile[field] !== '') {
-                                        mergedProfile[field] = localProfile[field];
-                                    }
-                                }
-                                mergedProfile.updatedAt = localProfile.updatedAt;
-                                needsCloudCatchup = true;
-                            } else {
-                                // Even if timestamps aren't set yet, don't let empty/missing remote fields wipe populated local fields
-                                for (const field of userEditableFields) {
-                                    const localVal = localProfile[field];
-                                    const remoteVal = remoteData[field];
-                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
-                                    const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
-                                    if (hasLocalVal && isRemoteEmpty) {
-                                        mergedProfile[field] = localVal;
-                                        needsCloudCatchup = true;
-                                    }
-                                }
-                            }
-
-                            const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim() : '';
-                            const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim() : '';
-                            const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
-
-                            if (envGemini && String(mergedProfile.geminiApiKey || '').trim() === envGemini) {
-                                mergedProfile.geminiApiKey = '';
-                                needsCloudCatchup = true;
-                            }
-                            if ((envMaps && String(mergedProfile.googleMapsApiKey || '').trim() === envMaps) ||
-                                (envFirebase && String(mergedProfile.googleMapsApiKey || '').trim() === envFirebase)) {
-                                mergedProfile.googleMapsApiKey = '';
-                                needsCloudCatchup = true;
-                            }
-
-                            set({ profile: mergedProfile });
-
-                            if (needsCloudCatchup) {
-                                import('firebase/firestore').then(({ setDoc }) => {
-                                    const cleanMerged = sanitizeProfileForFirestore(mergedProfile);
-                                    if (Object.keys(cleanMerged).length > 0) {
-                                        setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
-                                            console.error("[Store] Failed to sync local profile fields to Firestore:", e)
-                                        );
-                                    }
-                                });
-                            }
-                        } else {
-                            console.log("[Store] No profile data in Firestore yet - initializing trial");
-                            const now = new Date();
-                            const endDate = new Date();
-                            endDate.setDate(now.getDate() + 14);
-                            const localProfile = get().profile || {};
-                            const initialProfile = {
-                                ...localProfile,
-                                trialStartDate: localProfile.trialStartDate || now.toISOString(),
-                                trialEndDate: localProfile.trialEndDate || endDate.toISOString(),
-                                subscriptionStatus: localProfile.subscriptionStatus && localProfile.subscriptionStatus !== 'free'
-                                    ? localProfile.subscriptionStatus
-                                    : 'trial',
-                                updatedAt: now.toISOString()
-                            };
-                            set({ profile: initialProfile });
-                            import('firebase/firestore').then(({ setDoc }) => {
-                                const cleanInitial = sanitizeProfileForFirestore(initialProfile);
-                                setDoc(profileRef, cleanInitial, { merge: true }).catch(e => console.error("Failed to init trial:", e));
-                            });
-                        }
-                    },
-                    (error) => {
-                        console.error("[Store] Profile snapshot error:", error);
-                    }
-                );
-
+                let unsubscribed = false;
+                let dataListenersStarted = false;
+                let jobsUnsub = null;
+                let cyclesUnsub = null;
                 let hasLoadedJobsSnapshot = false;
                 let hasLoadedCyclesSnapshot = false;
 
@@ -1157,104 +1272,241 @@ export const useAppStore = create(
                     }
                 };
 
-                // 2. Jobs Listener
-                const syncedCloudJobIds = new Set();
-                const jobsRef = collection(db, "users", userId, "jobs");
-                const jobsUnsub = onSnapshot(jobsRef,
-                    (snapshot) => {
-                        const firestoreJobs = [];
-                        const currentSnapshotIds = new Set();
-                        snapshot.forEach(docSnap => {
-                            firestoreJobs.push({ id: docSnap.id, ...docSnap.data() });
-                            currentSnapshotIds.add(docSnap.id);
-                        });
-                        set(state => {
-                            // Preserve local jobs that have never been synced to Firestore yet
-                            // while allowing remotely deleted jobs (previously in syncedCloudJobIds) to be removed cleanly
-                            const localOnlyJobs = state.jobs.filter(localJob =>
-                                localJob?.id &&
-                                !currentSnapshotIds.has(localJob.id) &&
-                                !syncedCloudJobIds.has(localJob.id)
-                            );
-
-                            currentSnapshotIds.forEach(id => syncedCloudJobIds.add(id));
-
-                            // If we have genuinely new local jobs that aren't in the cloud yet, upload them sanitized
-                            if (localOnlyJobs.length > 0 && userId) {
-                                console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
-                                import('firebase/firestore').then(({ setDoc, doc }) => {
-                                    localOnlyJobs.forEach(job => {
-                                        const jobRef = doc(db, "users", userId, "jobs", job.id);
-                                        const cleanJob = sanitizeJobForFirestore(cleanObject(job));
-                                        setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
-                                    });
-                                });
-                            }
-
-                            return { jobs: [...firestoreJobs, ...localOnlyJobs] };
-                        });
-
-                        // One-time cleanup of applications miscounted by status changes (old appliedAt bug)
-                        runAppliedAtCleanupOnce(userId, firestoreJobs, (repairs) => {
-                            const byId = new Map(repairs.map(r => [r.id, r.appliedAt]));
-                            set(state => ({
-                                jobs: state.jobs.map(j => (j?.id && byId.has(j.id) ? { ...j, appliedAt: byId.get(j.id) } : j))
-                            }));
-                        });
-                        hasLoadedJobsSnapshot = true;
-                        maybeRunOct2CycleReconciliation();
-                    },
-                    (error) => {
-                        console.error("[Store] Jobs snapshot error:", error);
+                const startDataListeners = () => {
+                    if (unsubscribed || dataListenersStarted) return;
+                    const currentProfile = get().profile;
+                    const has2FA = Boolean(currentProfile?.security2FA?.enabled && currentProfile?.security2FA?.secret);
+                    if (has2FA && !isSession2FAVerified(userId)) {
+                        return;
                     }
-                );
+                    dataListenersStarted = true;
 
-                // 3. Search Cycles Listener
-                const cyclesRef = doc(db, "users", userId, "data", "cycles");
-                const cyclesUnsub = onSnapshot(cyclesRef,
+                    // 2. Jobs Listener
+                    const syncedCloudJobIds = new Set();
+                    const jobsRef = collection(db, "users", userId, "jobs");
+                    jobsUnsub = onSnapshot(jobsRef,
+                        (snapshot) => {
+                            const firestoreJobs = [];
+                            const currentSnapshotIds = new Set();
+                            snapshot.forEach(docSnap => {
+                                firestoreJobs.push({ id: docSnap.id, ...docSnap.data() });
+                                currentSnapshotIds.add(docSnap.id);
+                            });
+                            set(state => {
+                                const localOnlyJobs = state.jobs.filter(localJob =>
+                                    localJob?.id &&
+                                    !currentSnapshotIds.has(localJob.id) &&
+                                    !syncedCloudJobIds.has(localJob.id)
+                                );
+
+                                currentSnapshotIds.forEach(id => syncedCloudJobIds.add(id));
+
+                                if (localOnlyJobs.length > 0 && userId) {
+                                    console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
+                                    import('firebase/firestore').then(({ setDoc, doc }) => {
+                                        localOnlyJobs.forEach(job => {
+                                            const jobRef = doc(db, "users", userId, "jobs", job.id);
+                                            const cleanJob = sanitizeJobForFirestore(cleanObject(job));
+                                            setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
+                                        });
+                                    });
+                                }
+
+                                return { jobs: [...firestoreJobs, ...localOnlyJobs] };
+                            });
+
+                            runAppliedAtCleanupOnce(userId, firestoreJobs, (repairs) => {
+                                const byId = new Map(repairs.map(r => [r.id, r.appliedAt]));
+                                set(state => ({
+                                    jobs: state.jobs.map(j => (j?.id && byId.has(j.id) ? { ...j, appliedAt: byId.get(j.id) } : j))
+                                }));
+                            });
+                            hasLoadedJobsSnapshot = true;
+                            maybeRunOct2CycleReconciliation();
+                        },
+                        (error) => {
+                            console.error("[Store] Jobs snapshot error:", error);
+                        }
+                    );
+
+                    // 3. Search Cycles Listener
+                    const cyclesRef = doc(db, "users", userId, "data", "cycles");
+                    cyclesUnsub = onSnapshot(cyclesRef,
+                        (docSnap) => {
+                            if (docSnap.exists()) {
+                                const data = docSnap.data() || {};
+                                const remoteList = Array.isArray(data.list) ? data.list : [];
+                                const resolved = resolveCyclesFromJobs(get().jobs, remoteList);
+                                const updates = { cycles: resolved };
+                                if (typeof data.jobSearchMode === 'boolean') updates.jobSearchMode = data.jobSearchMode;
+                                if (Array.isArray(data.transitionLog)) updates.transitionLog = data.transitionLog;
+                                if (typeof data.oct2Reconciled === 'boolean') updates.oct2Reconciled = data.oct2Reconciled;
+                                set(updates);
+                            } else {
+                                const initialCycles = resolveCyclesFromJobs(get().jobs, get().cycles || []);
+                                set({ cycles: initialCycles });
+                                saveCyclesToFirestore(userId, initialCycles);
+                            }
+                            hasLoadedCyclesSnapshot = true;
+                            maybeRunOct2CycleReconciliation();
+                        },
+                        (error) => {
+                            console.error("[Store] Cycles snapshot error:", error);
+                        }
+                    );
+                };
+
+                activeSubscriptionController = { userId, startDataListeners };
+
+                // 1. Profile Listener (always attached first so 2FA status is known before jobs/cycles load)
+                const profileRef = doc(db, "users", userId, "data", "profile");
+                const profileUnsub = onSnapshot(profileRef,
                     (docSnap) => {
                         if (docSnap.exists()) {
-                            const data = docSnap.data() || {};
-                            const remoteList = Array.isArray(data.list) ? data.list : [];
-                            const resolved = resolveCyclesFromJobs(get().jobs, remoteList);
-                            const updates = { cycles: resolved };
-                            if (typeof data.jobSearchMode === 'boolean') updates.jobSearchMode = data.jobSearchMode;
-                            if (Array.isArray(data.transitionLog)) updates.transitionLog = data.transitionLog;
-                            if (typeof data.oct2Reconciled === 'boolean') updates.oct2Reconciled = data.oct2Reconciled;
-                            set(updates);
+                            console.log("[Store] Profile data received from Firestore");
+                            const remoteData = docSnap.data() || {};
+                            const localProfile = get().profile || {};
+
+                            const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
+                            const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
+
+                            const mergedProfile = { ...localProfile, ...remoteData };
+                            let needsCloudCatchup = false;
+
+                            const userEditableFields = [
+                                'fullName', 'targetRole', 'location', 'keywords',
+                                'experienceLevel', 'country', 'modality', 'minimumSalary',
+                                'geminiApiKey', 'claudeApiKey', 'openaiApiKey',
+                                'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
+                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis', 'security2FA'
+                            ];
+
+                            if (localTime > remoteTime) {
+                                for (const field of userEditableFields) {
+                                    const localVal = localProfile[field];
+                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                    if (hasLocalVal) {
+                                        mergedProfile[field] = localVal;
+                                    }
+                                }
+                                mergedProfile.updatedAt = localProfile.updatedAt;
+                                needsCloudCatchup = true;
+                            } else {
+                                for (const field of userEditableFields) {
+                                    const localVal = localProfile[field];
+                                    const remoteVal = remoteData[field];
+                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                    const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
+                                    if (hasLocalVal && isRemoteEmpty) {
+                                        mergedProfile[field] = localVal;
+                                        needsCloudCatchup = true;
+                                    }
+                                }
+                            }
+
+                            const envGemini = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '').trim() : '';
+                            const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
+
+                            if (envGemini && String(mergedProfile.geminiApiKey || '').trim() === envGemini) {
+                                mergedProfile.geminiApiKey = '';
+                                needsCloudCatchup = true;
+                            }
+                            if (envFirebase && String(mergedProfile.googleMapsApiKey || '').trim() === envFirebase) {
+                                mergedProfile.googleMapsApiKey = '';
+                                needsCloudCatchup = true;
+                            }
+
+                            set({ profile: mergedProfile, profileLoaded: true, profileLoadError: null });
+                            startDataListeners();
+
+                            if (needsCloudCatchup) {
+                                import('firebase/firestore').then(({ setDoc }) => {
+                                    const cleanMerged = sanitizeProfileForFirestore(mergedProfile, { allowSubscriptionFields: false });
+                                    if (Object.keys(cleanMerged).length > 0) {
+                                        setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
+                                            console.error("[Store] Failed to sync local profile fields to Firestore:", e)
+                                        );
+                                    }
+                                });
+                            }
                         } else {
-                            const initialCycles = resolveCyclesFromJobs(get().jobs, get().cycles || []);
-                            set({ cycles: initialCycles });
-                            saveCyclesToFirestore(userId, initialCycles);
+                            console.log("[Store] No profile data in Firestore yet - initializing trial");
+                            const now = new Date();
+                            const endDate = new Date();
+                            endDate.setDate(now.getDate() + 14);
+                            const localProfile = get().profile || {};
+                            const isAdmin = isPlatformAdminUser(auth?.currentUser);
+                            const initialProfile = {
+                                ...localProfile,
+                                trialStartDate: localProfile.trialStartDate || now.toISOString(),
+                                trialEndDate: localProfile.trialEndDate || endDate.toISOString(),
+                                subscriptionStatus: (isAdmin && localProfile.subscriptionStatus && localProfile.subscriptionStatus !== 'free')
+                                    ? localProfile.subscriptionStatus
+                                    : 'trial',
+                                updatedAt: now.toISOString()
+                            };
+                            set({ profile: initialProfile, profileLoaded: true, profileLoadError: null });
+                            startDataListeners();
+                            import('firebase/firestore').then(({ setDoc }) => {
+                                const cleanInitial = sanitizeProfileForFirestore(initialProfile, {
+                                    allowSubscriptionFields: true,
+                                    isAdmin
+                                });
+                                setDoc(profileRef, cleanInitial, { merge: true }).catch(e => console.error("Failed to init trial:", e));
+                            });
                         }
-                        hasLoadedCyclesSnapshot = true;
-                        maybeRunOct2CycleReconciliation();
                     },
                     (error) => {
-                        console.error("[Store] Cycles snapshot error:", error);
+                        console.error("[Store] Profile snapshot error:", error);
+                        set({ profileLoadError: error?.message || 'Unable to verify account profile.' });
                     }
                 );
 
                 return () => {
+                    unsubscribed = true;
+                    if (activeSubscriptionController?.startDataListeners === startDataListeners) {
+                        activeSubscriptionController = null;
+                    }
                     profileUnsub();
-                    jobsUnsub();
-                    cyclesUnsub();
+                    if (jobsUnsub) jobsUnsub();
+                    if (cyclesUnsub) cyclesUnsub();
                 };
             },
 
         }),
         {
             name: 'job-tracker-storage',
-            partialize: (state) => ({
-                jobs: state.jobs,
-                cycles: state.cycles,
-                selectedCycleId: state.selectedCycleId,
-                jobSearchMode: state.jobSearchMode,
-                transitionLog: state.transitionLog,
-                oct2Reconciled: state.oct2Reconciled,
-                profile: state.profile,
-                currentUserId: state.currentUserId  // Also persist user ID
-            })
+            storage: safePersistStorage,
+            partialize: (state) => {
+                const safePersistedProfile = { ...(state.profile || {}) };
+                delete safePersistedProfile.security2FA;
+                delete safePersistedProfile.geminiApiKey;
+                delete safePersistedProfile.claudeApiKey;
+                delete safePersistedProfile.openaiApiKey;
+                delete safePersistedProfile.customAiApiKey;
+                delete safePersistedProfile.googleMapsApiKey;
+
+                const safePersistedJobs = Array.isArray(state.jobs)
+                    ? state.jobs.map((job) => {
+                        if (!job || typeof job !== 'object') return job;
+                        if (job.description === undefined) return job;
+                        const rest = { ...job };
+                        delete rest.description;
+                        return rest;
+                    })
+                    : [];
+
+                return {
+                    jobs: safePersistedJobs,
+                    cycles: state.cycles,
+                    selectedCycleId: state.selectedCycleId,
+                    jobSearchMode: state.jobSearchMode,
+                    transitionLog: state.transitionLog,
+                    oct2Reconciled: state.oct2Reconciled,
+                    profile: safePersistedProfile,
+                    currentUserId: state.currentUserId
+                };
+            }
         }
     )
 );

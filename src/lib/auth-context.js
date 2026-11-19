@@ -10,11 +10,14 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => Boolean(auth));
     const unsubscribeStoreRef = useRef(null);
     const currentUserIdRef = useRef(null);
 
     useEffect(() => {
+        if (!auth) {
+            return;
+        }
         console.log("[AuthContext] Initializing...");
 
         // Safety timeout in case Firebase hangs
@@ -44,9 +47,10 @@ export const AuthProvider = ({ children }) => {
 
                     // Subscribe store to firestore for THIS user
                     import('./store').then(module => {
+                        if (currentUserIdRef.current !== firebaseUser.uid) return;
                         const store = module.useAppStore.getState();
 
-                        // Set current user (this clears data if user changed)
+                        // Set current user (this clears data if user changed and resets profileLoaded)
                         store.setCurrentUser(firebaseUser.uid);
 
                         // Subscribe to this user's Firestore data

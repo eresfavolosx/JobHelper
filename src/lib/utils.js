@@ -84,6 +84,38 @@ export const sanitizeUrl = (url) => {
 };
 
 /**
+ * Validates and normalizes a custom AI provider base URL.
+ * Requires https://, except http://localhost or http://127.0.0.1 for local development.
+ *
+ * @param {string} url - The custom AI base URL
+ * @returns {string|null} - The normalized base URL, or null if invalid
+ */
+export const sanitizeCustomAiBaseUrl = (url) => {
+    if (!url || typeof url !== 'string') return null;
+    const cleaned = url.replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim();
+    if (!cleaned || cleaned.length > 250) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(cleaned);
+    } catch {
+        return null;
+    }
+
+    if (parsed.username || parsed.password) return null;
+
+    const isHttps = parsed.protocol === 'https:';
+    const isLocalHttp = parsed.protocol === 'http:' && (
+        parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+    );
+
+    if (!isHttps && !isLocalHttp) return null;
+
+    const normalized = parsed.toString().replace(/\/+$/, '');
+    return normalized.length <= 250 ? normalized : null;
+};
+
+/**
  * Escapes characters for XML contexts to prevent injection.
  *
  * @param {string} unsafe - The unsafe string

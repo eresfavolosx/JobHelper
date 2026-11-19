@@ -17,7 +17,7 @@ let activeTabUrl = '';
  * to strip weird symbols, UTF-8/Windows-1252 mojibake, zero-width/bidi control characters,
  * private-use icon font glyphs, HTML entities, and duplicated screen-reader text.
  */
-function cleanScrapedText(raw) {
+function cleanScrapedText(raw, { preserveNewlines = false } = {}) {
     if (!raw) return '';
     let text = String(raw);
 
@@ -68,6 +68,15 @@ function cleanScrapedText(raw) {
     // 5. Strip leading/trailing bullet characters or pipe separators
     text = text.replace(/^[\s•·|‣⁃\-–—]+|[\s•·|‣⁃\-–—]+$/g, '');
 
+    if (preserveNewlines) {
+        return text
+            .replace(/\r\n?/g, '\n')
+            .replace(/[ \t\f\v]+/g, ' ')
+            .replace(/ *\n */g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
     // 6. Collapse repeated whitespace
     text = text.replace(/\s+/g, ' ').trim();
 
@@ -91,18 +100,32 @@ function scrapeActivePageDom() {
     const doc = document;
     const rawTitle = doc.title || '';
     const url = window.location.href;
+    const host = (window.location.hostname || '').toLowerCase();
+    const isGreenhouse = host === 'greenhouse.io' || host.endsWith('.greenhouse.io');
 
-    const getCleanElementText = (el) => {
+    const getCleanElementText = (el, preserveNewlines = false) => {
         if (!el) return '';
-        // Prefer aria-hidden span if LinkedIn duplicated the node for screen readers
-        const ariaHidden = el.querySelector('[aria-hidden="true"]');
-        if (ariaHidden && ariaHidden.textContent && ariaHidden.textContent.trim()) {
-            return ariaHidden.textContent.trim();
-        }
-        // Clone node and remove screen-reader-only / visually-hidden / icon elements before reading text
-        const clone = el.cloneNode(true);
-        clone.querySelectorAll('.visually-hidden, .sr-only, [class*="artdeco-icon"], svg, script, style').forEach(n => n.remove());
-        return (clone.textContent || el.innerText || '').trim();
+        const extractFromClone = (removeAriaHidden) => {
+            const clone = el.cloneNode(true);
+            const selector = removeAriaHidden
+                ? '.visually-hidden, .sr-only, [aria-hidden="true"], [class*="artdeco-icon"], svg, script, style'
+                : '.visually-hidden, .sr-only, [class*="artdeco-icon"], svg, script, style';
+            clone.querySelectorAll(selector).forEach(n => n.remove());
+            if (preserveNewlines) {
+                clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+                clone.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6, tr, section').forEach(block => {
+                    block.append('\n');
+                });
+            }
+            return (clone.textContent || '').trim();
+        };
+
+        // Always skip decorative [aria-hidden="true"] spans first so badges/icons don't truncate text
+        const visibleText = extractFromClone(true);
+        if (visibleText) return visibleText;
+
+        // Fallback only when an element renders exclusively inside aria-hidden + visually-hidden pairs
+        return extractFromClone(false);
     };
 
     let company = '';
@@ -179,13 +202,13 @@ function scrapeActivePageDom() {
     let description = '';
     const liDesc = doc.querySelector('.jobs-description__content, .jobs-box__html-content, #job-details, .show-more-less-html__markup');
     const indDesc = doc.querySelector('#jobDescriptionText, .jobsearch-JobComponent-description');
-    const ghDesc = doc.querySelector('#content, .content');
+    const ghDesc = isGreenhouse ? doc.querySelector('#content, .content') : null;
     const leverDesc = doc.querySelector('.section-wrapper.page-full-width, [data-qa="job-description"]');
 
-    if (liDesc) description = getCleanElementText(liDesc);
-    else if (indDesc) description = getCleanElementText(indDesc);
-    else if (ghDesc) description = getCleanElementText(ghDesc);
-    else if (leverDesc) description = getCleanElementText(leverDesc);
+    if (liDesc) description = getCleanElementText(liDesc, true);
+    else if (indDesc) description = getCleanElementText(indDesc, true);
+    else if (ghDesc) description = getCleanElementText(ghDesc, true);
+    else if (leverDesc) description = getCleanElementText(leverDesc, true);
 
     return {
         title: role || cleanedTitle,
@@ -197,6 +220,7 @@ function scrapeActivePageDom() {
 }
 
 let scrapedDescription = '';
+const MAX_URL_DESCRIPTION_CHARS = 1200;
 
 async function initPopup() {
     // Restore last-used resume link, label, and stage so rapid daily applying requires 0 re-pasting
@@ -217,27 +241,26 @@ async function initPopup() {
         }
         activeTabUrl = tab.url || '';
 
-        chrome.scripting.executeScript(
-            {
-                target: { tabId: tab.id },
-                func: scrapeActivePageDom
-            },
-            (results) => {
-                if (chrome.runtime.lastError || !results?.[0]?.result) {
-                    // Fallback to tab title if scripting is restricted on the current tab
-                    roleInput.value = cleanScrapedText(tab.title || '');
-                    statusNote.textContent = 'Review details below before saving.';
-                    return;
-                }
-                const data = results[0].result;
-                roleInput.value = cleanScrapedText(data.title);
-                companyInput.value = cleanScrapedText(data.company);
-                locationInput.value = cleanScrapedText(data.location);
-                scrapedDescription = data.description || '';
-                if (data.url) activeTabUrl = data.url;
-                statusNote.textContent = 'Details cleaned & ready to save.';
-            }
-        );
+        const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: scrapeActivePageDom
+        });
+
+        const data = results?.[0]?.result;
+        if (!data) {
+            roleInput.value = cleanScrapedText(tab.title || '');
+            statusNote.textContent = 'Review details below before saving.';
+            return;
+        }
+
+        roleInput.value = cleanScrapedText(data.title);
+        companyInput.value = cleanScrapedText(data.company);
+        locationInput.value = cleanScrapedText(data.location);
+        scrapedDescription = cleanScrapedText(data.description || '', { preserveNewlines: true });
+        if (data.url) activeTabUrl = data.url;
+        statusNote.textContent = scrapedDescription.length > MAX_URL_DESCRIPTION_CHARS
+            ? 'Details cleaned! Top 1,200 chars of description will transfer via URL.'
+            : 'Details cleaned & ready to save.';
     } catch {
         statusNote.textContent = 'Enter or adjust details below.';
     }
@@ -270,9 +293,12 @@ saveBtn.addEventListener('click', async () => {
         if (cleanLocation) targetUrl += `&location=${encodeURIComponent(cleanLocation)}`;
         if (cleanResumeUrl) targetUrl += `&resumeUrl=${encodeURIComponent(cleanResumeUrl)}`;
         if (cleanResumeName) targetUrl += `&resumeName=${encodeURIComponent(cleanResumeName)}`;
-        if (scrapedDescription) targetUrl += `&description=${encodeURIComponent(scrapedDescription.slice(0, 3000))}`;
+        if (scrapedDescription) {
+            const boundedDesc = scrapedDescription.slice(0, MAX_URL_DESCRIPTION_CHARS);
+            targetUrl += `&description=${encodeURIComponent(boundedDesc)}`;
+        }
 
-        chrome.tabs.create({ url: targetUrl });
+        await chrome.tabs.create({ url: targetUrl });
     } catch (error) {
         console.error('Failed to save job:', error);
         statusNote.textContent = 'Could not open NovuJobs tab.';

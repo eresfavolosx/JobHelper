@@ -30,4 +30,8 @@ test('mapPasswordActionError translates Firebase auth error codes cleanly', () =
     assert.match(mapPasswordActionError({ code: 'auth/weak-password' }), /stronger password/i);
     assert.match(mapPasswordActionError({ code: 'auth/too-many-requests' }), /too many attempts/i);
     assert.match(mapPasswordActionError({ code: 'auth/requires-recent-login' }), /verify your google sign-in/i);
+
+    const fallback = mapPasswordActionError({ code: 'auth/unknown', message: 'SENSITIVE_INTERNAL_ERR' });
+    assert.ok(!fallback.includes('SENSITIVE_INTERNAL_ERR'));
+    assert.match(fallback, /unable to update password/i);
 });

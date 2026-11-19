@@ -14,6 +14,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "optionalDependencies": {
+    "firebase-admin": "^13.0.0"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",

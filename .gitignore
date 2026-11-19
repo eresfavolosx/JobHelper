@@ -10,9 +10,13 @@ coverage/
 # Next.js
 .next/
 out/
+*.tsbuildinfo
 
 # Production
 build/
+
+# Extension artifact
+public/extension.zip
 
 # Misc
 .DS_Store
@@ -37,3 +41,4 @@ pnpm-debug.log*
 GYB-*
 gyb-*
 check_firestore.js
+.temp_firebase_config/

@@ -40,7 +40,7 @@ const PII_PATTERNS = {
     SSN: /\b\d{3}-\d{2}-\d{4}\b/g,
     CREDIT_CARD: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b/g,
     API_KEY: /\b(sk-[a-zA-Z0-9_-]{20,}|AIzaSy[a-zA-Z0-9_-]{33}|ghp_[a-zA-Z0-9]{36})\b/g,
-    PASSWORD_ASSIGNMENT: /(?:password|secret|passwd|pwd)\s*[:=]\s*['"]?([^\s'"]{4,})/gi
+    PASSWORD_ASSIGNMENT: /((?:password|secret|passwd|pwd))(\s*[:=]\s*['"]?)([^\s'"]{4,})/gi
 };
 
 /**
@@ -97,31 +97,38 @@ export function sanitizePII(text) {
     let redactedCount = 0;
 
     // Redact SSNs
+    PII_PATTERNS.SSN.lastIndex = 0;
     if (PII_PATTERNS.SSN.test(sanitized)) {
+        PII_PATTERNS.SSN.lastIndex = 0;
         sanitized = sanitized.replace(PII_PATTERNS.SSN, '[REDACTED_SSN]');
         redactedTypes.push('SSN');
         redactedCount++;
     }
 
     // Redact Credit Cards
+    PII_PATTERNS.CREDIT_CARD.lastIndex = 0;
     if (PII_PATTERNS.CREDIT_CARD.test(sanitized)) {
+        PII_PATTERNS.CREDIT_CARD.lastIndex = 0;
         sanitized = sanitized.replace(PII_PATTERNS.CREDIT_CARD, '[REDACTED_CARD]');
         redactedTypes.push('CREDIT_CARD');
         redactedCount++;
     }
 
     // Redact API Keys
+    PII_PATTERNS.API_KEY.lastIndex = 0;
     if (PII_PATTERNS.API_KEY.test(sanitized)) {
+        PII_PATTERNS.API_KEY.lastIndex = 0;
         sanitized = sanitized.replace(PII_PATTERNS.API_KEY, '[REDACTED_API_KEY]');
         redactedTypes.push('API_KEY');
         redactedCount++;
     }
 
     // Redact plain text passwords
-    sanitized = sanitized.replace(PII_PATTERNS.PASSWORD_ASSIGNMENT, (match, p1) => {
+    PII_PATTERNS.PASSWORD_ASSIGNMENT.lastIndex = 0;
+    sanitized = sanitized.replace(PII_PATTERNS.PASSWORD_ASSIGNMENT, (_match, keyPart, sepPart) => {
         redactedTypes.push('PASSWORD');
         redactedCount++;
-        return match.replace(p1, '[REDACTED_SECRET]');
+        return `${keyPart}${sepPart}[REDACTED_SECRET]`;
     });
 
     return {
@@ -136,7 +143,10 @@ export function sanitizePII(text) {
  */
 export function applyConstitutionalSafetyWrapper(systemTask, userContent) {
     // 1. Sanitize user content
-    const { sanitizedText, redactedCount } = sanitizePII(userContent);
+    const { sanitizedText: rawSanitizedText, redactedCount } = sanitizePII(userContent);
+    const sanitizedText = typeof rawSanitizedText === 'string'
+        ? rawSanitizedText.replace(/<(\/?)untrusted_input\b/gi, '&lt;$1untrusted_input')
+        : '';
     const injectionCheck = detectPromptInjection(sanitizedText);
 
     if (injectionCheck.riskLevel === 'critical') {
@@ -205,7 +215,7 @@ export function getSafetyTelemetry() {
     try {
         const raw = localStorage.getItem(SAFETY_STORAGE_KEY);
         if (!raw) {
-            return { totalScans: 12, injectionsBlocked: 2, piiRedacted: 4, events: [], status: 'nominal' };
+            return { totalScans: 0, injectionsBlocked: 0, piiRedacted: 0, events: [], status: 'nominal' };
         }
         const data = JSON.parse(raw);
         return {

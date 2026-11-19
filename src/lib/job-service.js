@@ -61,10 +61,7 @@ export async function fetchJobsWithCoverage(keywords = []) {
 
         const feedResults = await Promise.all(proxyFeeds.map(async (feed) => {
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
-                const res = await fetch(feed.url, { signal: controller.signal });
-                clearTimeout(timeoutId);
+                const res = await fetch(feed.url, { signal: AbortSignal.timeout(3000) });
 
                 if (res.ok) {
                     const data = await res.json();
@@ -128,9 +125,11 @@ export async function fetchJobsWithCoverage(keywords = []) {
     let filteredJobs = allJobs;
     let appliedKeywordFilter = false;
     if (cleanKeywords.length > 0) {
+        const keywordRegexes = cleanKeywords.map((k) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
         const matched = allJobs.filter(job => {
-            const content = `${job.title} ${job.description}`.toLowerCase();
-            return cleanKeywords.some(k => content.includes(k));
+            const title = typeof job.title === 'string' ? job.title : '';
+            const description = typeof job.description === 'string' ? job.description : '';
+            return keywordRegexes.some(rx => rx.test(title) || rx.test(description));
         });
         if (matched.length > 0) {
             filteredJobs = matched;

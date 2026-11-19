@@ -121,39 +121,43 @@ export default function RecommendationsPage() {
         return counts;
     }, [jobs]);
 
-    const filteredRecommendations = useMemo(() => {
+    const enrichedJobs = useMemo(() => {
         if (!Array.isArray(jobs)) return [];
-        const tokens = recSearchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
         return jobs
-            .filter(job => {
-                if (!job) return false;
-                if (labelFilter === 'actionable') {
-                    if (job.label !== RECOMMENDATION_LABELS.RECOMMEND && job.label !== RECOMMENDATION_LABELS.WORTHWHILE_STRETCH) {
-                        return false;
-                    }
-                } else if (labelFilter === 'clarify') {
-                    if (job.label !== RECOMMENDATION_LABELS.NEEDS_CLARIFICATION) return false;
-                } else if (labelFilter === 'skip') {
-                    if (job.label !== RECOMMENDATION_LABELS.SKIP) return false;
-                }
-
-                if (tokens.length === 0) return true;
-                const parsed = parseRecommendedJobTitle(job.title, job.source);
-                const haystack = `${job.title || ''} ${job.employer || parsed.company || ''} ${job.roleTitle || parsed.role || ''} ${job.source || ''} ${job.matchReason || ''} ${job.description || ''}`.toLowerCase();
-                return tokens.every(t => haystack.includes(t));
-            })
+            .filter(Boolean)
             .map(job => {
                 const parsedDate = job.pubDate ? new Date(job.pubDate) : null;
+                const parsedTitle = parseRecommendedJobTitle(job.title, job.source);
+                const cleanDescription = String(job.description || '').replace(/<[^>]*>?/gm, '');
                 return {
                     ...job,
                     sanitizedLink: sanitizeUrl(job.link),
                     canonicalLink: canonicalizeJobUrl(job.link),
-                    parsedTitle: parseRecommendedJobTitle(job.title, job.source),
+                    parsedTitle,
                     formattedDate: parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : 'Recent',
-                    cleanDescription: String(job.description || '').replace(/<[^>]*>?/gm, '')
+                    cleanDescription,
+                    searchHaystack: `${job.title || ''} ${job.employer || parsedTitle.company || ''} ${job.roleTitle || parsedTitle.role || ''} ${job.source || ''} ${job.matchReason || ''} ${cleanDescription}`.toLowerCase()
                 };
             });
-    }, [jobs, recSearchQuery, labelFilter]);
+    }, [jobs]);
+
+    const filteredRecommendations = useMemo(() => {
+        const tokens = recSearchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        return enrichedJobs.filter(job => {
+            if (labelFilter === 'actionable') {
+                if (job.label !== RECOMMENDATION_LABELS.RECOMMEND && job.label !== RECOMMENDATION_LABELS.WORTHWHILE_STRETCH) {
+                    return false;
+                }
+            } else if (labelFilter === 'clarify') {
+                if (job.label !== RECOMMENDATION_LABELS.NEEDS_CLARIFICATION) return false;
+            } else if (labelFilter === 'skip') {
+                if (job.label !== RECOMMENDATION_LABELS.SKIP) return false;
+            }
+
+            if (tokens.length === 0) return true;
+            return tokens.every(t => job.searchHaystack.includes(t));
+        });
+    }, [enrichedJobs, recSearchQuery, labelFilter]);
 
     const findJobs = async (forceRefresh = false) => {
         if (!hasConfiguredAiKey(profile)) {
@@ -259,6 +263,7 @@ export default function RecommendationsPage() {
 
     useEffect(() => {
         if (hasAccess && jobs.length === 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             findJobs(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -616,13 +621,13 @@ export default function RecommendationsPage() {
                                                     onClick={() => {
                                                         try {
                                                             const parsed = job.parsedTitle || parseRecommendedJobTitle(job.title, job.source);
+                                                            const reqNote = job.requisitionId ? `Req: ${job.requisitionId} · ` : '';
                                                             addJob({
                                                                 company: job.employer || parsed.company,
                                                                 role: job.roleTitle || parsed.role,
-                                                                requisitionId: job.requisitionId || '',
-                                                                url: sanitizedLink,
+                                                                url: sanitizedLink || '',
                                                                 status: 'wishlist',
-                                                                notes: `[${job.label} · ${job.relevanceScore}/100 · PR: ${job.puertoRicoStatus}] ${job.matchReason}`,
+                                                                notes: `[${job.label} · ${job.relevanceScore}/100 · PR: ${job.puertoRicoStatus}] ${reqNote}${job.matchReason}`,
                                                             });
 
                                                             setAddedJobs(prev => {
@@ -662,7 +667,7 @@ export default function RecommendationsPage() {
             <UpgradeModal
                 isOpen={upgradeOpen}
                 onClose={() => setUpgradeOpen(false)}
-                reason="Upgrade to NovuJobs Pro or add your personal Gemini API key in Profile to unlock unlimited AI job recommendations."
+                triggerReason="limit"
             />
         </div>
     );

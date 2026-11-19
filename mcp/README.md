@@ -45,7 +45,7 @@ Add the following block under `"mcpServers"`:
     "novujobs": {
       "command": "node",
       "args": [
-        "/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/mcp/server.js"
+        "<path-to-JobHelper>/mcp/server.js"
       ],
       "env": {
         "NOVUJOBS_USER_ID": "YOUR_FIREBASE_USER_ID_HERE",

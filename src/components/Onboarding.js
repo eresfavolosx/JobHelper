@@ -148,14 +148,26 @@ export default function Onboarding({ isCollapsible = false, onDismiss }) {
             setQuickJobError('Please enter both a Role Title and Company Name.');
             return;
         }
+        const rawUrl = (quickJob.url || '').trim();
+        const rawResumeUrl = (quickJob.resumeUrl || '').trim();
+        const sanitizedUrl = rawUrl ? sanitizeUrl(rawUrl) : '';
+        const sanitizedResumeUrl = rawResumeUrl ? sanitizeUrl(rawResumeUrl) : '';
+        if (rawUrl && !sanitizedUrl) {
+            setQuickJobError('Please enter a valid http:// or https:// Job Posting URL.');
+            return;
+        }
+        if (rawResumeUrl && !sanitizedResumeUrl) {
+            setQuickJobError('Please enter a valid http:// or https:// Resume URL.');
+            return;
+        }
         try {
             addJob({
                 role: quickJob.role.trim(),
                 company: quickJob.company.trim(),
                 status: quickJob.status || 'applied',
                 location: quickJob.location.trim() || (selectedModalities.includes('remote') ? 'Remote' : ''),
-                url: quickJob.url ? (sanitizeUrl(quickJob.url) || quickJob.url.trim()) : '',
-                resumeUrl: quickJob.resumeUrl ? (sanitizeUrl(quickJob.resumeUrl) || quickJob.resumeUrl.trim()) : '',
+                url: sanitizedUrl || '',
+                resumeUrl: sanitizedResumeUrl || '',
                 resumeName: quickJob.resumeName.trim()
             });
             setQuickJob({

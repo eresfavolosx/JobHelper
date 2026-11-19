@@ -86,6 +86,7 @@ const JobCard = memo(function JobCard({ job }) {
     const [isEditingResume, setIsEditingResume] = useState(false);
     const [resumeUrlDraft, setResumeUrlDraft] = useState(job.resumeUrl || '');
     const [resumeNameDraft, setResumeNameDraft] = useState(job.resumeName || '');
+    const [resumeUrlError, setResumeUrlError] = useState('');
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [copiedDesc, setCopiedDesc] = useState(false);
 
@@ -202,6 +203,7 @@ const JobCard = memo(function JobCard({ job }) {
         e.preventDefault();
         setResumeUrlDraft(job.resumeUrl || '');
         setResumeNameDraft(job.resumeName || '');
+        setResumeUrlError('');
         setIsEditingResume(true);
     };
 
@@ -209,10 +211,15 @@ const JobCard = memo(function JobCard({ job }) {
         e.stopPropagation();
         e.preventDefault();
         const rawUrl = (resumeUrlDraft || '').trim();
-        const normalizedUrl = rawUrl ? (sanitizeUrl(rawUrl) || rawUrl) : '';
+        const sanitized = rawUrl ? sanitizeUrl(rawUrl) : '';
+        if (rawUrl && !sanitized) {
+            setResumeUrlError('Enter a valid http:// or https:// URL.');
+            return;
+        }
+        setResumeUrlError('');
         const trimmedName = (resumeNameDraft || '').trim();
         updateJob(job.id, {
-            resumeUrl: normalizedUrl,
+            resumeUrl: sanitized || '',
             resumeName: trimmedName
         });
         setIsEditingResume(false);
@@ -504,6 +511,11 @@ const JobCard = memo(function JobCard({ job }) {
                                 <Check size={12} /> Save
                             </button>
                         </div>
+                        {resumeUrlError && (
+                            <div role="alert" style={{ fontSize: '0.72rem', color: 'var(--error)', marginTop: '2px' }}>
+                                {resumeUrlError}
+                            </div>
+                        )}
                     </form>
                 ) : hasResumeInfo ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>

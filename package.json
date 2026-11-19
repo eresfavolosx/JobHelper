@@ -8,10 +8,10 @@
     "build": "node scripts/package-extension.js && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/utils.test.js src/components/ApplicationHistoryChart.test.mjs src/lib/qa-role-updates.test.mjs src/lib/goal-tracker.test.mjs src/lib/credit-protection.test.mjs src/lib/ai-safety.test.mjs src/lib/job-search.test.mjs src/lib/theme.test.mjs src/lib/sidebar.test.mjs src/lib/multi-provider.test.mjs src/lib/sankey-utils.test.mjs src/lib/gantt-utils.test.mjs src/lib/benchmark-analytics.test.mjs src/lib/trend-analytics.test.mjs src/lib/cycle-utils.test.mjs src/lib/cycle-store.test.mjs src/lib/agent-mode.test.mjs src/lib/saved-accounts.test.mjs src/lib/account-security.test.mjs src/lib/job-matcher.test.mjs src/lib/skeleton-loaders.test.mjs src/lib/totp.test.mjs src/extension/storage.test.mjs mcp/test-mcp.mjs"
+    "test": "NODE_ENV=test node --test src/lib/utils.test.js src/components/ApplicationHistoryChart.test.mjs src/lib/qa-role-updates.test.mjs src/lib/goal-tracker.test.mjs src/lib/credit-protection.test.mjs src/lib/ai-safety.test.mjs src/lib/job-search.test.mjs src/lib/theme.test.mjs src/lib/sidebar.test.mjs src/lib/multi-provider.test.mjs src/lib/sankey-utils.test.mjs src/lib/gantt-utils.test.mjs src/lib/benchmark-analytics.test.mjs src/lib/trend-analytics.test.mjs src/lib/cycle-utils.test.mjs src/lib/cycle-store.test.mjs src/lib/agent-mode.test.mjs src/lib/saved-accounts.test.mjs src/lib/account-security.test.mjs src/lib/job-matcher.test.mjs src/lib/skeleton-loaders.test.mjs src/lib/totp.test.mjs src/lib/export-utils.test.mjs mcp/test-mcp.mjs"
   },
   "engines": {
-    "node": "18"
+    "node": ">=20.9.0"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -22,11 +22,10 @@
     "date-fns": "^4.1.0",
     "firebase": "^12.9.0",
     "lucide-react": "^0.563.0",
-    "next": "16.1.6",
+    "next": "16.4.6",
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-markdown": "^10.1.0",
     "recharts": "^3.7.0",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.11"
@@ -37,7 +36,7 @@
     "@types/react-dom": "^19",
     "archiver": "^7.0.1",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.4.6",
     "typescript": "^5"
   }
 }

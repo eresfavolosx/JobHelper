@@ -377,8 +377,8 @@ export default function GlobalJobSearchModal() {
                                         setSelectedIndex(0);
                                     }}
                                     onKeyDown={handleKeyDown}
-                                    autocorrect="off"
-                                    autocapitalize="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
                                     spellCheck={false}
                                     placeholder="Search by company, role, location, salary, resume, or notes..."
                                     style={{

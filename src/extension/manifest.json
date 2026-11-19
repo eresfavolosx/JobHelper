@@ -5,12 +5,7 @@
     "description": "One-click save jobs to NovuJobs.",
     "permissions": [
         "activeTab",
-        "scripting",
-        "storage"
-    ],
-    "host_permissions": [
-        "http://*/*",
-        "https://*/*"
+        "scripting"
     ],
     "icons": {
         "48": "icon.png"

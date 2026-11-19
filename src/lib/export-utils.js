@@ -19,9 +19,13 @@ function downloadFile(content, fileName, mimeType) {
     URL.revokeObjectURL(url);
 }
 
-function escapeCsvField(val) {
+export function escapeCsvField(val) {
     if (val === null || val === undefined) return '""';
-    const str = String(val).replace(/"/g, '""');
+    let raw = String(val);
+    if (/^(?:[=+\-@\t\r]|\s+[=+\-@])/.test(raw)) {
+        raw = `'${raw}`;
+    }
+    const str = raw.replace(/"/g, '""');
     return `"${str}"`;
 }
 
@@ -44,6 +48,7 @@ export function exportBoardToCsv(jobs = []) {
         'Resume Used',
         'Resume URL',
         'Created At',
+        'Description',
         'Notes'
     ];
 
@@ -61,6 +66,7 @@ export function exportBoardToCsv(jobs = []) {
         escapeCsvField(job.resumeName),
         escapeCsvField(job.resumeUrl),
         escapeCsvField(job.createdAt || job.dateAdded),
+        escapeCsvField(job.description),
         escapeCsvField(job.notes)
     ].join(','));
 
@@ -77,7 +83,11 @@ export function exportBoardToJson(jobs = [], profile = null) {
         if (!job || typeof job !== 'object') return job;
         const copy = { ...job };
         delete copy.geminiApiKey;
+        delete copy.claudeApiKey;
+        delete copy.openaiApiKey;
+        delete copy.customAiApiKey;
         delete copy.googleMapsApiKey;
+        delete copy.security2FA;
         return copy;
     });
     const payload = {
@@ -137,6 +147,7 @@ export function exportAgentBriefing(jobs = []) {
             if (job.resumeUrl || job.resumeName) {
                 md += `- **Resume Used**: ${job.resumeName ? `${job.resumeName} ` : ''}${job.resumeUrl ? `(${job.resumeUrl})` : ''}\n`;
             }
+            if (job.description) md += `- **Job Description**:\n${job.description}\n`;
             if (job.notes) md += `- **Notes**: ${job.notes}\n`;
             md += `\n`;
         });

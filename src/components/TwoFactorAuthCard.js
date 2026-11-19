@@ -12,9 +12,11 @@ import {
     generateTotpSecret,
     buildOtpAuthUri,
     verifyTotpCode,
+    verifyAndConsumeBackupCode,
     generateBackupCodes,
     getTotpSecondsRemaining,
-    markSession2FAVerified
+    markSession2FAVerified,
+    clearSession2FAVerification
 } from '@/lib/totp';
 
 export default function TwoFactorAuthCard() {
@@ -41,6 +43,9 @@ export default function TwoFactorAuthCard() {
     const [showBackupCodes, setShowBackupCodes] = useState(false);
     const [statusMessage, setStatusMessage] = useState(null);
     const [disabling, setDisabling] = useState(false);
+    const [isConfirmingDisable, setIsConfirmingDisable] = useState(false);
+    const [disableCode, setDisableCode] = useState('');
+    const [disableError, setDisableError] = useState('');
 
     const startSetupFlow = useCallback(() => {
         const secret = generateTotpSecret(32);
@@ -88,6 +93,7 @@ export default function TwoFactorAuthCard() {
             window.location.hash === '#two-factor-auth-setup';
         if (wantsSetup) {
             if (!isEnabled) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 startSetupFlow();
             }
             scrollIntoView();
@@ -165,13 +171,38 @@ export default function TwoFactorAuthCard() {
         }
     };
 
-    const handleDisable2FA = async () => {
-        if (!window.confirm('Are you sure you want to disable Two-Factor Authentication? Your account will only be protected by your password or Google Sign-In.')) {
+    const handleOpenDisableConfirm = () => {
+        setDisableCode('');
+        setDisableError('');
+        setIsConfirmingDisable(true);
+    };
+
+    const handleDisable2FA = async (e) => {
+        e.preventDefault();
+        setDisableError('');
+        const rawInput = disableCode.trim();
+        if (!rawInput) {
+            setDisableError('Enter your current 6-digit authenticator code or an 8-character backup code to disable 2FA.');
             return;
         }
 
         setDisabling(true);
         try {
+            const digitsOnly = rawInput.replace(/\D/g, '');
+            let verified = false;
+            if (/^\d{6}$/.test(digitsOnly)) {
+                verified = await verifyTotpCode(security2FA?.secret, digitsOnly, 1);
+            }
+            if (!verified) {
+                const backupResult = verifyAndConsumeBackupCode(rawInput, security2FA?.backupCodes || []);
+                verified = backupResult.valid;
+            }
+            if (!verified) {
+                setDisableError('Invalid authenticator or backup code. Please verify and try again.');
+                setDisabling(false);
+                return;
+            }
+
             const syncResult = await updateProfile({
                 security2FA: {
                     enabled: false,
@@ -180,6 +211,9 @@ export default function TwoFactorAuthCard() {
                     enabledAt: null
                 }
             });
+            clearSession2FAVerification(user.uid);
+            setIsConfirmingDisable(false);
+            setDisableCode('');
             setShowBackupCodes(false);
             if (syncResult?.synced === false && syncResult?.error) {
                 setStatusMessage({
@@ -441,8 +475,8 @@ export default function TwoFactorAuthCard() {
 
                         <button
                             type="button"
-                            disabled={disabling}
-                            onClick={handleDisable2FA}
+                            disabled={disabling || isConfirmingDisable}
+                            onClick={handleOpenDisableConfirm}
                             className="btn-secondary"
                             style={{
                                 display: 'inline-flex',
@@ -457,6 +491,87 @@ export default function TwoFactorAuthCard() {
                             <span>{disabling ? 'Disabling...' : 'Disable 2FA'}</span>
                         </button>
                     </div>
+
+                    {isConfirmingDisable && (
+                        <form
+                            onSubmit={handleDisable2FA}
+                            className="animate-fade-in"
+                            style={{
+                                padding: '16px',
+                                borderRadius: '12px',
+                                background: 'rgba(239, 68, 68, 0.06)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px'
+                            }}
+                        >
+                            <label
+                                htmlFor="disable-2fa-code-input"
+                                style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}
+                            >
+                                Enter your current 6-digit authenticator code (or an 8-character backup code) to disable 2FA:
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input
+                                    id="disable-2fa-code-input"
+                                    type="text"
+                                    autoComplete="one-time-code"
+                                    placeholder="000000 or XXXX-XXXX"
+                                    value={disableCode}
+                                    onChange={(e) => setDisableCode(e.target.value)}
+                                    disabled={disabling}
+                                    style={{
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-medium)',
+                                        background: 'var(--bg-card)',
+                                        color: 'var(--text-primary)',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.95rem',
+                                        letterSpacing: '0.12em',
+                                        width: '210px',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={disabling || !disableCode.trim()}
+                                    style={{
+                                        padding: '8px 14px',
+                                        borderRadius: '8px',
+                                        background: 'var(--error)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        fontSize: '0.84rem',
+                                        fontWeight: 600,
+                                        cursor: disabling ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    {disabling ? 'Verifying...' : 'Confirm Disable 2FA'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={disabling}
+                                    onClick={() => {
+                                        setIsConfirmingDisable(false);
+                                        setDisableCode('');
+                                        setDisableError('');
+                                    }}
+                                    className="btn-secondary"
+                                    style={{ fontSize: '0.84rem', padding: '8px 12px' }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                            {disableError && (
+                                <div role="alert" style={{ color: '#ef4444', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                                    <span>{disableError}</span>
+                                </div>
+                            )}
+                        </form>
+                    )}
 
                     {/* View / Manage Backup Codes Accordion */}
                     {showBackupCodes && (

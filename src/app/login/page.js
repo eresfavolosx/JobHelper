@@ -655,6 +655,7 @@ export default function LoginPage() {
                             spellCheck={false}
                             enterKeyHint="next"
                             required
+                            disabled={loading}
                             placeholder="Email address"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -703,6 +704,7 @@ export default function LoginPage() {
                             enterKeyHint="done"
                             minLength={6}
                             required
+                            disabled={loading}
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -729,6 +731,8 @@ export default function LoginPage() {
                         />
                         <button
                             type="button"
+                            disabled={loading}
+                            aria-pressed={showPassword}
                             aria-label={showPassword ? "Hide password" : "Show password"}
                             title={showPassword ? "Hide password" : "Show password"}
                             onClick={() => setShowPassword(!showPassword)}

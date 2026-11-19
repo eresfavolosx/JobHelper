@@ -5,6 +5,11 @@ import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, S
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
+import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup } from 'firebase/auth';
+import { auth, createGoogleProviderForAccount } from '@/lib/firebase';
+import { hasGoogleProvider, hasPasswordProvider } from '@/lib/account-security';
+import { disconnectGmailAccount } from '@/lib/gmail-service';
+import { sanitizeCustomAiBaseUrl } from '@/lib/utils';
 import { generateWithFallback, fileToGenerativePart, testGeminiApiKey, testClaudeApiKey, testOpenAiApiKey, testCustomAiProvider, getGeminiUsageStats, setGeminiMonthlyCap, extractJson } from '@/lib/gemini-client';
 import { testGoogleMapsApiKey, getMapsUsageStats, setMapsMonthlyCap, clearMapsCache } from '@/lib/maps-service';
 import { isOwner, isProUser, getStripeCheckoutUrl, hasConfiguredAiKey, hasConfiguredMapsKey } from '@/lib/subscription';
@@ -387,7 +392,6 @@ function ProfileContent() {
     // Load from global store on mount / external updates unless user is actively editing
     useEffect(() => {
         if (profile && !isDirtyRef.current) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 fullName: profile.fullName || '',
                 targetRole: profile.targetRole || '',
@@ -766,11 +770,13 @@ function McpIntegrationCard() {
             novujobs: {
                 command: "node",
                 args: [
-                    "/Users/fabianvelez/.gemini/antigravity/scratch/job-tracker/mcp/server.js"
+                    "<path-to-JobHelper>/mcp/server.js"
                 ],
                 env: {
                     NOVUJOBS_USER_ID: user.uid,
-                    FIREBASE_PROJECT_ID: "jobhelper-c3cd7"
+                    FIREBASE_PROJECT_ID: "jobhelper-c3cd7",
+                    GOOGLE_APPLICATION_CREDENTIALS: "<optional-path-to-service-account.json>",
+                    NOVUJOBS_AUTH_TOKEN: "<optional-firebase-id-token>"
                 }
             }
         }
@@ -876,6 +882,9 @@ function McpIntegrationCard() {
                 }}>
                     {mcpConfigJson}
                 </pre>
+                <p style={{ marginTop: '8px', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Replace <code>&lt;path-to-JobHelper&gt;</code> with your local clone path, and provide either <code>GOOGLE_APPLICATION_CREDENTIALS</code> (Firebase Admin service account JSON) or <code>NOVUJOBS_AUTH_TOKEN</code> (Firebase ID token) depending on your authentication mode.
+                </p>
             </div>
         </div>
     );
@@ -903,6 +912,7 @@ function ExportDataButton() {
         delete safeProfile.openaiApiKey;
         delete safeProfile.customAiApiKey;
         delete safeProfile.googleMapsApiKey;
+        safeProfile.security2FA = { enabled: Boolean(safeProfile.security2FA?.enabled) };
 
         const exportData = {
             exportDate: new Date().toISOString(),
@@ -967,55 +977,134 @@ function DeleteAccountButton() {
     const { user } = useAuth();
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [reauthPassword, setReauthPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleDelete = async () => {
+    const googleLinked = Boolean(user && hasGoogleProvider(user));
+    const passwordLinked = Boolean(user && hasPasswordProvider(user));
+
+    const handleDelete = async (useGooglePopup = false) => {
         if (!user) return;
+        const activeUser = auth?.currentUser || user;
+
+        setError('');
+
+        if (!useGooglePopup && passwordLinked && !googleLinked && !reauthPassword) {
+            setError('Please enter your current password to verify your identity before deleting your account.');
+            return;
+        }
+
+        if (!useGooglePopup && passwordLinked && googleLinked && !reauthPassword) {
+            setError('Enter your current password below or use "Verify with Google & Delete" to confirm.');
+            return;
+        }
 
         setDeleting(true);
-        setError('');
         try {
-            // Delete Firestore data
+            // Re-authenticate BEFORE deleting any Firestore data so failed auth never orphans an empty account
+            if (useGooglePopup || (googleLinked && !passwordLinked)) {
+                await reauthenticateWithPopup(activeUser, createGoogleProviderForAccount(user.email || ''));
+            } else if (passwordLinked && user.email) {
+                const credential = EmailAuthProvider.credential(user.email, reauthPassword);
+                await reauthenticateWithCredential(activeUser, credential);
+            }
+
+            // Delete Firestore data only after fresh re-authentication succeeds
             const { deleteAllUserData } = await import('@/lib/firestore-sync');
             await deleteAllUserData(user.uid);
 
             // Delete Firebase auth account
-            await user.delete();
+            await activeUser.delete();
 
-            // Clear local storage
-            localStorage.clear();
+            // Clear all client state, sessionStorage, localStorage, and Gmail/Maps caches
+            useAppStore.getState().clearUserData();
+            disconnectGmailAccount();
+            clearMapsCache();
+            if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+            if (typeof localStorage !== 'undefined') localStorage.clear();
 
             // Redirect to login
             window.location.href = '/login';
         } catch (err) {
             console.error('Delete account error:', err);
-            setError('Failed to delete account. You may need to re-authenticate first.');
+            const code = err?.code || '';
+            if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+                setError('Incorrect password. Please re-enter your current password and try again.');
+            } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+                setError('Verification popup was closed before completing. Please try again.');
+            } else {
+                setError('Failed to verify identity and delete account. Please try again.');
+            }
             setDeleting(false);
         }
     };
 
     if (confirming) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Are you sure?</span>
-                    <button
-                        onClick={handleDelete}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '420px' }}>
+                <span style={{ color: 'var(--error)', fontSize: '0.9rem', fontWeight: 600 }}>
+                    Confirm permanent account deletion (re-authentication required):
+                </span>
+                {passwordLinked && (
+                    <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={reauthPassword}
+                        onChange={(e) => setReauthPassword(e.target.value)}
                         disabled={deleting}
-                        aria-label="Confirm Delete Account"
+                        placeholder="Enter your current password"
+                        aria-label="Current password to confirm account deletion"
                         style={{
-                            padding: '10px 16px',
+                            padding: '10px 12px',
                             borderRadius: '8px',
-                            background: 'var(--error)',
-                            color: 'white',
-                            border: 'none',
-                            cursor: deleting ? 'not-allowed' : 'pointer'
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem'
                         }}
-                    >
-                        {deleting ? 'Deleting...' : 'Yes, Delete'}
-                    </button>
+                    />
+                )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(!googleLinked || passwordLinked) && (
+                        <button
+                            type="button"
+                            onClick={() => handleDelete(false)}
+                            disabled={deleting}
+                            aria-label="Confirm Delete Account"
+                            style={{
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                background: 'var(--error)',
+                                color: 'white',
+                                border: 'none',
+                                cursor: deleting ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {deleting ? 'Deleting...' : googleLinked ? 'Verify Password & Delete' : 'Yes, Delete'}
+                        </button>
+                    )}
+                    {googleLinked && (
+                        <button
+                            type="button"
+                            onClick={() => handleDelete(true)}
+                            disabled={deleting}
+                            aria-label="Re-authenticate with Google and Delete Account"
+                            style={{
+                                padding: '10px 16px',
+                                borderRadius: '8px',
+                                background: 'var(--error)',
+                                color: 'white',
+                                border: 'none',
+                                cursor: deleting ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {deleting ? 'Deleting...' : 'Verify with Google & Delete'}
+                        </button>
+                    )}
                     <button
-                        onClick={() => { setConfirming(false); setError(''); }}
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => { setConfirming(false); setReauthPassword(''); setError(''); }}
                         aria-label="Cancel Delete Account"
                         style={{
                             padding: '10px 16px',
@@ -1062,7 +1151,6 @@ function DeleteAccountButton() {
 
 function SubscriptionManager() {
     const profile = useAppStore(state => state.profile);
-    const updateProfile = useAppStore(state => state.updateProfile);
     const { user } = useAuth();
     const searchParams = useSearchParams();
     const [successBanner, setSuccessBanner] = useState('');
@@ -1073,23 +1161,22 @@ function SubscriptionManager() {
 
     const [now] = useState(() => new Date());
 
-    // Handle return from Stripe Checkout redirect (?payment=success or ?session_id=...)
+    // Show informational confirmation when returning from Stripe Checkout (actual Pro status is activated server-side via webhook)
     useEffect(() => {
         if (!searchParams) return;
         const paymentParam = searchParams.get('payment');
         const sessionId = searchParams.get('session_id');
         if (paymentParam === 'success' || sessionId) {
             const timer = setTimeout(() => {
-                updateProfile({ subscriptionStatus: 'premium' });
-                setSuccessBanner('🎉 Welcome to NovuJobs Pro! Full AI and cloud features have been unlocked.');
+                setSuccessBanner('Checkout completed! Pro activation is verified server-side via webhook and will reflect automatically once confirmed.');
             }, 0);
-            const clearTimer = setTimeout(() => setSuccessBanner(''), 8000);
+            const clearTimer = setTimeout(() => setSuccessBanner(''), 10000);
             return () => {
                 clearTimeout(timer);
                 clearTimeout(clearTimer);
             };
         }
-    }, [searchParams, updateProfile]);
+    }, [searchParams]);
 
     const trialEndDate = profile?.trialEndDate;
     const trialDaysLeft = useMemo(() => {
@@ -1232,7 +1319,7 @@ function SubscriptionManager() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="btn-primary"
-                                style={{ width: '100%', justifyContent: 'center', py: '14px', textDecoration: 'none', fontWeight: 'bold' }}
+                                style={{ width: '100%', justifyContent: 'center', paddingBlock: '14px', textDecoration: 'none', fontWeight: 'bold' }}
                             >
                                 <CreditCard size={18} /> Upgrade with Stripe ($9.99/mo)
                             </a>
@@ -1317,8 +1404,6 @@ function GoogleServicesConfig() {
     const { user } = useAuth();
     const isPlatformOwner = isOwner(user);
 
-    const envGemini = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '') : '';
-    const envMaps = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '') : '';
     const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '') : '';
 
     // Never expose environment keys or existing saved keys inside DOM <input value="..."> attributes
@@ -1359,12 +1444,11 @@ function GoogleServicesConfig() {
     const hasPersonalGeminiKey = Boolean(
         profile?.geminiApiKey &&
         profile.geminiApiKey.trim().length > 5 &&
-        profile.geminiApiKey.trim() !== 'your_api_key_here' &&
-        (!envGemini.trim() || profile.geminiApiKey.trim() !== envGemini.trim())
+        profile.geminiApiKey.trim() !== 'your_api_key_here'
     );
     const hasPersonalClaudeKey = Boolean(profile?.claudeApiKey && profile.claudeApiKey.trim().length > 5 && profile.claudeApiKey.trim() !== 'your_api_key_here');
     const hasPersonalOpenAiKey = Boolean(profile?.openaiApiKey && profile.openaiApiKey.trim().length > 5 && profile.openaiApiKey.trim() !== 'your_api_key_here');
-    const hasPersonalCustomAi = Boolean(profile?.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile.customAiApiKey.trim() !== 'your_api_key_here' && profile?.customAiBaseUrl?.trim());
+    const hasPersonalCustomAi = Boolean(profile?.customAiApiKey && profile.customAiApiKey.trim().length > 5 && profile.customAiApiKey.trim() !== 'your_api_key_here' && sanitizeCustomAiBaseUrl(profile?.customAiBaseUrl));
     const hasAnyAiKey = hasConfiguredAiKey(profile);
     const activeProvider = profile?.activeAiProvider || 'gemini';
 
@@ -1442,17 +1526,24 @@ function GoogleServicesConfig() {
 
     const handleSaveCustom = () => {
         const key = customKeyDraft.trim() || (hasPersonalCustomAi ? profile?.customAiApiKey : '');
-        const baseUrl = customBaseUrlDraft.trim();
+        const rawBaseUrl = customBaseUrlDraft.trim();
         const model = customModelDraft.trim();
-        if (!baseUrl) {
+        if (!rawBaseUrl) {
             setCustomStatus({ success: false, message: 'Please provide a Base URL (e.g. https://api.deepseek.com/v1).' });
             return;
         }
+        const safeBaseUrl = sanitizeCustomAiBaseUrl(rawBaseUrl);
+        if (!safeBaseUrl) {
+            setCustomStatus({ success: false, message: 'Base URL must use https:// (or http://localhost / http://127.0.0.1 for local dev).' });
+            return;
+        }
+        setCustomStatus(null);
         updateProfile({
             customAiApiKey: key,
-            customAiBaseUrl: baseUrl,
+            customAiBaseUrl: safeBaseUrl,
             customAiModel: model
         });
+        setCustomBaseUrlDraft(safeBaseUrl);
         setCustomKeyDraft('');
         setCustomSaved(true);
         setTimeout(() => setCustomSaved(false), 3000);
@@ -1486,30 +1577,16 @@ function GoogleServicesConfig() {
         }
     };
 
-    // Automatically scrub any accidentally persisted platform env key from all profiles
+    // Automatically scrub accidentally persisted Firebase API key from Maps setting
     useEffect(() => {
-        if (profile) {
-            const updates = {};
-            if (envGemini && profile.geminiApiKey && profile.geminiApiKey.trim() === envGemini.trim()) {
-                updates.geminiApiKey = '';
-            }
-            if ((envMaps && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envMaps.trim()) ||
-                (envFirebase && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envFirebase.trim())) {
-                updates.googleMapsApiKey = '';
-            }
-            if (Object.keys(updates).length > 0) {
-                updateProfile(updates);
-            }
+        if (profile && envFirebase && profile.googleMapsApiKey && profile.googleMapsApiKey.trim() === envFirebase.trim()) {
+            updateProfile({ googleMapsApiKey: '' });
         }
-    }, [profile, envGemini, envMaps, envFirebase, updateProfile]);
+    }, [profile, envFirebase, updateProfile]);
 
     const handleSaveGemini = () => {
         const trimmed = geminiKeyDraft.trim();
         if (!trimmed) return;
-        if (envGemini && trimmed === envGemini.trim()) {
-            setGeminiStatus({ success: false, message: 'Please enter your own personal Gemini API key.' });
-            return;
-        }
         updateProfile({ geminiApiKey: trimmed });
         setGeminiKeyDraft('');
         setGeminiSaved(true);
@@ -1544,7 +1621,7 @@ function GoogleServicesConfig() {
     const handleSaveMaps = () => {
         const trimmed = mapsKeyDraft.trim();
         if (!trimmed) return;
-        if ((envMaps && trimmed === envMaps.trim()) || (envFirebase && trimmed === envFirebase.trim())) {
+        if (envFirebase && trimmed === envFirebase.trim()) {
             setMapsStatus({ success: false, message: 'Please enter your own personal Google Maps API key.' });
             return;
         }

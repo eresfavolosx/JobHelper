@@ -5,6 +5,8 @@
 // 3. Strict Firebase cost protection (limits free users to 25 jobs, 0 shared API usage)
 // 4. Free BYOK (Bring Your Own Key) option so users can use Gemini for free without costing Fabian anything
 
+import { sanitizeCustomAiBaseUrl } from './utils.js';
+
 export const OWNER_EMAIL = 'fabian.velez1996@gmail.com';
 export const PRO_MONTHLY_PRICE = '$9.99';
 export const FREE_TIER_MAX_JOBS = 25;
@@ -44,7 +46,7 @@ export function hasConfiguredAiKey(profile) {
     if (!profile || typeof profile !== 'object') return false;
 
     const envGemini = (typeof process !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '')
+        ? (process.env.GEMINI_API_KEY || '')
         : '').trim();
 
     const geminiKey = String(profile.geminiApiKey || '').trim();
@@ -61,8 +63,8 @@ export function hasConfiguredAiKey(profile) {
     const openai = Boolean(openaiKey.length > 5 && openaiKey !== 'your_api_key_here');
 
     const customKey = String(profile.customAiApiKey || '').trim();
-    const customUrl = String(profile.customAiBaseUrl || '').trim();
-    const custom = Boolean(customKey.length > 5 && customKey !== 'your_api_key_here' && customUrl.length > 0);
+    const customUrl = sanitizeCustomAiBaseUrl(profile.customAiBaseUrl);
+    const custom = Boolean(customKey.length > 5 && customKey !== 'your_api_key_here' && customUrl);
 
     return Boolean(gemini || claude || openai || custom);
 }
@@ -74,9 +76,6 @@ export function hasConfiguredAiKey(profile) {
 export function hasConfiguredMapsKey(profile) {
     if (!profile || typeof profile !== 'object') return false;
 
-    const envMaps = (typeof process !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '')
-        : '').trim();
     const envFirebase = (typeof process !== 'undefined'
         ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '')
         : '').trim();
@@ -85,7 +84,6 @@ export function hasConfiguredMapsKey(profile) {
     return Boolean(
         key.length > 5 &&
         key !== 'your_api_key_here' &&
-        (!envMaps || key !== envMaps) &&
         (!envFirebase || key !== envFirebase)
     );
 }

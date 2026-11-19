@@ -80,6 +80,7 @@ export default function KanbanBoard() {
     const filtersDrawerRef = useRef(null);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
     }, []);
 
@@ -380,8 +381,8 @@ export default function KanbanBoard() {
                                             e.currentTarget.blur();
                                         }
                                     }}
-                                    autocorrect="off"
-                                    autocapitalize="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
                                     spellCheck={false}
                                     placeholder="Search company, role, location, salary... (/)"
                                     style={{
@@ -793,17 +794,19 @@ export default function KanbanBoard() {
                     id="board-filters-drawer"
                     ref={filtersDrawerRef}
                     hidden={!filtersOpen ? 'until-found' : undefined}
-                    style={{
-                        display: filtersOpen ? 'flex' : 'none',
-                        flexDirection: 'column',
-                        gap: '10px',
-                        padding: '12px 14px',
-                        borderRadius: '14px',
-                        background: 'var(--bg-panel)',
-                        border: '1px solid var(--border-subtle)',
-                        boxShadow: 'var(--shadow-sm)'
-                    }}
                 >
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            padding: '12px 14px',
+                            borderRadius: '14px',
+                            background: 'var(--bg-panel)',
+                            border: '1px solid var(--border-subtle)',
+                            boxShadow: 'var(--shadow-sm)'
+                        }}
+                    >
                     {/* Multi-Parameter Selectors Row: Company, Location/Modality, Stage, Sort */}
                     <div style={{
                         display: 'grid',
@@ -1050,6 +1053,7 @@ export default function KanbanBoard() {
 
                     {/* Target Role, Modality, Level & Application Goal Banner inside the collapsible drawer */}
                     <JobSettingsBanner compact={true} showAddJobButton={false} />
+                    </div>
                 </div>
 
                 {/* Stage Section Quick-Jump Strip (Single compact horizontal row for instant navigation between sections) */}

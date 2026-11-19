@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAppStore } from './store.js';
 import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety.js';
+import { sanitizeCustomAiBaseUrl } from './utils.js';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
 
@@ -128,7 +129,7 @@ export function getAvailableAiProviders(profileOverride = null) {
 
     let envGemini = '';
     if (typeof process !== 'undefined') {
-        envGemini = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
+        envGemini = String(process.env.GEMINI_API_KEY || '').trim();
     }
 
     const rawGeminiKey = String(profile?.geminiApiKey || '').trim();
@@ -145,8 +146,8 @@ export function getAvailableAiProviders(profileOverride = null) {
     const hasOpenAI = Boolean(rawOpenAiKey.length > 5 && rawOpenAiKey !== 'your_api_key_here');
 
     const rawCustomKey = String(profile?.customAiApiKey || '').trim();
-    const rawCustomBaseUrl = String(profile?.customAiBaseUrl || '').trim();
-    const hasCustom = Boolean(rawCustomKey.length > 5 && rawCustomKey !== 'your_api_key_here' && rawCustomBaseUrl.length > 0);
+    const safeCustomBaseUrl = sanitizeCustomAiBaseUrl(profile?.customAiBaseUrl) || '';
+    const hasCustom = Boolean(rawCustomKey.length > 5 && rawCustomKey !== 'your_api_key_here' && safeCustomBaseUrl);
 
     const hasAnyAiKey = Boolean(hasGemini || hasClaude || hasOpenAI || hasCustom);
 
@@ -181,7 +182,7 @@ export function getAvailableAiProviders(profileOverride = null) {
         claudeKey: hasClaude ? rawClaudeKey : '',
         openaiKey: hasOpenAI ? rawOpenAiKey : '',
         customKey: hasCustom ? rawCustomKey : '',
-        customBaseUrl: hasCustom ? rawCustomBaseUrl : '',
+        customBaseUrl: hasCustom ? safeCustomBaseUrl : '',
         customModel: hasCustom ? String(profile?.customAiModel || '').trim() : ''
     };
 }
@@ -208,7 +209,7 @@ export function resolveGeminiApiKey(profileOverride = null) {
 
     let envGemini = '';
     if (typeof process !== 'undefined') {
-        envGemini = String(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
+        envGemini = String(process.env.GEMINI_API_KEY || '').trim();
     }
 
     const hasPersonalKey = Boolean(
@@ -322,6 +323,7 @@ async function generateClaudeContent(safePromptOrParts, options = {}, claudeKey)
 
             const res = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
+                signal: options.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'x-api-key': claudeKey,
@@ -414,6 +416,7 @@ async function generateOpenAIContent(safePromptOrParts, options = {}, apiKey, en
 
             const res = await fetch(endpoint, {
                 method: 'POST',
+                signal: options.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`
@@ -466,6 +469,9 @@ async function generateGeminiInternal(safePromptOrParts, options = {}) {
 
     for (const modelName of fallbackModels) {
         for (let attempt = 1; attempt <= 2; attempt++) {
+            if (options.signal?.aborted) {
+                throw new DOMException('Request aborted', 'AbortError');
+            }
             try {
                 const modelConfig = { model: modelName };
                 if (options.jsonMode) {
@@ -502,8 +508,8 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
 
     if (typeof promptOrParts === 'string') {
         const injection = detectPromptInjection(promptOrParts);
-        if (injection.riskLevel === 'critical') {
-            recordSafetyEvent({ injectionsBlocked: 1, type: 'critical_injection_blocked', details: { matches: injection.matchedPatterns } });
+        if (injection.riskLevel === 'critical' || injection.riskLevel === 'high') {
+            recordSafetyEvent({ injectionsBlocked: 1, type: `${injection.riskLevel}_injection_blocked`, details: { matches: injection.matchedPatterns } });
             throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
         }
         const piiResult = sanitizePII(promptOrParts);
@@ -513,8 +519,8 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
         safePromptOrParts = promptOrParts.map(part => {
             if (typeof part === 'string') {
                 const injection = detectPromptInjection(part);
-                if (injection.riskLevel === 'critical') {
-                    recordSafetyEvent({ injectionsBlocked: 1, type: 'critical_injection_blocked', details: { matches: injection.matchedPatterns } });
+                if (injection.riskLevel === 'critical' || injection.riskLevel === 'high') {
+                    recordSafetyEvent({ injectionsBlocked: 1, type: `${injection.riskLevel}_injection_blocked`, details: { matches: injection.matchedPatterns } });
                     throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
                 }
                 const piiResult = sanitizePII(part);
@@ -656,10 +662,13 @@ export const testCustomAiProvider = async (baseUrl, apiKey, model) => {
     if (!baseUrl || !baseUrl.trim()) {
         return { success: false, message: 'Please provide a Base URL (e.g. https://api.deepseek.com/v1).' };
     }
+    const cleanUrl = sanitizeCustomAiBaseUrl(baseUrl);
+    if (!cleanUrl) {
+        return { success: false, message: 'Custom AI Base URL must use https:// (or http://localhost / http://127.0.0.1 for local dev).' };
+    }
     if (!apiKey || !apiKey.trim()) {
         return { success: false, message: 'Please provide an API key.' };
     }
-    const cleanUrl = baseUrl.trim().replace(/\/+$/, '');
     const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
     const cleanModel = (model || '').trim() || 'default';
 
@@ -696,6 +705,7 @@ export const testGeminiApiKey = async (apiKey) => {
     try {
         const genAI = new GoogleGenerativeAI(cleanKey);
         const testModels = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"];
+        let lastError = null;
         for (const testModel of testModels) {
             try {
                 const model = genAI.getGenerativeModel({ model: testModel });
@@ -705,12 +715,13 @@ export const testGeminiApiKey = async (apiKey) => {
                 ]);
                 return { success: true, message: `Connected successfully to Google Gemini (${testModel})!` };
             } catch (mErr) {
+                lastError = mErr;
                 if (mErr?.message && (mErr.message.includes('API key not valid') || mErr.message.includes('API_KEY_INVALID'))) {
                     throw mErr;
                 }
             }
         }
-        return { success: true, message: 'Connected successfully to Google Gemini!' };
+        return { success: false, message: lastError?.message || 'Failed to authenticate with Gemini API.' };
     } catch (err) {
         return { success: false, message: err?.message || 'Failed to authenticate with Gemini API.' };
     }

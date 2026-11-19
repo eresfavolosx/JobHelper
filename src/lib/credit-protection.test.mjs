@@ -53,25 +53,30 @@ describe('Credit Protection & Budget Guardrails Audit', () => {
         });
 
         it('should ignore environment keys when checking profile AI and Maps keys', () => {
-            const prevGemini = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-            const prevMaps = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+            const prevGemini = process.env.GEMINI_API_KEY;
+            const prevPublicGemini = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+            const prevPublicMaps = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
             const prevFirebase = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
             try {
-                process.env.NEXT_PUBLIC_GEMINI_API_KEY = 'env-gemini-shared-secret-key';
-                process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'env-maps-shared-secret-key';
+                process.env.GEMINI_API_KEY = 'env-gemini-shared-secret-key';
+                process.env.NEXT_PUBLIC_GEMINI_API_KEY = 'public-gemini-ignored';
+                process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'public-maps-ignored';
                 process.env.NEXT_PUBLIC_FIREBASE_API_KEY = 'env-firebase-shared-key';
 
+                assert.equal(hasConfiguredAiKey({}), false);
                 assert.equal(hasConfiguredAiKey({ geminiApiKey: 'env-gemini-shared-secret-key' }), false);
                 assert.equal(checkApiAccess({ email: 'fabian.velez1996@gmail.com' }, { geminiApiKey: 'env-gemini-shared-secret-key' }).allowed, false);
 
-                assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'env-maps-shared-secret-key' }), false);
+                assert.equal(hasConfiguredMapsKey({}), false);
                 assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'env-firebase-shared-key' }), false);
                 assert.equal(hasConfiguredMapsKey({ googleMapsApiKey: 'AIzaSyPersonalMapsKey1234' }), true);
             } finally {
-                if (prevGemini === undefined) delete process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-                else process.env.NEXT_PUBLIC_GEMINI_API_KEY = prevGemini;
-                if (prevMaps === undefined) delete process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-                else process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = prevMaps;
+                if (prevGemini === undefined) delete process.env.GEMINI_API_KEY;
+                else process.env.GEMINI_API_KEY = prevGemini;
+                if (prevPublicGemini === undefined) delete process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+                else process.env.NEXT_PUBLIC_GEMINI_API_KEY = prevPublicGemini;
+                if (prevPublicMaps === undefined) delete process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+                else process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = prevPublicMaps;
                 if (prevFirebase === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
                 else process.env.NEXT_PUBLIC_FIREBASE_API_KEY = prevFirebase;
             }

@@ -21,6 +21,25 @@ const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'jobhelper-c3cd7';
 const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 const AUTH_TOKEN = process.env.NOVUJOBS_AUTH_TOKEN || process.env.FIREBASE_AUTH_TOKEN;
 
+const VALID_DOC_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
+const VALID_JOB_STATUSES = new Set([
+    'wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived'
+]);
+
+function assertValidDocId(value, label = 'jobId') {
+    if (typeof value !== 'string' || !VALID_DOC_ID_RE.test(value)) {
+        throw new Error(`Invalid ${label}: must match /^[A-Za-z0-9_-]{1,100}$/.`);
+    }
+    return value;
+}
+
+function assertValidUserId(userId) {
+    if (typeof userId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(userId)) {
+        throw new Error('NOVUJOBS_USER_ID is missing or invalid.');
+    }
+    return userId;
+}
+
 // Validate configuration
 if (!USER_ID) {
     console.error('[NovuJobs-MCP] Warning: NOVUJOBS_USER_ID is not set.');
@@ -116,9 +135,13 @@ const TOOLS = [
                     type: 'string',
                     description: 'Job posting or application portal URL'
                 },
+                description: {
+                    type: 'string',
+                    description: 'Full job description text (up to 200,000 characters)'
+                },
                 notes: {
                     type: 'string',
-                    description: 'Initial notes, job description excerpt, or referral contacts'
+                    description: 'Initial notes or referral contacts'
                 }
             },
             required: ['company', 'role']
@@ -126,7 +149,7 @@ const TOOLS = [
     },
     {
         name: 'novujobs_update_job',
-        description: 'Update the pipeline stage, notes, salary, or other attributes of an existing job application.',
+        description: 'Update the pipeline stage, notes, description, salary, or other attributes of an existing job application. Passing "" clears string fields.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -139,17 +162,21 @@ const TOOLS = [
                     description: 'New stage: wishlist, applied, screening, interviewing, offer, accepted, rejected, archived',
                     enum: ['wishlist', 'applied', 'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'archived']
                 },
+                description: {
+                    type: 'string',
+                    description: 'Full job description text (pass "" to clear)'
+                },
                 notes: {
                     type: 'string',
-                    description: 'Updated or appended notes'
+                    description: 'Updated notes (pass "" to clear)'
                 },
                 salary: {
                     type: 'string',
-                    description: 'Updated salary compensation'
+                    description: 'Updated salary compensation (pass "" to clear)'
                 },
                 location: {
                     type: 'string',
-                    description: 'Updated location'
+                    description: 'Updated location (pass "" to clear)'
                 }
             },
             required: ['jobId']
@@ -188,7 +215,7 @@ class JobDatabase {
     constructor() {
         this.admin = null;
         this.db = null;
-        this.init();
+        this.initPromise = this.init();
     }
 
     async init() {
@@ -212,8 +239,10 @@ class JobDatabase {
     }
 
     async fetchAllJobs() {
-        if (this.db && USER_ID) {
-            const snapshot = await this.db.collection('users').doc(USER_ID).collection('jobs').get();
+        await this.initPromise;
+        const safeUserId = assertValidUserId(USER_ID);
+        if (this.db) {
+            const snapshot = await this.db.collection('users').doc(safeUserId).collection('jobs').get();
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
@@ -222,47 +251,61 @@ class JobDatabase {
     }
 
     async restFetchJobs() {
-        if (!USER_ID) {
-            throw new Error('NOVUJOBS_USER_ID environment variable is missing.');
-        }
-
-        const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/users/${USER_ID}/jobs?pageSize=100`;
+        const safeUserId = assertValidUserId(USER_ID);
+        const baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(safeUserId)}/jobs`;
         const headers = { 'Content-Type': 'application/json' };
         if (AUTH_TOKEN) {
             headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
         }
 
-        const res = await fetch(url, { headers });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Firestore REST API returned ${res.status}: ${text}`);
-        }
+        const allJobs = [];
+        let pageToken = '';
+        for (let page = 0; page < 100; page++) {
+            const url = pageToken
+                ? `${baseUrl}?pageSize=100&pageToken=${encodeURIComponent(pageToken)}`
+                : `${baseUrl}?pageSize=100`;
 
-        const data = await res.json();
-        const documents = data.documents || [];
-        return documents.map(doc => this.parseRestDocument(doc));
+            const res = await fetch(url, { headers });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Firestore REST API returned ${res.status}: ${text}`);
+            }
+
+            const data = await res.json();
+            const documents = data.documents || [];
+            for (const doc of documents) {
+                allJobs.push(this.parseRestDocument(doc));
+            }
+
+            if (!data.nextPageToken) break;
+            pageToken = data.nextPageToken;
+        }
+        return allJobs;
     }
 
     async addJob(jobData) {
-        const docId = `job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await this.initPromise;
+        const safeUserId = assertValidUserId(USER_ID);
+        const docId = assertValidDocId(`job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 'jobId');
         const timestamp = new Date().toISOString();
         const cleanJob = {
             id: docId,
-            company: jobData.company || 'Unknown',
-            role: jobData.role || 'Role',
-            status: jobData.status || 'applied',
-            salary: jobData.salary || '',
-            location: jobData.location || '',
-            url: jobData.url || '',
-            notes: jobData.notes || '',
+            company: String(jobData.company || 'Unknown').slice(0, 200),
+            role: String(jobData.role || 'Role').slice(0, 200),
+            status: VALID_JOB_STATUSES.has(jobData.status) ? jobData.status : 'applied',
+            salary: String(jobData.salary || '').slice(0, 100),
+            location: String(jobData.location || '').slice(0, 200),
+            url: String(jobData.url || '').slice(0, 2048),
+            description: String(jobData.description || '').slice(0, 200000),
+            notes: String(jobData.notes || '').slice(0, 10000),
             createdAt: timestamp,
             dateAdded: timestamp,
             updatedAt: timestamp,
             followUps: []
         };
 
-        if (this.db && USER_ID) {
-            await this.db.collection('users').doc(USER_ID).collection('jobs').doc(docId).set(cleanJob);
+        if (this.db) {
+            await this.db.collection('users').doc(safeUserId).collection('jobs').doc(docId).set(cleanJob);
             return cleanJob;
         }
 
@@ -271,19 +314,24 @@ class JobDatabase {
     }
 
     async updateJob(jobId, updates) {
-        updates.updatedAt = new Date().toISOString();
-        if (this.db && USER_ID) {
-            await this.db.collection('users').doc(USER_ID).collection('jobs').doc(jobId).set(updates, { merge: true });
-            const updated = await this.db.collection('users').doc(USER_ID).collection('jobs').doc(jobId).get();
+        await this.initPromise;
+        const safeUserId = assertValidUserId(USER_ID);
+        const safeJobId = assertValidDocId(jobId, 'jobId');
+        const nextUpdates = { ...updates, updatedAt: new Date().toISOString() };
+        if (this.db) {
+            await this.db.collection('users').doc(safeUserId).collection('jobs').doc(safeJobId).set(nextUpdates, { merge: true });
+            const updated = await this.db.collection('users').doc(safeUserId).collection('jobs').doc(safeJobId).get();
             return { id: updated.id, ...updated.data() };
         }
 
         // REST API update
-        return this.restPatchJob(jobId, updates);
+        return this.restPatchJob(safeJobId, nextUpdates);
     }
 
     async restCreateJob(docId, job) {
-        const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/users/${USER_ID}/jobs?documentId=${docId}`;
+        const safeUserId = assertValidUserId(USER_ID);
+        const safeDocId = assertValidDocId(docId, 'jobId');
+        const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(safeUserId)}/jobs?documentId=${encodeURIComponent(safeDocId)}`;
         const fields = this.formatRestFields(job);
         const headers = { 'Content-Type': 'application/json' };
         if (AUTH_TOKEN) headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
@@ -302,8 +350,10 @@ class JobDatabase {
     }
 
     async restPatchJob(jobId, updates) {
+        const safeUserId = assertValidUserId(USER_ID);
+        const safeJobId = assertValidDocId(jobId, 'jobId');
         const mask = Object.keys(updates).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
-        const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/users/${USER_ID}/jobs/${jobId}?${mask}`;
+        const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(safeUserId)}/jobs/${encodeURIComponent(safeJobId)}?${mask}`;
         const fields = this.formatRestFields(updates);
         const headers = { 'Content-Type': 'application/json' };
         if (AUTH_TOKEN) headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
@@ -486,7 +536,7 @@ async function handleToolCall(name, args) {
             const matches = jobs
                 .filter(j => j && j.status !== 'deleted')
                 .filter(j => {
-                    const haystack = `${j.company || ''} ${j.role || ''} ${j.location || ''} ${j.notes || ''}`.toLowerCase();
+                    const haystack = `${j.company || ''} ${j.role || ''} ${j.location || ''} ${j.notes || ''} ${j.description || ''}`.toLowerCase();
                     return haystack.includes(query);
                 })
                 .map(j => ({
@@ -496,7 +546,8 @@ async function handleToolCall(name, args) {
                     status: j.status,
                     location: j.location,
                     salary: j.salary,
-                    notesPreview: (j.notes || '').slice(0, 160)
+                    notesPreview: (j.notes || '').slice(0, 160),
+                    descriptionPreview: (j.description || '').slice(0, 200)
                 }));
 
             return {
@@ -507,10 +558,11 @@ async function handleToolCall(name, args) {
         }
 
         case 'novujobs_get_job': {
+            const safeJobId = assertValidDocId(args.jobId, 'jobId');
             const jobs = await db.fetchAllJobs();
-            const job = jobs.find(j => j && j.id === args.jobId);
+            const job = jobs.find(j => j && j.id === safeJobId);
             if (!job) {
-                throw new Error(`Job application with ID "${args.jobId}" was not found.`);
+                throw new Error(`Job application with ID "${safeJobId}" was not found.`);
             }
             return job;
         }
@@ -525,25 +577,33 @@ async function handleToolCall(name, args) {
         }
 
         case 'novujobs_update_job': {
+            const safeJobId = assertValidDocId(args.jobId, 'jobId');
             const updates = {};
-            if (args.status) updates.status = args.status;
-            if (args.notes) updates.notes = args.notes;
-            if (args.salary) updates.salary = args.salary;
-            if (args.location) updates.location = args.location;
+            if (args.status !== undefined) {
+                if (!VALID_JOB_STATUSES.has(args.status)) {
+                    throw new Error(`Invalid status: "${args.status}".`);
+                }
+                updates.status = args.status;
+            }
+            if (args.notes !== undefined) updates.notes = String(args.notes).slice(0, 10000);
+            if (args.description !== undefined) updates.description = String(args.description).slice(0, 200000);
+            if (args.salary !== undefined) updates.salary = String(args.salary).slice(0, 100);
+            if (args.location !== undefined) updates.location = String(args.location).slice(0, 200);
 
-            const updated = await db.updateJob(args.jobId, updates);
+            const updated = await db.updateJob(safeJobId, updates);
             return {
                 success: true,
-                message: `Successfully updated application "${args.jobId}".`,
+                message: `Successfully updated application "${safeJobId}".`,
                 updates: updated
             };
         }
 
         case 'novujobs_log_follow_up': {
+            const safeJobId = assertValidDocId(args.jobId, 'jobId');
             const jobs = await db.fetchAllJobs();
-            const job = jobs.find(j => j && j.id === args.jobId);
+            const job = jobs.find(j => j && j.id === safeJobId);
             if (!job) {
-                throw new Error(`Job application with ID "${args.jobId}" was not found.`);
+                throw new Error(`Job application with ID "${safeJobId}" was not found.`);
             }
 
             const todayStr = new Date().toISOString();
@@ -557,7 +617,7 @@ async function handleToolCall(name, args) {
             const existingFollowUps = Array.isArray(job.followUps) ? job.followUps : [];
             const newFollowUps = [...existingFollowUps, followUpEntry];
 
-            await db.updateJob(args.jobId, {
+            await db.updateJob(safeJobId, {
                 followUps: newFollowUps,
                 lastFollowUpAt: todayStr,
                 updatedAt: todayStr
@@ -579,25 +639,38 @@ async function handleToolCall(name, args) {
  * Standard Model Context Protocol (MCP) JSON-RPC 2.0 stdio engine
  */
 let buffer = '';
+let stdinQueue = Promise.resolve();
+
+function enqueueJsonRpcLine(line) {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    stdinQueue = stdinQueue
+        .then(async () => {
+            const msg = JSON.parse(trimmed);
+            await handleJsonRpcMessage(msg);
+        })
+        .catch((err) => {
+            console.error('[NovuJobs-MCP] Failed to process JSON-RPC message:', err);
+        });
+}
 
 function startStdioServer() {
     process.stdin.setEncoding('utf8');
 
-    process.stdin.on('data', async (chunk) => {
+    process.stdin.on('data', (chunk) => {
         buffer += chunk;
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // Retain remainder in buffer
+        buffer = lines.pop() ?? ''; // Retain remainder in buffer
 
         for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
+            enqueueJsonRpcLine(line);
+        }
+    });
 
-            try {
-                const msg = JSON.parse(trimmed);
-                await handleJsonRpcMessage(msg);
-            } catch (err) {
-                console.error('[NovuJobs-MCP] Failed to parse JSON-RPC line:', err);
-            }
+    process.stdin.on('end', () => {
+        if (buffer.trim()) {
+            enqueueJsonRpcLine(buffer);
+            buffer = '';
         }
     });
 
@@ -702,4 +775,4 @@ if (isDirectRun) {
     startStdioServer();
 }
 
-export { JobDatabase, TOOLS, handleToolCall, startStdioServer, db };
+export { JobDatabase, TOOLS, handleToolCall, startStdioServer, db, assertValidDocId };

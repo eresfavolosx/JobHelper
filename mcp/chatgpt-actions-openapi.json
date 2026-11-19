@@ -2,13 +2,13 @@
   "openapi": "3.0.3",
   "info": {
     "title": "NovuJobs Career Command Center API",
-    "description": "Secure API actions for ChatGPT to inspect, track, search, and update job applications inside NovuJobs.",
+    "description": "Secure API actions for ChatGPT to inspect, track, search, and update job applications inside NovuJobs. NOTE: The Firebase Hosting frontend is a static Next.js export (output: 'export') and does not serve /api/mcp routes directly—deploy a separate serverless Cloud Function or Cloud Run backend handling /api/mcp (with Firebase Hosting rewrite or custom backend URL) before enabling ChatGPT Actions.",
     "version": "1.0.0"
   },
   "servers": [
     {
       "url": "https://jobhelper.novu.works/api/mcp",
-      "description": "Production NovuJobs Cloud Endpoint"
+      "description": "Production NovuJobs Cloud Endpoint (requires deploying a serverless /api/mcp Cloud Function or Cloud Run backend; not served by static Firebase Hosting alone)"
     }
   ],
   "paths": {

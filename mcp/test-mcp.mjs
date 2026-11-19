@@ -181,4 +181,20 @@ test('NovuJobs MCP Server Protocol Test Suite', async (t) => {
         assert.equal(parsed.followUps[0].note, 'Followed up with recruiter Sarah');
         assert.equal(parsed.followUps[1].channel, 'linkedin');
     });
+
+    await t.test('4. Path traversal jobId values are rejected before Firestore requests', async () => {
+        const { assertValidDocId, handleToolCall } = await import('./server.js');
+        assert.equal(assertValidDocId('job_valid-123'), 'job_valid-123');
+        assert.throws(() => assertValidDocId('../other'), /Invalid jobId/);
+        assert.throws(() => assertValidDocId('folder/doc'), /Invalid jobId/);
+
+        await assert.rejects(
+            handleToolCall('novujobs_get_job', { jobId: '../secret_doc' }),
+            /Invalid jobId/
+        );
+        await assert.rejects(
+            handleToolCall('novujobs_update_job', { jobId: 'bad/id', status: 'applied' }),
+            /Invalid jobId/
+        );
+    });
 });

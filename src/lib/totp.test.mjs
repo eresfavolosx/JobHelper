@@ -88,4 +88,21 @@ test('RFC 6238 Free TOTP 2-Factor Authentication Engine', async (t) => {
         const sec = getTotpSecondsRemaining();
         assert.ok(sec >= 1 && sec <= 30);
     });
+
+    await t.test('7. Secret and backup generation throw explicitly when crypto.getRandomValues is unavailable', () => {
+        const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+        Object.defineProperty(globalThis, 'crypto', {
+            value: undefined,
+            configurable: true,
+            writable: true,
+        });
+        try {
+            assert.throws(() => generateTotpSecret(32), /crypto\.getRandomValues/i);
+            assert.throws(() => generateBackupCodes(8), /crypto\.getRandomValues/i);
+        } finally {
+            if (descriptor) {
+                Object.defineProperty(globalThis, 'crypto', descriptor);
+            }
+        }
+    });
 });

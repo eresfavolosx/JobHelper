@@ -22,6 +22,7 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
     const mouseDownTargetRef = useRef(null);
 
     const isAuthorized = hasConfiguredAiKey(profile);
+    const jobKey = job?.id || `${job?.company || ''}::${job?.role || job?.title || ''}`;
 
     // Calculate days elapsed since job created or updated
     const daysElapsed = React.useMemo(() => {
@@ -31,6 +32,11 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
         const diff = now.getTime() - new Date(refDate).getTime();
         return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
     }, [job, now]);
+
+    const latestContextRef = useRef({ job, profile, daysElapsed });
+    useEffect(() => {
+        latestContextRef.current = { job, profile, daysElapsed };
+    }, [job, profile, daysElapsed]);
 
     const ghostStatus = React.useMemo(() => {
         if (daysElapsed >= 10) {
@@ -65,7 +71,8 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
 
     // Load AI career strategy on open
     useEffect(() => {
-        if (!isOpen || !job) {
+        if (!isOpen || !jobKey) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setCoachData(null);
             setError(null);
             return;
@@ -75,32 +82,38 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
             return; // Free users get upgrade prompt
         }
 
+        const { job: currentJob, profile: currentProfile, daysElapsed: currentDaysElapsed } = latestContextRef.current;
+        if (!currentJob) return;
+
+        let cancelled = false;
+        const abortController = new AbortController();
+
         const fetchStrategy = async () => {
             setLoading(true);
             setError(null);
 
-            const jobTitle = job.role || job.title || 'Software Engineer';
-            const jobDescription = job.description || job.notes || '';
-            const personalNotes = job.notes && job.description ? job.notes : '';
+            const jobTitle = currentJob.role || currentJob.title || 'Software Engineer';
+            const jobDescription = currentJob.description || currentJob.notes || '';
+            const personalNotes = currentJob.notes && currentJob.description ? currentJob.notes : '';
 
             const prompt = `You are the world's most elite executive career coach and recruiter.
 Analyze this job application and candidate profile to generate a tactical career coaching strategy:
 
 <job>
 Title: ${jobTitle}
-Company: ${job.company || 'Tech Company'}
-Status: ${job.status || 'applied'}
-Days Since Update: ${daysElapsed} days
+Company: ${currentJob.company || 'Tech Company'}
+Status: ${currentJob.status || 'applied'}
+Days Since Update: ${currentDaysElapsed} days
 Description: ${jobDescription.slice(0, 4000)}
 ${personalNotes ? `Applicant Notes: ${personalNotes.slice(0, 1000)}` : ''}
 </job>
 
 <candidate>
-Name: ${profile?.fullName || 'Candidate'}
-Target Role: ${profile?.targetRole || jobTitle}
-Experience: ${profile?.experienceLevel || 'Mid-Senior'}
-Keywords/Skills: ${profile?.keywords || ''}
-Resume Summary: ${profile?.resumeAnalysis?.summary || 'Experienced software professional.'}
+Name: ${currentProfile?.fullName || 'Candidate'}
+Target Role: ${currentProfile?.targetRole || jobTitle}
+Experience: ${currentProfile?.experienceLevel || 'Mid-Senior'}
+Keywords/Skills: ${currentProfile?.keywords || ''}
+Resume Summary: ${currentProfile?.resumeAnalysis?.summary || 'Experienced software professional.'}
 </candidate>
 
 Return ONLY valid JSON matching this schema:
@@ -161,7 +174,11 @@ Return ONLY valid JSON matching this schema:
 }`;
 
             try {
-                const response = await generateWithFallback(prompt, { jsonMode: true });
+                const response = await generateWithFallback(prompt, {
+                    jsonMode: true,
+                    signal: abortController.signal
+                });
+                if (cancelled) return;
                 const parsed = extractJson(response);
                 if (parsed) {
                     setCoachData(parsed);
@@ -169,6 +186,7 @@ Return ONLY valid JSON matching this schema:
                     throw new Error("Unable to parse coach strategy.");
                 }
             } catch (err) {
+                if (cancelled || err?.name === 'AbortError') return;
                 console.error("[AiCareerCoach] Error generating strategy:", err);
                 if (err?.code === 'API_KEY_REQUIRED' || err?.code === 'SUBSCRIPTION_REQUIRED') {
                     setError('API_KEY_REQUIRED');
@@ -176,12 +194,19 @@ Return ONLY valid JSON matching this schema:
                     setError(err?.message || 'Failed to generate AI strategy. Please try again.');
                 }
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchStrategy();
-    }, [isOpen, job, daysElapsed, isAuthorized, profile]);
+
+        return () => {
+            cancelled = true;
+            abortController.abort();
+        };
+    }, [isOpen, jobKey, isAuthorized]);
 
     if (!isOpen || !job) return null;
 

@@ -12,10 +12,6 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
 
     console.log("Starting sync for user:", userId);
     console.log("Jobs to sync:", jobs?.length || 0);
-    console.log("Profile:", profile);
-
-    // Get Firestore instance directly
-    console.log("Firestore instance:", db);
 
     if (!jobs || jobs.length === 0) {
         console.log("No jobs to sync");

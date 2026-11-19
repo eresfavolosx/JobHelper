@@ -29,14 +29,15 @@ import GoalCelebrationOverlay from '@/components/GoalCelebrationOverlay';
 import OfferAcceptedCycleModal from '@/components/OfferAcceptedCycleModal';
 import AgentModeHud from '@/components/AgentModeHud';
 import TwoFactorGate from '@/components/TwoFactorGate';
+import { AppShellSkeleton } from '@/components/SkeletonLoaders';
 import { isSession2FAVerified } from '@/lib/totp';
 import { AGENT_SELECTORS, buildAgentSnapshot } from '@/lib/agent-helper';
 
 
 
-function cleanIncomingText(raw) {
+function cleanIncomingText(raw, { preserveNewlines = false } = {}) {
     if (!raw) return '';
-    return String(raw)
+    let cleaned = String(raw)
         .replace(/â€”/g, ' - ')
         .replace(/â€“/g, '-')
         .replace(/â€™/g, "'")
@@ -50,7 +51,18 @@ function cleanIncomingText(raw) {
         })
         .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u00AD\uFFFD\uE000-\uF8FF]/g, '')
         .replace(/^\(\d+\+?\)\s*/, '')
-        .replace(/^[\s•·|‣⁃\-–—]+|[\s•·|‣⁃\-–—]+$/g, '')
+        .replace(/^[\s•·|‣⁃\-–—]+|[\s•·|‣⁃\-–—]+$/g, '');
+
+    if (preserveNewlines) {
+        return cleaned
+            .replace(/\r\n?/g, '\n')
+            .replace(/[ \t\f\v]+/g, ' ')
+            .replace(/ *\n */g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
+    return cleaned
         .replace(/\s+/g, ' ')
         .trim();
 }
@@ -71,8 +83,8 @@ function UrlListener() {
             const status = validStatuses.includes(rawStatus) ? rawStatus : 'wishlist';
             const salary = cleanIncomingText(searchParams.get('salary'));
             const location = cleanIncomingText(searchParams.get('location'));
-            const description = cleanIncomingText(searchParams.get('description'));
-            const notes = cleanIncomingText(searchParams.get('notes'));
+            const description = cleanIncomingText(searchParams.get('description'), { preserveNewlines: true });
+            const notes = cleanIncomingText(searchParams.get('notes'), { preserveNewlines: true });
             const rawResumeUrl = searchParams.get('resumeUrl');
             const resumeName = cleanIncomingText(searchParams.get('resumeName'));
 
@@ -116,6 +128,8 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 function AuthenticatedLayout({ children }) {
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
+    const profileLoaded = useAppStore(state => state.profileLoaded);
+    const profileLoadError = useAppStore(state => state.profileLoadError);
     const [is2FAUnlocked, setIs2FAUnlocked] = useState(false);
     const jobs = useAppStore(state => state.jobs);
     const isJobModalOpen = useUIStore(state => state.isJobModalOpen);
@@ -135,6 +149,7 @@ function AuthenticatedLayout({ children }) {
 
     const requires2FA = Boolean(
         user &&
+        profileLoaded &&
         profile?.security2FA?.enabled &&
         profile?.security2FA?.secret &&
         !isSession2FAVerified(user?.uid) &&
@@ -142,6 +157,7 @@ function AuthenticatedLayout({ children }) {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIs2FAUnlocked(false);
     }, [user?.uid, profile?.security2FA?.secret]);
 
@@ -160,7 +176,7 @@ function AuthenticatedLayout({ children }) {
     // Register Programmatic Agent Bridge on window for automated browser agents
     // Exposes structured read/write access to window.__NOVU_AGENT__ for Playwright, Puppeteer, Claude Computer Use, and DevTools
     useEffect(() => {
-        if (typeof window === 'undefined' || requires2FA) return;
+        if (typeof window === 'undefined' || !user || !profileLoaded || requires2FA) return;
         window.__NOVU_AGENT__ = {
             version: '1.0.0',
             /** Current Agent Navigation Mode boolean status */
@@ -210,7 +226,7 @@ function AuthenticatedLayout({ children }) {
         return () => {
             delete window.__NOVU_AGENT__;
         };
-    }, [user, requires2FA]);
+    }, [user, profileLoaded, requires2FA]);
 
     // Global keyboard shortcuts:
     // - Cmd+Shift+A / Ctrl+Shift+A toggles Agent Navigation Mode
@@ -218,7 +234,7 @@ function AuthenticatedLayout({ children }) {
     // - Cmd+B / Ctrl+B toggles desktop sidebar collapse into icons
     // - 'N' (when not typing in a form field) quickly logs a new job
     useEffect(() => {
-        if (!user || requires2FA) return;
+        if (!user || !profileLoaded || requires2FA) return;
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
                 e.preventDefault();
@@ -245,12 +261,12 @@ function AuthenticatedLayout({ children }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [user, requires2FA, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse, toggleAgentMode]);
+    }, [user, profileLoaded, requires2FA, isJobModalOpen, openNewJobModal, openGlobalSearch, toggleSidebarCollapse, toggleAgentMode]);
 
     // Auto-launch Morning Career Radar on the first login of each day
     // Only auto-launch when the user already has tracked jobs and is not mid-save from the Chrome Extension
     useEffect(() => {
-        if (!user || requires2FA || activeJobsCount === 0 || isJobModalOpen) return;
+        if (!user || !profileLoaded || requires2FA || activeJobsCount === 0 || isJobModalOpen) return;
         if (typeof window !== 'undefined' && window.location.search.includes('action=auto-open')) return;
         const todayStr = new Date().toISOString().slice(0, 10);
         const lastSync = localStorage.getItem('novujobs_last_morning_sync');
@@ -260,7 +276,7 @@ function AuthenticatedLayout({ children }) {
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [user, requires2FA, activeJobsCount, isJobModalOpen]);
+    }, [user, profileLoaded, requires2FA, activeJobsCount, isJobModalOpen]);
 
     // If loading, AuthProvider shows the spinner, so this won't render
     // If no user, show only the children (login page) without sidebar
@@ -272,8 +288,48 @@ function AuthenticatedLayout({ children }) {
         );
     }
 
+    // Fail closed until Firestore profile snapshot finishes loading so 2FA status is never bypassed
+    if (!profileLoaded) {
+        if (profileLoadError) {
+            return (
+                <main style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '20px' }}>
+                    <div className="card" role="alert" style={{ maxWidth: '440px', width: '100%', padding: '28px', textAlign: 'center' }}>
+                        <h1 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>Unable to Verify Account Security</h1>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '18px' }}>
+                            Could not load your security profile from Firestore. Access is paused until verification succeeds.
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button type="button" className="btn-primary" onClick={() => window.location.reload()}>
+                                Retry
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={async () => {
+                                    useAppStore.getState().clearUserData();
+                                    if (auth) await signOut(auth);
+                                    window.location.href = '/login';
+                                }}
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            );
+        }
+        return <AppShellSkeleton label="Verifying account security" />;
+    }
+
     if (requires2FA) {
-        return <TwoFactorGate onUnlocked={() => setIs2FAUnlocked(true)} />;
+        return (
+            <TwoFactorGate
+                onUnlocked={() => {
+                    setIs2FAUnlocked(true);
+                    useAppStore.getState().resumePost2FASubscriptions();
+                }}
+            />
+        );
     }
 
     // User is authenticated - show full layout
@@ -586,44 +642,40 @@ function NavContent({ onOpenMorningSync }) {
 
                 {/* Nav Links */}
                 <div className="sidebar-nav-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                    <Link
-                        href="/"
-                        data-agent-nav="dashboard"
-                        onClick={closeMobileMenu}
-                        className={`sidebar-nav-link ${mounted && pathname === '/' ? 'active' : ''}`}
-                        title={`Dashboard — Goal: ${goalProgress.count}/${goalProgress.target}`}
-                        aria-label="Dashboard"
-                    >
-                        <span className="sidebar-nav-left">
-                            <LayoutDashboard size={18} />
-                            <span className="sidebar-label">Dashboard</span>
-                        </span>
-                        <span
-                            role="button"
-                            tabIndex={0}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+                        <Link
+                            href="/"
+                            data-agent-nav="dashboard"
+                            onClick={closeMobileMenu}
+                            className={`sidebar-nav-link ${mounted && pathname === '/' ? 'active' : ''}`}
+                            style={{ flex: 1, minWidth: 0 }}
+                            title={`Dashboard — Goal: ${goalProgress.count}/${goalProgress.target}`}
+                            aria-label="Dashboard"
+                        >
+                            <span className="sidebar-nav-left">
+                                <LayoutDashboard size={18} />
+                                <span className="sidebar-label">Dashboard</span>
+                            </span>
+                        </Link>
+                        <button
+                            type="button"
                             className="sidebar-label sidebar-goal-pill"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
+                            onClick={() => {
+                                closeMobileMenu();
                                 setGoalModalOpen(true);
                             }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setGoalModalOpen(true);
-                                }
-                            }}
+                            aria-label={`Customize application goal (${goalProgress.count} of ${goalProgress.target})`}
                             title={`Application Goal (${goalProgress.cadence}): ${goalProgress.count}/${goalProgress.target}. Click to customize.`}
                             style={{
                                 background: goalProgress.percentage >= 100 ? 'rgba(16, 185, 129, 0.16)' : 'rgba(107, 126, 103, 0.15)',
                                 color: goalProgress.percentage >= 100 ? 'var(--success)' : 'var(--accent-primary)',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                             }}
                         >
                             {goalProgress.count}/{goalProgress.target}
-                        </span>
-                    </Link>
+                        </button>
+                    </div>
 
                     <Link
                         href="/kanban"

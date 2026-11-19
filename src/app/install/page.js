@@ -57,7 +57,7 @@ export default function InstallPage() {
                     Download Extension
                 </a>
                 <p style={{ marginTop: '20px', color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center' }}>
-                    Version 1.1.0 • .zip format • AI Context Enabled
+                    Version 1.1 • .zip format • 1-Click Job Clipper
                 </p>
             </div>
 
@@ -83,7 +83,7 @@ export default function InstallPage() {
                     </li>
                     <li>
                         <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>5. Pin & Use</strong>
-                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Pin the extension to your toolbar. Don&apos;t forget to add your Gemini API Key!</p>
+                        <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>Pin the extension to your toolbar. Open any job posting on LinkedIn, Indeed, Greenhouse, or Lever and click the NovuJobs icon to clip and save it directly to your board.</p>
                     </li>
                 </ol>
             </div>

@@ -120,9 +120,8 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
         }
     };
 
-    // Dynamically update coordinates on resize and scroll with layout effect
-    const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
-    useIsomorphicLayoutEffect(() => {
+    // Dynamically update coordinates on resize and scroll
+    useEffect(() => {
         if (!isOpen || !buttonRef.current) return;
 
         const updateCoords = () => {

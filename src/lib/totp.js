@@ -14,15 +14,11 @@ const SESSION_2FA_PREFIX = 'jobhelper_2fa_verified_';
  * Generate a cryptographically secure random Base32 TOTP secret (32 chars = 160 bits).
  */
 export function generateTotpSecret(length = 32) {
-    const random = new Uint8Array(length);
-    if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(random);
-    } else {
-        // Fallback for Node test environments
-        for (let i = 0; i < length; i++) {
-            random[i] = Math.floor(Math.random() * 256);
-        }
+    if (typeof globalThis === 'undefined' || !globalThis.crypto?.getRandomValues) {
+        throw new Error('Cryptographically secure random number generator (crypto.getRandomValues) is unavailable.');
     }
+    const random = new Uint8Array(length);
+    globalThis.crypto.getRandomValues(random);
     let out = '';
     for (let i = 0; i < length; i++) {
         out += BASE32_ALPHABET[random[i] % BASE32_ALPHABET.length];
@@ -115,14 +111,13 @@ export async function verifyTotpCode(secret, inputCode, windowSteps = 1, timesta
  * Generate a set of single-use backup recovery codes formatted as XXXX-XXXX.
  */
 export function generateBackupCodes(count = 8) {
+    if (typeof globalThis === 'undefined' || !globalThis.crypto?.getRandomValues) {
+        throw new Error('Cryptographically secure random number generator (crypto.getRandomValues) is unavailable.');
+    }
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const codes = [];
     const random = new Uint8Array(count * 8);
-    if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(random);
-    } else {
-        for (let i = 0; i < random.length; i++) random[i] = Math.floor(Math.random() * 256);
-    }
+    globalThis.crypto.getRandomValues(random);
 
     for (let i = 0; i < count; i++) {
         let part1 = '';

@@ -11,16 +11,23 @@ const TOKEN_STORAGE_KEY = 'novujobs_gmail_access_token';
 const TOKEN_META_KEY = 'novujobs_gmail_access_token_meta';
 
 /**
- * Returns the cached Gmail access token if available and not expired.
+ * Returns the cached Gmail access token from sessionStorage if available and not expired.
  */
 export function getStoredGmailToken() {
     if (typeof window === 'undefined') return null;
-    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY) || localStorage.getItem(TOKEN_STORAGE_KEY);
+
+    // Clean up any legacy localStorage entries so tokens never persist across browser restarts
+    try {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem(TOKEN_META_KEY);
+    } catch {}
+
+    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
     if (!token) return null;
 
     // Check expiry (Google access tokens last 1 hour; use 55-minute buffer)
     try {
-        const metaStr = localStorage.getItem(TOKEN_META_KEY);
+        const metaStr = sessionStorage.getItem(TOKEN_META_KEY);
         if (metaStr) {
             const meta = JSON.parse(metaStr);
             if (meta?.savedAt && Date.now() - meta.savedAt > 55 * 60 * 1000) {
@@ -68,11 +75,13 @@ export async function connectGmailAccount(auth) {
 
     if (typeof window !== 'undefined') {
         sessionStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
-        localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
-        localStorage.setItem(TOKEN_META_KEY, JSON.stringify({
-            token: accessToken,
+        sessionStorage.setItem(TOKEN_META_KEY, JSON.stringify({
             savedAt: Date.now()
         }));
+        try {
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+            localStorage.removeItem(TOKEN_META_KEY);
+        } catch {}
     }
 
     return {

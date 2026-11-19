@@ -83,15 +83,38 @@ export function parseSearchQuery(rawQuery = '') {
     return { fieldFilters, textTokens, raw };
 }
 
+const searchableFieldsCache = new WeakMap();
+
 /**
- * Normalizes a job object's searchable fields into lowercased strings.
+ * Normalizes a job object's searchable fields into lowercased strings,
+ * memoized per job object and invalidated automatically if any raw field reference changes.
  */
 function getSearchableFields(job) {
+    if (job && typeof job === 'object') {
+        const cached = searchableFieldsCache.get(job);
+        if (
+            cached &&
+            cached.company === job.company &&
+            cached.role === job.role &&
+            cached.location === job.location &&
+            cached.status === job.status &&
+            cached.salary === job.salary &&
+            cached.resumeName === job.resumeName &&
+            cached.resumeUrl === job.resumeUrl &&
+            cached.notes === job.notes &&
+            cached.description === job.description &&
+            cached.tags === job.tags &&
+            cached.url === job.url
+        ) {
+            return cached.fields;
+        }
+    }
+
     const status = String(job?.status || '').toLowerCase();
     const stageLabel = (STAGE_LABELS[status] || status).toLowerCase();
     const tagsStr = Array.isArray(job?.tags) ? job.tags.join(' ') : String(job?.tags || '');
 
-    return {
+    const fields = {
         company: String(job?.company || '').toLowerCase(),
         role: String(job?.role || '').toLowerCase(),
         location: String(job?.location || '').toLowerCase(),
@@ -103,6 +126,25 @@ function getSearchableFields(job) {
         tags: tagsStr.toLowerCase(),
         url: String(job?.url || '').toLowerCase()
     };
+
+    if (job && typeof job === 'object') {
+        searchableFieldsCache.set(job, {
+            company: job.company,
+            role: job.role,
+            location: job.location,
+            status: job.status,
+            salary: job.salary,
+            resumeName: job.resumeName,
+            resumeUrl: job.resumeUrl,
+            notes: job.notes,
+            description: job.description,
+            tags: job.tags,
+            url: job.url,
+            fields
+        });
+    }
+
+    return fields;
 }
 
 /**
@@ -155,9 +197,16 @@ export function evaluateJobMatch(job, options = {}) {
     }
 
     // 3. Explicit Location / Modality parameter filter
+    let cachedFields = null;
+    const ensureFields = () => {
+        if (!cachedFields) cachedFields = getSearchableFields(job);
+        return cachedFields;
+    };
+
     if (locationFilter && locationFilter !== 'all') {
-        const locLower = String(job.location || '').toLowerCase();
-        const notesLower = String(job.notes || '').toLowerCase();
+        const fieldsForLoc = ensureFields();
+        const locLower = fieldsForLoc.location;
+        const notesLower = fieldsForLoc.notes;
         const filterVal = String(locationFilter).toLowerCase();
 
         if (filterVal === 'remote') {
@@ -215,7 +264,7 @@ export function evaluateJobMatch(job, options = {}) {
         return { matches: true, score: 1, matchedFields: [] };
     }
 
-    const fields = getSearchableFields(job);
+    const fields = ensureFields();
     const matchedFieldsSet = new Set();
     let score = 0;
 

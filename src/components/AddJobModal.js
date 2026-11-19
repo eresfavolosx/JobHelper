@@ -217,13 +217,27 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
         e.preventDefault();
         setSubmitError('');
 
+        const rawUrl = (formData.url || '').trim();
+        const rawResumeUrl = (formData.resumeUrl || '').trim();
+        const sanitizedUrl = rawUrl ? sanitizeUrl(rawUrl) : '';
+        const sanitizedResumeUrl = rawResumeUrl ? sanitizeUrl(rawResumeUrl) : '';
+
+        if (rawUrl && !sanitizedUrl) {
+            setSubmitError('Please enter a valid http:// or https:// Job Posting URL.');
+            return;
+        }
+        if (rawResumeUrl && !sanitizedResumeUrl) {
+            setSubmitError('Please enter a valid http:// or https:// Resume URL.');
+            return;
+        }
+
         try {
             const payload = {
                 ...formData,
-                url: formData.url ? sanitizeUrl(formData.url) || formData.url.trim() : '',
-                resumeUrl: formData.resumeUrl ? sanitizeUrl(formData.resumeUrl) || formData.resumeUrl.trim() : '',
+                url: sanitizedUrl || '',
+                resumeUrl: sanitizedResumeUrl || '',
                 resumeName: (formData.resumeName || '').trim(),
-                description: (formData.description || '').trim(),
+                description: (formData.description || '').trim().slice(0, 200000),
                 notes: (formData.notes || '').trim(),
                 followUps,
                 ...(followUps.length > 0 ? {
@@ -836,7 +850,7 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                             <label htmlFor="job-description" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
                                 <FileText size={15} color="var(--accent-primary)" /> Job Description
                                 <span style={{ fontSize: '0.74rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
-                                    (no character limit)
+                                    (up to 200,000 characters)
                                 </span>
                             </label>
 
@@ -892,6 +906,7 @@ function AddJobModalDialog({ onClose, initialData = {} }) {
                             id="job-description"
                             name="description"
                             data-agent-input="job-description"
+                            maxLength={200000}
                             style={{
                                 width: '100%',
                                 minHeight: '140px',

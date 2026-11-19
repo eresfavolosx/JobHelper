@@ -13,6 +13,44 @@ import {
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
+const THROTTLE_STORAGE_PREFIX = 'jobhelper_2fa_throttle_';
+const MAX_FREE_ATTEMPTS = 2;
+
+function getLockDurationMs(failures) {
+    if (failures <= MAX_FREE_ATTEMPTS) return 0;
+    const exponent = failures - MAX_FREE_ATTEMPTS - 1;
+    return Math.min(300_000, Math.pow(2, exponent) * 5_000);
+}
+
+function readThrottleState(userId) {
+    if (!userId || typeof window === 'undefined') return { failures: 0, lockedUntil: 0 };
+    try {
+        const raw = sessionStorage.getItem(`${THROTTLE_STORAGE_PREFIX}${userId}`);
+        if (!raw) return { failures: 0, lockedUntil: 0 };
+        const parsed = JSON.parse(raw);
+        return {
+            failures: Number(parsed?.failures) || 0,
+            lockedUntil: Number(parsed?.lockedUntil) || 0
+        };
+    } catch {
+        return { failures: 0, lockedUntil: 0 };
+    }
+}
+
+function writeThrottleState(userId, failures, lockedUntil) {
+    if (!userId || typeof window === 'undefined') return;
+    try {
+        sessionStorage.setItem(`${THROTTLE_STORAGE_PREFIX}${userId}`, JSON.stringify({ failures, lockedUntil }));
+    } catch {}
+}
+
+function clearThrottleState(userId) {
+    if (!userId || typeof window === 'undefined') return;
+    try {
+        sessionStorage.removeItem(`${THROTTLE_STORAGE_PREFIX}${userId}`);
+    } catch {}
+}
+
 export default function TwoFactorGate({ onUnlocked }) {
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
@@ -24,6 +62,10 @@ export default function TwoFactorGate({ onUnlocked }) {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(() => getTotpSecondsRemaining());
+    const [cooldownSeconds, setCooldownSeconds] = useState(() => {
+        const saved = readThrottleState(user?.uid);
+        return saved.lockedUntil > Date.now() ? Math.ceil((saved.lockedUntil - Date.now()) / 1000) : 0;
+    });
 
     const security2FA = profile?.security2FA;
     const has2FA = Boolean(security2FA?.enabled && security2FA?.secret);
@@ -32,17 +74,45 @@ export default function TwoFactorGate({ onUnlocked }) {
         if (!has2FA) return;
         const timer = setInterval(() => {
             setSecondsLeft(getTotpSecondsRemaining());
+            const saved = readThrottleState(user?.uid);
+            const remaining = saved.lockedUntil > Date.now()
+                ? Math.ceil((saved.lockedUntil - Date.now()) / 1000)
+                : 0;
+            setCooldownSeconds(remaining);
         }, 1000);
         return () => clearInterval(timer);
-    }, [has2FA]);
+    }, [has2FA, user?.uid]);
 
     if (!user || !has2FA) {
         return null;
     }
 
+    const recordFailedAttempt = (baseMessage) => {
+        const prev = readThrottleState(user.uid);
+        const failures = prev.failures + 1;
+        const lockMs = getLockDurationMs(failures);
+        const lockedUntil = lockMs > 0 ? Date.now() + lockMs : 0;
+        writeThrottleState(user.uid, failures, lockedUntil);
+        if (lockMs > 0) {
+            const waitSecs = Math.ceil(lockMs / 1000);
+            setCooldownSeconds(waitSecs);
+            setError(`${baseMessage} Too many failed attempts — please wait ${waitSecs}s before trying again.`);
+        } else {
+            setError(baseMessage);
+        }
+    };
+
     const handleVerify = async (e) => {
         e.preventDefault();
         setError('');
+
+        const savedThrottle = readThrottleState(user.uid);
+        if (savedThrottle.lockedUntil > Date.now()) {
+            const waitSecs = Math.ceil((savedThrottle.lockedUntil - Date.now()) / 1000);
+            setCooldownSeconds(waitSecs);
+            setError(`Too many failed attempts. Please wait ${waitSecs}s before trying again.`);
+            return;
+        }
 
         if (isBackupMode) {
             const cleanBackup = backupCode.trim().toUpperCase();
@@ -54,7 +124,7 @@ export default function TwoFactorGate({ onUnlocked }) {
             try {
                 const result = verifyAndConsumeBackupCode(cleanBackup, security2FA.backupCodes || []);
                 if (!result.valid) {
-                    setError('Invalid or already used backup code. Please check and try again.');
+                    recordFailedAttempt('Invalid or already used backup code.');
                     return;
                 }
 
@@ -66,6 +136,7 @@ export default function TwoFactorGate({ onUnlocked }) {
                     }
                 });
 
+                clearThrottleState(user.uid);
                 markSession2FAVerified(user.uid);
                 if (onUnlocked) onUnlocked();
             } catch (err) {
@@ -88,10 +159,11 @@ export default function TwoFactorGate({ onUnlocked }) {
         try {
             const isValid = await verifyTotpCode(security2FA.secret, cleanCode, 1);
             if (!isValid) {
-                setError('Invalid or expired 6-digit code. Check your authenticator app for the latest code.');
+                recordFailedAttempt('Invalid or expired 6-digit code.');
                 return;
             }
 
+            clearThrottleState(user.uid);
             markSession2FAVerified(user.uid);
             if (onUnlocked) onUnlocked();
         } catch (err) {
@@ -301,7 +373,7 @@ export default function TwoFactorGate({ onUnlocked }) {
 
                     <button
                         type="submit"
-                        disabled={busy}
+                        disabled={busy || cooldownSeconds > 0}
                         className="btn-primary"
                         style={{
                             width: '100%',
@@ -312,11 +384,19 @@ export default function TwoFactorGate({ onUnlocked }) {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px'
+                            gap: '8px',
+                            opacity: cooldownSeconds > 0 ? 0.65 : 1,
+                            cursor: busy || cooldownSeconds > 0 ? 'not-allowed' : 'pointer'
                         }}
                     >
                         <ShieldCheck size={18} />
-                        <span>{busy ? 'Verifying...' : 'Verify & Access JobHelper'}</span>
+                        <span>
+                            {busy
+                                ? 'Verifying...'
+                                : cooldownSeconds > 0
+                                    ? `Wait ${cooldownSeconds}s to Retry`
+                                    : 'Verify & Access JobHelper'}
+                        </span>
                     </button>
                 </form>
 
