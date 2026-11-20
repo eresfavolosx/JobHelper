@@ -1,7 +1,7 @@
 export const INITIAL_CARDS_STACKED = 15;
 export const INITIAL_CARDS_COLUMNS = 25;
 export const LOAD_MORE_STEP = 25;
-export const DEFERRED_CARD_THRESHOLD = 6;
+export const DEFERRED_CARD_THRESHOLD = 25;
 const FILTERED_INITIAL_CAP = 50;
 
 /**
@@ -71,8 +71,40 @@ export function countWords(text) {
 }
 
 /**
+ * Safely converts a profile `updatedAt` value (ISO string, epoch ms, Date, or Firestore Timestamp)
+ * into epoch milliseconds, or 0 when absent/invalid.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
+export function toProfileTimestampMs(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+    if (typeof value === 'object') {
+        if (typeof value.toMillis === 'function') {
+            const ms = Number(value.toMillis());
+            return Number.isFinite(ms) && ms > 0 ? ms : 0;
+        }
+        if (typeof value.seconds === 'number') {
+            const ms = value.seconds * 1000 + Math.floor((Number(value.nanoseconds) || 0) / 1e6);
+            return Number.isFinite(ms) && ms > 0 ? ms : 0;
+        }
+        if (value instanceof Date) {
+            const ms = value.getTime();
+            return Number.isFinite(ms) && ms > 0 ? ms : 0;
+        }
+    }
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+/**
  * Determines whether local profile state should be synced back to Firestore on snapshot load.
- * Prevents unedited DEFAULT_PROFILE defaults (`localTime === 0`) from triggering spurious writes.
+ * Returns true only when `hasLeakedEnvKey` is true, or `localTime > 0` and either remote has
+ * no timestamp or `localTime > remoteTime` (preventing equal/older persisted `localStorage`
+ * profiles from firing unprompted writes on read-only page loads).
  *
  * @param {object} params
  * @param {number} [params.localTime]
@@ -90,5 +122,5 @@ export function shouldSyncLocalProfileCatchup({
     const safeRemote = Number(remoteTime);
     if (!Number.isFinite(safeLocal) || safeLocal <= 0) return false;
     if (!Number.isFinite(safeRemote) || safeRemote <= 0) return true;
-    return safeLocal > 0;
+    return safeLocal > safeRemote;
 }

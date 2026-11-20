@@ -4,7 +4,7 @@ import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, X,
     Clock, FileText, Sparkles, SlidersHorizontal, Columns3, Rows3,
@@ -17,6 +17,8 @@ import CycleFilterBar from './CycleFilterBar';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
 import { hasConfiguredAiKey } from '@/lib/subscription';
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 const COLUMNS = [
     { id: 'wishlist', title: 'Wishlist', dot: '#9DA7AE' },
@@ -102,7 +104,7 @@ export default function KanbanBoard() {
     }, []);
 
     // Synchronize hidden="until-found" attribute cleanly in React 19 with feature detection
-    useEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         const el = filtersDrawerRef.current;
         if (!el) return;
         if (!filtersOpen) {
@@ -810,7 +812,6 @@ export default function KanbanBoard() {
                 <div
                     id="board-filters-drawer"
                     ref={filtersDrawerRef}
-                    hidden={!filtersOpen}
                 >
                     <div
                         style={{

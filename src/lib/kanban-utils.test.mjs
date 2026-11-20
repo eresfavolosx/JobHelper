@@ -7,6 +7,7 @@ import {
     DEFERRED_CARD_THRESHOLD,
     getVisibleColumnCount,
     countWords,
+    toProfileTimestampMs,
     shouldSyncLocalProfileCatchup
 } from './kanban-utils.js';
 
@@ -18,7 +19,7 @@ describe('kanban-utils: getVisibleColumnCount', () => {
     });
 
     it('uses conservative defaults for stacked vs columns view', () => {
-        assert.equal(DEFERRED_CARD_THRESHOLD, 6);
+        assert.equal(DEFERRED_CARD_THRESHOLD, 25);
         assert.equal(getVisibleColumnCount({ total: 181, isStacked: true }), INITIAL_CARDS_STACKED);
         assert.equal(getVisibleColumnCount({ total: 181, isStacked: false }), INITIAL_CARDS_COLUMNS);
         assert.equal(getVisibleColumnCount({ total: 8, isStacked: true }), 8);
@@ -90,6 +91,30 @@ describe('kanban-utils: countWords', () => {
     });
 });
 
+describe('kanban-utils: toProfileTimestampMs', () => {
+    it('returns 0 for nullish, empty, or invalid inputs', () => {
+        assert.equal(toProfileTimestampMs(null), 0);
+        assert.equal(toProfileTimestampMs(undefined), 0);
+        assert.equal(toProfileTimestampMs(''), 0);
+        assert.equal(toProfileTimestampMs('not-a-date'), 0);
+        assert.equal(toProfileTimestampMs(NaN), 0);
+        assert.equal(toProfileTimestampMs(0), 0);
+        assert.equal(toProfileTimestampMs(-100), 0);
+    });
+
+    it('normalizes ISO strings, numbers, Date instances, and Firestore Timestamps', () => {
+        const expected = Date.UTC(2026, 10, 20, 12, 0, 0);
+        assert.equal(toProfileTimestampMs('2026-11-20T12:00:00.000Z'), expected);
+        assert.equal(toProfileTimestampMs(expected), expected);
+        assert.equal(toProfileTimestampMs(new Date(expected)), expected);
+        assert.equal(toProfileTimestampMs({ toMillis: () => expected }), expected);
+        assert.equal(
+            toProfileTimestampMs({ seconds: Math.floor(expected / 1000), nanoseconds: 500_000_000 }),
+            Math.floor(expected / 1000) * 1000 + 500
+        );
+    });
+});
+
 describe('kanban-utils: shouldSyncLocalProfileCatchup', () => {
     it('returns false when localTime is 0 unless a leaked env key must be scrubbed', () => {
         assert.equal(shouldSyncLocalProfileCatchup({ localTime: 0, remoteTime: 0 }), false);
@@ -100,7 +125,12 @@ describe('kanban-utils: shouldSyncLocalProfileCatchup', () => {
         );
     });
 
-    it('returns true when localTime is a positive timestamp', () => {
+    it('returns false when localTime is equal to or older than remoteTime', () => {
+        assert.equal(shouldSyncLocalProfileCatchup({ localTime: 1700000000000, remoteTime: 1700000000000 }), false);
+        assert.equal(shouldSyncLocalProfileCatchup({ localTime: 1699999999000, remoteTime: 1700000000000 }), false);
+    });
+
+    it('returns true only when localTime is strictly newer than remoteTime or remoteTime is missing', () => {
         assert.equal(shouldSyncLocalProfileCatchup({ localTime: 1700000000000, remoteTime: 0 }), true);
         assert.equal(shouldSyncLocalProfileCatchup({ localTime: 1700000001000, remoteTime: 1700000000000 }), true);
     });

@@ -20,7 +20,7 @@ import {
 import { clearSession2FAVerification, isSession2FAVerified } from './totp.js';
 import { disconnectGmailAccount } from './gmail-service.js';
 import { clearMapsCache } from './maps-service.js';
-import { shouldSyncLocalProfileCatchup } from './kanban-utils.js';
+import { shouldSyncLocalProfileCatchup, toProfileTimestampMs } from './kanban-utils.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const OCT2_RECONCILE_KEY = 'novujobs_oct2_cycle_reconciled_v2';
@@ -1368,8 +1368,8 @@ export const useAppStore = create(
                             const remoteData = docSnap.data() || {};
                             const localProfile = get().profile || {};
 
-                            const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
-                            const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
+                            const remoteTime = toProfileTimestampMs(remoteData.updatedAt);
+                            const localTime = toProfileTimestampMs(localProfile.updatedAt);
 
                             const mergedProfile = { ...localProfile, ...remoteData };
                             let needsCloudCatchup = false;
@@ -1383,28 +1383,15 @@ export const useAppStore = create(
                             ];
 
                             if (shouldSyncLocalProfileCatchup({ localTime, remoteTime })) {
-                                if (localTime > remoteTime) {
-                                    for (const field of userEditableFields) {
-                                        const localVal = localProfile[field];
-                                        const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
-                                        if (hasLocalVal) {
-                                            mergedProfile[field] = localVal;
-                                        }
-                                    }
-                                    mergedProfile.updatedAt = localProfile.updatedAt;
-                                    needsCloudCatchup = true;
-                                } else {
-                                    for (const field of userEditableFields) {
-                                        const localVal = localProfile[field];
-                                        const remoteVal = remoteData[field];
-                                        const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
-                                        const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
-                                        if (hasLocalVal && isRemoteEmpty) {
-                                            mergedProfile[field] = localVal;
-                                            needsCloudCatchup = true;
-                                        }
+                                for (const field of userEditableFields) {
+                                    const localVal = localProfile[field];
+                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                    if (hasLocalVal) {
+                                        mergedProfile[field] = localVal;
                                     }
                                 }
+                                mergedProfile.updatedAt = localProfile.updatedAt;
+                                needsCloudCatchup = true;
                             }
 
                             const envGemini = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '').trim() : '';

@@ -1672,7 +1672,7 @@ textarea:focus {
 
 .kanban-card-deferred {
   content-visibility: auto;
-  contain-intrinsic-size: auto none auto 220px;
+  contain-intrinsic-size: auto none auto 340px;
 }
 
 .kanban-column-header {

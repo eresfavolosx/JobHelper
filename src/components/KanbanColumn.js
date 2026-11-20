@@ -140,6 +140,74 @@ const KanbanColumn = memo(({
     const remainingCount = Math.max(0, (jobs?.length || 0) - visibleJobs.length);
     const dotColor = COLUMN_ACCENTS[column.id] || 'var(--accent-primary)';
 
+    const paginationBar = remainingCount > 0 ? (
+        <div
+            className={isStacked ? undefined : 'kanban-column-footer'}
+            onPointerDown={e => e.stopPropagation()}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '6px',
+                paddingTop: isStacked ? '4px' : '10px',
+                marginTop: isStacked ? 0 : '10px',
+                borderTop: isStacked ? 'none' : '1px solid var(--border-subtle)',
+                flexShrink: 0,
+                flexWrap: 'wrap'
+            }}
+        >
+            <button
+                type="button"
+                data-agent-action="column-load-more"
+                data-agent-stage={column.id}
+                onClick={() =>
+                    setBatchState({
+                        scope: scopeKey,
+                        extra: extraCount + LOAD_MORE_STEP
+                    })
+                }
+                style={{
+                    flex: '1 1 auto',
+                    padding: isStacked ? '8px 12px' : '6px 10px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: isStacked ? '0.78rem' : '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                }}
+            >
+                Load {Math.min(LOAD_MORE_STEP, remainingCount)} more ({remainingCount} left)
+            </button>
+            <button
+                type="button"
+                data-agent-action="column-show-all"
+                data-agent-stage={column.id}
+                onClick={() =>
+                    setBatchState({
+                        scope: scopeKey,
+                        extra: jobs.length
+                    })
+                }
+                style={{
+                    padding: isStacked ? '8px 10px' : '6px 9px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--accent-primary)',
+                    fontSize: isStacked ? '0.76rem' : '0.73rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                }}
+            >
+                Show all ({jobs.length})
+            </button>
+        </div>
+    ) : null;
+
     return (
         <div
             id={column.id}
@@ -247,78 +315,24 @@ const KanbanColumn = memo(({
             </div>
 
             {!isCollapsed && (
-                <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-                    <div className="kanban-cards-list">
-                        <ColumnDroppable id={column.id} isEmpty={jobs.length === 0} isStacked={isStacked}>
-                            {visibleJobs.map((job, idx) => (
-                                <JobCard
-                                    key={job.id}
-                                    job={job}
-                                    hasAiKey={hasAiKey}
-                                    isDeferred={idx >= DEFERRED_CARD_THRESHOLD}
-                                />
-                            ))}
-                            {remainingCount > 0 && (
-                                <div
-                                    onPointerDown={e => e.stopPropagation()}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '8px',
-                                        paddingTop: '4px',
-                                        flexWrap: 'wrap'
-                                    }}
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setBatchState({
-                                                scope: scopeKey,
-                                                extra: extraCount + LOAD_MORE_STEP
-                                            })
-                                        }
-                                        style={{
-                                            flex: '1 1 auto',
-                                            padding: '8px 12px',
-                                            borderRadius: '10px',
-                                            border: '1px solid var(--border-subtle)',
-                                            background: 'var(--bg-card)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: '0.78rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        Load {Math.min(LOAD_MORE_STEP, remainingCount)} more ({remainingCount} remaining)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setBatchState({
-                                                scope: scopeKey,
-                                                extra: jobs.length
-                                            })
-                                        }
-                                        style={{
-                                            padding: '8px 10px',
-                                            borderRadius: '10px',
-                                            border: '1px solid var(--border-subtle)',
-                                            background: 'transparent',
-                                            color: 'var(--accent-primary)',
-                                            fontSize: '0.76rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                    >
-                                        Show all ({jobs.length})
-                                    </button>
-                                </div>
-                            )}
-                        </ColumnDroppable>
-                    </div>
-                </SortableContext>
+                <>
+                    <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                        <div className="kanban-cards-list">
+                            <ColumnDroppable id={column.id} isEmpty={jobs.length === 0} isStacked={isStacked}>
+                                {visibleJobs.map((job, idx) => (
+                                    <JobCard
+                                        key={job.id}
+                                        job={job}
+                                        hasAiKey={hasAiKey}
+                                        isDeferred={idx >= DEFERRED_CARD_THRESHOLD}
+                                    />
+                                ))}
+                                {isStacked && paginationBar}
+                            </ColumnDroppable>
+                        </div>
+                    </SortableContext>
+                    {!isStacked && paginationBar}
+                </>
             )}
         </div>
     );
