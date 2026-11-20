@@ -10,6 +10,7 @@ import { useUIStore } from '@/lib/uiStore';
 import { safeDate, sanitizeUrl } from '@/lib/utils';
 import { getMapsSearchUrl } from '@/lib/maps-service';
 import { hasConfiguredAiKey } from '@/lib/subscription';
+import { countWords } from '@/lib/kanban-utils';
 import AiCareerCoachModal from './AiCareerCoachModal';
 import UpgradeModal from './UpgradeModal';
 
@@ -70,17 +71,10 @@ const STAGE_META = {
     }
 };
 
-const JobCard = memo(function JobCard({ job }) {
-    const deleteJob = useAppStore(s => s.deleteJob);
-    const archiveJob = useAppStore(s => s.archiveJob);
-    const restoreJob = useAppStore(s => s.restoreJob);
-    const moveJob = useAppStore(s => s.moveJob);
-    const updateJob = useAppStore(s => s.updateJob);
-    const logJobFollowUp = useAppStore(s => s.logJobFollowUp);
-    const openEditJobModal = useUIStore(s => s.openEditJobModal);
+const JobCard = memo(function JobCard({ job, hasAiKey: hasAiKeyProp, isDeferred = false }) {
     const isHighlighted = useUIStore(s => s.highlightedJobId === job.id);
-    const setBoardFilters = useUIStore(s => s.setBoardFilters);
-    const hasAiKey = useAppStore(s => hasConfiguredAiKey(s.profile));
+    const storeHasAiKey = useAppStore(s => (hasAiKeyProp === undefined ? hasConfiguredAiKey(s.profile) : false));
+    const hasAiKey = hasAiKeyProp !== undefined ? hasAiKeyProp : storeHasAiKey;
     const [coachOpen, setCoachOpen] = useState(false);
     const [upgradeOpen, setUpgradeOpen] = useState(false);
     const [isEditingResume, setIsEditingResume] = useState(false);
@@ -118,10 +112,15 @@ const JobCard = memo(function JobCard({ job }) {
         return isNaN(days) ? 0 : Math.max(0, days);
     }, [job, today]);
 
+    const descriptionWordCount = useMemo(
+        () => (job.description ? countWords(job.description) : 0),
+        [job.description]
+    );
+
     const handleLogFollowUp = (e, quick = false) => {
         e.stopPropagation();
         e.preventDefault();
-        logJobFollowUp(job.id, {
+        useAppStore.getState().logJobFollowUp(job.id, {
             date: new Date().toISOString(),
             channel: quick ? 'email' : followUpChannel,
             note: quick ? 'Followed up with recruiter' : (followUpNote.trim() || 'Followed up with recruiter')
@@ -168,12 +167,13 @@ const JobCard = memo(function JobCard({ job }) {
     const handleDelete = (e) => {
         e.stopPropagation(); // Prevent drag start
         e.preventDefault();
-        deleteJob(job.id);
+        useAppStore.getState().deleteJob(job.id);
     };
 
     const handleArchive = (e) => {
         e.stopPropagation();
         e.preventDefault();
+        const { restoreJob, archiveJob } = useAppStore.getState();
         if (job.status === 'archived' || job.status === 'deleted') {
             restoreJob(job.id);
         } else {
@@ -184,13 +184,14 @@ const JobCard = memo(function JobCard({ job }) {
     const handleEdit = (e) => {
         e.stopPropagation();
         e.preventDefault();
-        openEditJobModal(job);
+        useUIStore.getState().openEditJobModal(job);
     };
 
     const handleStatusChange = (e) => {
         e.stopPropagation();
         e.preventDefault();
         const nextStatus = e.target.value;
+        const { archiveJob, moveJob } = useAppStore.getState();
         if (nextStatus === 'archived') {
             archiveJob(job.id);
         } else {
@@ -218,7 +219,7 @@ const JobCard = memo(function JobCard({ job }) {
         }
         setResumeUrlError('');
         const trimmedName = (resumeNameDraft || '').trim();
-        updateJob(job.id, {
+        useAppStore.getState().updateJob(job.id, {
             resumeUrl: sanitized || '',
             resumeName: trimmedName
         });
@@ -239,7 +240,7 @@ const JobCard = memo(function JobCard({ job }) {
             data-agent-stage={job.status}
             ref={setNodeRef}
             style={style}
-            className="card interactive-card group"
+            className={`card interactive-card group${isDeferred && !isDragging ? ' kanban-card-deferred' : ''}`}
         >
             <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
@@ -312,7 +313,7 @@ const JobCard = memo(function JobCard({ job }) {
                     onClick={(e) => {
                         e.stopPropagation();
                         if (job.company) {
-                            setBoardFilters({ boardCompanyFilter: job.company });
+                            useUIStore.getState().setBoardFilters({ boardCompanyFilter: job.company });
                         }
                     }}
                     title={`Filter board by ${job.company}`}
@@ -956,7 +957,7 @@ const JobCard = memo(function JobCard({ job }) {
                         <FileText size={12} color="var(--accent-primary)" />
                         <span>Job Description</span>
                         <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>
-                            ({job.description.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words)
+                            ({descriptionWordCount.toLocaleString()} words)
                         </span>
                         <ChevronDown
                             size={12}
@@ -1025,19 +1026,23 @@ const JobCard = memo(function JobCard({ job }) {
             {job.notes && <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--glass-panel)', padding: '8px 12px', borderRadius: '8px', lineHeight: '1.4' }}>{job.notes}</div>}
         </div>
 
-        <AiCareerCoachModal
-            job={job}
-            isOpen={coachOpen}
-            onClose={() => setCoachOpen(false)}
-            onOpenUpgrade={() => {
-                setCoachOpen(false);
-                setUpgradeOpen(true);
-            }}
-        />
-        <UpgradeModal
-            isOpen={upgradeOpen}
-            onClose={() => setUpgradeOpen(false)}
-        />
+        {coachOpen && (
+            <AiCareerCoachModal
+                job={job}
+                isOpen={coachOpen}
+                onClose={() => setCoachOpen(false)}
+                onOpenUpgrade={() => {
+                    setCoachOpen(false);
+                    setUpgradeOpen(true);
+                }}
+            />
+        )}
+        {upgradeOpen && (
+            <UpgradeModal
+                isOpen={upgradeOpen}
+                onClose={() => setUpgradeOpen(false)}
+            />
+        )}
         </>
     );
 });

@@ -316,7 +316,7 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
     const portalTarget = (typeof document !== 'undefined' && document.getElementById('portal-root')) || (typeof document !== 'undefined' && document.body);
 
     return (
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ position: 'relative', flexShrink: 0, marginRight: unreadCount > 0 ? '4px' : 0 }}>
             {/* Bell Trigger Button */}
             <button
                 ref={buttonRef}
@@ -351,14 +351,16 @@ export default function NotificationCenter({ onSelectJobForCoach, onOpenMorningS
                         borderRadius: '10px',
                         background: '#ef4444',
                         color: 'white',
-                        fontSize: '0.7rem',
+                        fontSize: '0.68rem',
                         fontWeight: 'bold',
+                        lineHeight: 1,
+                        pointerEvents: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
                     }}>
-                        {unreadCount}
+                        {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                 )}
             </button>

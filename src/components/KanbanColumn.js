@@ -1,9 +1,14 @@
 "use client";
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { Ghost, Archive, Trash2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { useUIStore } from '@/lib/uiStore';
+import {
+    getVisibleColumnCount,
+    LOAD_MORE_STEP,
+    DEFERRED_CARD_THRESHOLD
+} from '@/lib/kanban-utils';
 import JobCard from './JobCard';
 
 const COLUMN_ACCENTS = {
@@ -77,10 +82,13 @@ function ColumnDroppable({ id, children, isEmpty, isStacked }) {
 // but jobs inside are same objects (common in this app's store updates)
 const arePropsEqual = (prevProps, nextProps) => {
     if (prevProps.column !== nextProps.column) return false;
-    if (prevProps.index !== nextProps.index) return false;
     if (prevProps.isStacked !== nextProps.isStacked) return false;
     if (prevProps.isCollapsed !== nextProps.isCollapsed) return false;
     if (prevProps.onToggleCollapse !== nextProps.onToggleCollapse) return false;
+    if (prevProps.isFiltering !== nextProps.isFiltering) return false;
+    if (prevProps.highlightedJobId !== nextProps.highlightedJobId) return false;
+    if (prevProps.hasAiKey !== nextProps.hasAiKey) return false;
+    if (prevProps.resetKey !== nextProps.resetKey) return false;
     if (prevProps.jobs === nextProps.jobs) return true;
     if (!prevProps.jobs || !nextProps.jobs) return false;
     if (prevProps.jobs.length !== nextProps.jobs.length) return false;
@@ -92,22 +100,51 @@ const arePropsEqual = (prevProps, nextProps) => {
     return true;
 };
 
-const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed = false, onToggleCollapse }) => {
+const KanbanColumn = memo(({
+    column,
+    jobs,
+    isStacked = false,
+    isCollapsed = false,
+    onToggleCollapse,
+    isFiltering = false,
+    highlightedJobId = null,
+    hasAiKey,
+    resetKey = ''
+}) => {
     const openNewJobModal = useUIStore(state => state.openNewJobModal);
-    // ⚡ Bolt: Memoize SortableContext items array
-    // Prevents creating a new array reference on every render, avoiding unnecessary
-    // recalculations and UI jank in dnd-kit during drag operations.
-    const itemIds = useMemo(() => jobs?.map(j => j.id) || [], [jobs]);
+
+    const scopeKey = `${column.id}:${isStacked ? 'stacked' : 'columns'}:${resetKey}`;
+    const [batchState, setBatchState] = useState({ scope: scopeKey, extra: 0 });
+    const extraCount = batchState.scope === scopeKey ? batchState.extra : 0;
+
+    const highlightedIndex = useMemo(() => {
+        if (!highlightedJobId || !Array.isArray(jobs)) return -1;
+        return jobs.findIndex(j => j && j.id === highlightedJobId);
+    }, [jobs, highlightedJobId]);
+
+    const visibleCount = getVisibleColumnCount({
+        total: jobs?.length || 0,
+        isStacked,
+        isFiltering,
+        extraCount,
+        highlightedIndex
+    });
+
+    const visibleJobs = useMemo(
+        () => (Array.isArray(jobs) ? jobs.slice(0, visibleCount) : []),
+        [jobs, visibleCount]
+    );
+
+    // ⚡ Bolt: Memoize SortableContext items array matching rendered DOM cards
+    const itemIds = useMemo(() => visibleJobs.map(j => j.id), [visibleJobs]);
+    const remainingCount = Math.max(0, (jobs?.length || 0) - visibleJobs.length);
     const dotColor = COLUMN_ACCENTS[column.id] || 'var(--accent-primary)';
 
     return (
         <div
             id={column.id}
             data-agent-column={column.id}
-            className={`glass-panel kanban-column animate-scale-in ${isStacked ? 'kanban-column-stacked' : ''} ${isCollapsed ? 'kanban-column-collapsed' : ''}`}
-            style={{
-                animationDelay: `${index * 60}ms`
-            }}
+            className={`kanban-column ${isStacked ? 'kanban-column-stacked' : ''} ${isCollapsed ? 'kanban-column-collapsed' : ''}`}
         >
             <div
                 className="kanban-column-header"
@@ -213,9 +250,72 @@ const KanbanColumn = memo(({ column, jobs, index, isStacked = false, isCollapsed
                 <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
                     <div className="kanban-cards-list">
                         <ColumnDroppable id={column.id} isEmpty={jobs.length === 0} isStacked={isStacked}>
-                            {jobs.map(job => (
-                                <JobCard key={job.id} job={job} />
+                            {visibleJobs.map((job, idx) => (
+                                <JobCard
+                                    key={job.id}
+                                    job={job}
+                                    hasAiKey={hasAiKey}
+                                    isDeferred={idx >= DEFERRED_CARD_THRESHOLD}
+                                />
                             ))}
+                            {remainingCount > 0 && (
+                                <div
+                                    onPointerDown={e => e.stopPropagation()}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        paddingTop: '4px',
+                                        flexWrap: 'wrap'
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setBatchState({
+                                                scope: scopeKey,
+                                                extra: extraCount + LOAD_MORE_STEP
+                                            })
+                                        }
+                                        style={{
+                                            flex: '1 1 auto',
+                                            padding: '8px 12px',
+                                            borderRadius: '10px',
+                                            border: '1px solid var(--border-subtle)',
+                                            background: 'var(--bg-card)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Load {Math.min(LOAD_MORE_STEP, remainingCount)} more ({remainingCount} remaining)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setBatchState({
+                                                scope: scopeKey,
+                                                extra: jobs.length
+                                            })
+                                        }
+                                        style={{
+                                            padding: '8px 10px',
+                                            borderRadius: '10px',
+                                            border: '1px solid var(--border-subtle)',
+                                            background: 'transparent',
+                                            color: 'var(--accent-primary)',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        Show all ({jobs.length})
+                                    </button>
+                                </div>
+                            )}
                         </ColumnDroppable>
                     </div>
                 </SortableContext>

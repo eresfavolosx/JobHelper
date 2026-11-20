@@ -891,18 +891,15 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                 </div>
             )}
 
-            {/* Horizontal Scrollable Pills */}
+            {/* Search Cycle Filter Pills */}
             <div
                 role="tablist"
                 aria-label="Filter applications by search cycle"
                 style={{
                     display: 'flex',
                     alignItems: 'center',
+                    flexWrap: 'wrap',
                     gap: '6px',
-                    overflowX: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
                     paddingBottom: '2px',
                     width: '100%',
                     maxWidth: '100%',
@@ -935,6 +932,7 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                             : 'var(--text-primary)',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
+                        maxWidth: '100%',
                         flexShrink: 0,
                         transition: 'all 0.15s ease'
                     }}
@@ -982,6 +980,8 @@ export default function CycleFilterBar({ className = '', style = {} }) {
                                 color: isSelected ? '#ffffff' : 'var(--text-primary)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
+                                maxWidth: '100%',
+                                overflow: 'hidden',
                                 flexShrink: 0,
                                 transition: 'all 0.15s ease'
                             }}

@@ -80,14 +80,14 @@ export default function KanbanPage() {
                     zIndex: 45
                 }}
             >
-                <div>
+                <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <h2 style={{ fontSize: 'clamp(1.25rem, 3vw, 1.7rem)', fontWeight: 'bold', lineHeight: 1.2 }}>Application Board</h2>
                     <p className="desktop-only" style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginTop: '2px' }}>
                         Track your pipeline across stages. Drag cards, attach your resume link, or use the Stage selector pill.
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <button
                         type="button"
                         onClick={openNewJobModal}

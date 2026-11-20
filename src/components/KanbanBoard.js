@@ -16,6 +16,7 @@ import JobSettingsBanner from './JobSettingsBanner';
 import CycleFilterBar from './CycleFilterBar';
 import { filterJobsByCycle } from '@/lib/cycle-utils';
 import { evaluateJobMatch, extractJobFacets, sortJobsList, STAGE_LABELS } from '@/lib/job-search';
+import { hasConfiguredAiKey } from '@/lib/subscription';
 
 const COLUMNS = [
     { id: 'wishlist', title: 'Wishlist', dot: '#9DA7AE' },
@@ -46,6 +47,7 @@ export default function KanbanBoard() {
     const cycles = useAppStore(state => state.cycles);
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
     const moveJob = useAppStore(state => state.moveJob);
+    const hasAiKey = useAppStore(state => hasConfiguredAiKey(state.profile));
 
     const jobs = useMemo(() => {
         return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
@@ -98,6 +100,21 @@ export default function KanbanBoard() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    // Synchronize hidden="until-found" attribute cleanly in React 19 with feature detection
+    useEffect(() => {
+        const el = filtersDrawerRef.current;
+        if (!el) return;
+        if (!filtersOpen) {
+            if (typeof HTMLElement !== 'undefined' && 'onbeforematch' in HTMLElement.prototype) {
+                el.setAttribute('hidden', 'until-found');
+            } else {
+                el.setAttribute('hidden', '');
+            }
+        } else {
+            el.removeAttribute('hidden');
+        }
+    }, [filtersOpen, mounted]);
 
     // Synchronize hidden="until-found" native find-in-page reveal
     useEffect(() => {
@@ -259,7 +276,7 @@ export default function KanbanBoard() {
                 element.scrollIntoView({
                     behavior: 'smooth',
                     inline: viewMode === 'columns' ? 'center' : 'nearest',
-                    block: 'nearest'
+                    block: viewMode === 'stacked' ? 'start' : 'nearest'
                 });
             }
         }, 30);
@@ -793,7 +810,7 @@ export default function KanbanBoard() {
                 <div
                     id="board-filters-drawer"
                     ref={filtersDrawerRef}
-                    hidden={!filtersOpen ? 'until-found' : undefined}
+                    hidden={!filtersOpen}
                 >
                     <div
                         style={{
@@ -1056,18 +1073,8 @@ export default function KanbanBoard() {
                     </div>
                 </div>
 
-                {/* Stage Section Quick-Jump Strip (Single compact horizontal row for instant navigation between sections) */}
-                <div
-                    className="board-stage-pills hide-scrollbar"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexWrap: 'nowrap',
-                        overflowX: 'auto',
-                        gap: '6px',
-                        paddingBottom: '2px'
-                    }}
-                >
+                {/* Stage Section Quick-Jump Strip (Wraps evenly on desktop, horizontal scroll on mobile) */}
+                <div className="board-stage-pills hide-scrollbar">
                     {COLUMNS.map(col => {
                         const count = columnsData[col.id]?.length || 0;
                         return (
@@ -1128,23 +1135,26 @@ export default function KanbanBoard() {
                 onWheel={handleBoardWheel}
                 className={`kanban-board ${viewMode === 'stacked' ? 'kanban-board-stacked' : 'kanban-board-columns'}`}
             >
-                {COLUMNS.map((column, index) => (
+                {COLUMNS.map((column) => (
                     <KanbanColumn
                         key={column.id}
                         column={column}
                         jobs={columnsData[column.id] || []}
-                        index={index}
                         isStacked={viewMode === 'stacked'}
                         isCollapsed={isSectionCollapsed(column.id)}
                         onToggleCollapse={viewMode === 'stacked' ? toggleSectionCollapse : undefined}
+                        isFiltering={isFiltering}
+                        highlightedJobId={highlightedJobId}
+                        hasAiKey={hasAiKey}
+                        resetKey={selectedCycleId || 'active'}
                     />
                 ))}
             </div>
 
             <DragOverlay>
-                {activeId ? (
+                {activeId && jobsMap.get(activeId) ? (
                     <div style={{ transform: 'rotate(3deg)' }}>
-                        <JobCard job={jobsMap.get(activeId)} />
+                        <JobCard job={jobsMap.get(activeId)} hasAiKey={hasAiKey} />
                     </div>
                 ) : null}
             </DragOverlay>

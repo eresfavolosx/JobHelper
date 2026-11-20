@@ -20,6 +20,7 @@ import {
 import { clearSession2FAVerification, isSession2FAVerified } from './totp.js';
 import { disconnectGmailAccount } from './gmail-service.js';
 import { clearMapsCache } from './maps-service.js';
+import { shouldSyncLocalProfileCatchup } from './kanban-utils.js';
 
 const APPLIED_AT_CLEANUP_KEY = 'novujobs_appliedAt_cleanup_v1';
 const OCT2_RECONCILE_KEY = 'novujobs_oct2_cycle_reconciled_v2';
@@ -1381,39 +1382,46 @@ export const useAppStore = create(
                                 'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis', 'security2FA'
                             ];
 
-                            if (localTime > remoteTime) {
-                                for (const field of userEditableFields) {
-                                    const localVal = localProfile[field];
-                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
-                                    if (hasLocalVal) {
-                                        mergedProfile[field] = localVal;
+                            if (shouldSyncLocalProfileCatchup({ localTime, remoteTime })) {
+                                if (localTime > remoteTime) {
+                                    for (const field of userEditableFields) {
+                                        const localVal = localProfile[field];
+                                        const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                        if (hasLocalVal) {
+                                            mergedProfile[field] = localVal;
+                                        }
                                     }
-                                }
-                                mergedProfile.updatedAt = localProfile.updatedAt;
-                                needsCloudCatchup = true;
-                            } else {
-                                for (const field of userEditableFields) {
-                                    const localVal = localProfile[field];
-                                    const remoteVal = remoteData[field];
-                                    const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
-                                    const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
-                                    if (hasLocalVal && isRemoteEmpty) {
-                                        mergedProfile[field] = localVal;
-                                        needsCloudCatchup = true;
+                                    mergedProfile.updatedAt = localProfile.updatedAt;
+                                    needsCloudCatchup = true;
+                                } else {
+                                    for (const field of userEditableFields) {
+                                        const localVal = localProfile[field];
+                                        const remoteVal = remoteData[field];
+                                        const hasLocalVal = localVal !== undefined && localVal !== null && localVal !== '';
+                                        const isRemoteEmpty = remoteVal === undefined || remoteVal === null || remoteVal === '';
+                                        if (hasLocalVal && isRemoteEmpty) {
+                                            mergedProfile[field] = localVal;
+                                            needsCloudCatchup = true;
+                                        }
                                     }
                                 }
                             }
 
                             const envGemini = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '').trim() : '';
                             const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
+                            const leakedKeyScrub = {};
 
-                            if (envGemini && String(mergedProfile.geminiApiKey || '').trim() === envGemini) {
+                            if (envGemini && String(remoteData.geminiApiKey || '').trim() === envGemini) {
                                 mergedProfile.geminiApiKey = '';
-                                needsCloudCatchup = true;
+                                leakedKeyScrub.geminiApiKey = '';
+                            } else if (envGemini && String(mergedProfile.geminiApiKey || '').trim() === envGemini) {
+                                mergedProfile.geminiApiKey = '';
                             }
-                            if (envFirebase && String(mergedProfile.googleMapsApiKey || '').trim() === envFirebase) {
+                            if (envFirebase && String(remoteData.googleMapsApiKey || '').trim() === envFirebase) {
                                 mergedProfile.googleMapsApiKey = '';
-                                needsCloudCatchup = true;
+                                leakedKeyScrub.googleMapsApiKey = '';
+                            } else if (envFirebase && String(mergedProfile.googleMapsApiKey || '').trim() === envFirebase) {
+                                mergedProfile.googleMapsApiKey = '';
                             }
 
                             set({ profile: mergedProfile, profileLoaded: true, profileLoadError: null });
@@ -1427,6 +1435,12 @@ export const useAppStore = create(
                                             console.error("[Store] Failed to sync local profile fields to Firestore:", e)
                                         );
                                     }
+                                });
+                            } else if (Object.keys(leakedKeyScrub).length > 0) {
+                                import('firebase/firestore').then(({ setDoc }) => {
+                                    setDoc(profileRef, leakedKeyScrub, { merge: true }).catch(e =>
+                                        console.error("[Store] Failed to scrub leaked env key from Firestore profile:", e)
+                                    );
                                 });
                             }
                         } else {
