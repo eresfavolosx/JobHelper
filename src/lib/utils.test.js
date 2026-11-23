@@ -102,6 +102,45 @@ describe('utils', () => {
       assert.equal(sanitized.resumeUrl, '');
       assert.equal(sanitized.maliciousKey, undefined);
     });
+
+    it('normalizes legacy dates, followUps, tags, cycleNumber, relevanceScore, numeric salary, and invalid previousStatus', () => {
+      const sanitized = sanitizeJobForFirestore({
+        id: '  job-legacy-42  ',
+        status: 'screening',
+        previousStatus: 'invalid_stage',
+        salary: 185000,
+        cycleNumber: '3',
+        relevanceScore: 88.5,
+        tags: ['  Remote ', '', 'AI', null],
+        appliedAt: { seconds: 1700000000, nanoseconds: 0 },
+        updatedAt: 1700000060000,
+        deletedAt: 1700000120000,
+        followUps: [
+          {
+            method: 'linkedin',
+            notes: 'Reached out to hiring manager',
+            date: { seconds: 1700000010, nanoseconds: 0 },
+            extraUnknownKey: 'drop-me'
+          }
+        ]
+      });
+
+      assert.equal(sanitized.id, 'job-legacy-42');
+      assert.equal(sanitized.status, 'screening');
+      assert.equal(sanitized.previousStatus, undefined);
+      assert.equal(sanitized.salary, '185000');
+      assert.equal(sanitized.cycleNumber, 3);
+      assert.equal(sanitized.relevanceScore, 88.5);
+      assert.deepEqual(sanitized.tags, ['Remote', 'AI']);
+      assert.equal(sanitized.appliedAt, new Date(1700000000 * 1000).toISOString());
+      assert.equal(sanitized.updatedAt, new Date(1700000060000).toISOString());
+      assert.equal(sanitized.deletedAt, 1700000120000);
+      assert.equal(sanitized.followUps.length, 1);
+      assert.equal(sanitized.followUps[0].channel, 'linkedin');
+      assert.equal(sanitized.followUps[0].note, 'Reached out to hiring manager');
+      assert.equal(sanitized.followUps[0].date, new Date(1700000010 * 1000).toISOString());
+      assert.equal(sanitized.followUps[0].extraUnknownKey, undefined);
+    });
   });
 
   describe('sanitizeCustomAiBaseUrl & profile RBAC/resume sanitization', () => {

@@ -30,7 +30,7 @@ import OfferAcceptedCycleModal from '@/components/OfferAcceptedCycleModal';
 import AgentModeHud from '@/components/AgentModeHud';
 import TwoFactorGate from '@/components/TwoFactorGate';
 import { AppShellSkeleton } from '@/components/SkeletonLoaders';
-import { isSession2FAVerified } from '@/lib/totp';
+import { is2FAVerified } from '@/lib/totp';
 import { AGENT_SELECTORS, buildAgentSnapshot } from '@/lib/agent-helper';
 
 
@@ -152,7 +152,7 @@ function AuthenticatedLayout({ children }) {
         profileLoaded &&
         profile?.security2FA?.enabled &&
         profile?.security2FA?.secret &&
-        !isSession2FAVerified(user?.uid) &&
+        !is2FAVerified(user?.uid, profile?.security2FA) &&
         !is2FAUnlocked
     );
 

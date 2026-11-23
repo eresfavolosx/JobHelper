@@ -2103,3 +2103,108 @@ html[data-agent-mode="true"] [data-agent-action]:hover {
   color: #10b981;
 }
 
+/* Brand-Consistent Accessible Form Checkbox (Modern accent-color + fallback) */
+.brand-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color-scheme: light dark;
+}
+
+[data-theme="light"] .brand-checkbox-row {
+  color-scheme: light;
+}
+
+[data-theme="dark"] .brand-checkbox-row {
+  color-scheme: dark;
+}
+
+.brand-checkbox-input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.brand-checkbox-input:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.brand-checkbox-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  line-height: 1.35;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.brand-checkbox-hint {
+  margin: 2px 0 0 28px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+@supports not (accent-color: auto) {
+  .brand-checkbox-input {
+    position: absolute;
+    clip-path: inset(50%);
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    white-space: nowrap;
+  }
+
+  .brand-checkbox-label {
+    position: relative;
+    padding-left: 28px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .brand-checkbox-label span::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--text-secondary);
+    background: var(--bg-card);
+    border-radius: 4px;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+
+  .brand-checkbox-input:focus-visible + .brand-checkbox-label span::before {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+  }
+
+  .brand-checkbox-input:checked + .brand-checkbox-label span::before {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+  }
+
+  .brand-checkbox-input:checked + .brand-checkbox-label span::after {
+    content: "✓";
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+}
+

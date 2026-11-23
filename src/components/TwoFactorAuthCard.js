@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     ShieldCheck, ShieldAlert, KeyRound, Copy, Check,
-    RefreshCw, AlertCircle, CheckCircle, Trash2
+    RefreshCw, AlertCircle, CheckCircle, Trash2, Laptop
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { hasGoogleProvider } from '@/lib/account-security';
+import { getRememberSignInPreference } from '@/lib/saved-accounts';
 import {
     generateTotpSecret,
     buildOtpAuthUri,
@@ -16,7 +17,11 @@ import {
     generateBackupCodes,
     getTotpSecondsRemaining,
     markSession2FAVerified,
-    clearSession2FAVerification
+    clearSession2FAVerification,
+    trustCurrent2FADevice,
+    clearTrusted2FADevice,
+    getTrusted2FADeviceInfo,
+    TRUSTED_2FA_CHANGE_EVENT
 } from '@/lib/totp';
 
 export default function TwoFactorAuthCard() {
@@ -46,6 +51,20 @@ export default function TwoFactorAuthCard() {
     const [isConfirmingDisable, setIsConfirmingDisable] = useState(false);
     const [disableCode, setDisableCode] = useState('');
     const [disableError, setDisableError] = useState('');
+    const [trustSetupDevice, setTrustSetupDevice] = useState(() => getRememberSignInPreference());
+    const [revokingAll, setRevokingAll] = useState(false);
+    const [trustRevision, setTrustRevision] = useState(0);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const onTrustChange = () => setTrustRevision(r => r + 1);
+        window.addEventListener(TRUSTED_2FA_CHANGE_EVENT, onTrustChange);
+        window.addEventListener('storage', onTrustChange);
+        return () => {
+            window.removeEventListener(TRUSTED_2FA_CHANGE_EVENT, onTrustChange);
+            window.removeEventListener('storage', onTrustChange);
+        };
+    }, []);
 
     const startSetupFlow = useCallback(() => {
         const secret = generateTotpSecret(32);
@@ -165,7 +184,12 @@ export default function TwoFactorAuthCard() {
                 return;
             }
 
-            markSession2FAVerified(user.uid);
+            if (trustSetupDevice) {
+                trustCurrent2FADevice(user.uid, payload);
+            } else {
+                clearTrusted2FADevice(user.uid);
+                markSession2FAVerified(user.uid);
+            }
             setIsSettingUp(false);
             setStatusMessage({
                 type: 'success',
@@ -225,6 +249,7 @@ export default function TwoFactorAuthCard() {
                 return;
             }
 
+            clearTrusted2FADevice(user.uid);
             clearSession2FAVerification(user.uid);
             setIsConfirmingDisable(false);
             setDisableCode('');
@@ -267,6 +292,66 @@ export default function TwoFactorAuthCard() {
             });
         }
     };
+
+    const handleTrustCurrentDevice = () => {
+        if (!security2FA?.secret || !user?.uid) return;
+        const ok = trustCurrent2FADevice(user.uid, security2FA);
+        if (ok) {
+            setStatusMessage({
+                type: 'success',
+                text: 'This device is now trusted. Future sign-ins on this browser will skip the 2FA prompt.'
+            });
+        }
+    };
+
+    const handleUntrustCurrentDevice = () => {
+        if (!user?.uid) return;
+        clearTrusted2FADevice(user.uid);
+        markSession2FAVerified(user.uid);
+        setStatusMessage({
+            type: 'info',
+            text: 'Removed trusted status for this device. You will be prompted for a 2FA code on the next sign-in here.'
+        });
+    };
+
+    const handleRevokeAllTrustedDevices = async () => {
+        if (!isEnabled || !user?.uid) return;
+        setRevokingAll(true);
+        try {
+            const updatedSecurity2FA = {
+                ...security2FA,
+                enabledAt: new Date().toISOString()
+            };
+            const syncResult = await updateSecurity2FA(updatedSecurity2FA);
+            if (!syncResult?.synced) {
+                setStatusMessage({
+                    type: 'error',
+                    text: syncResult?.error
+                        ? `Could not revoke trusted devices on your account: ${syncResult.error}`
+                        : 'Could not revoke trusted devices on your cloud account. Please try again.'
+                });
+                return;
+            }
+            clearTrusted2FADevice(user.uid);
+            markSession2FAVerified(user.uid);
+            setStatusMessage({
+                type: 'success',
+                text: 'All trusted devices have been revoked. Other devices will need a 2FA code on next sign-in.'
+            });
+        } catch (err) {
+            console.error('[2FA Revoke All] Error:', err);
+            setStatusMessage({
+                type: 'error',
+                text: 'Failed to revoke trusted devices. Please try again.'
+            });
+        } finally {
+            setRevokingAll(false);
+        }
+    };
+
+    const deviceTrustInfo = isEnabled && trustRevision >= 0
+        ? getTrusted2FADeviceInfo(user?.uid, security2FA)
+        : { trusted: false, trustedAt: null };
 
     const otpAuthUri = setupSecret
         ? buildOtpAuthUri(setupSecret, user.email || 'user', 'JobHelper')
@@ -456,10 +541,39 @@ export default function TwoFactorAuthCard() {
                                 {(security2FA.backupCodes || []).length} remaining
                             </span>
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>This Device:</span>
+                            <span style={{ fontWeight: 600, color: deviceTrustInfo.trusted ? 'var(--success)' : 'var(--text-secondary)' }}>
+                                {deviceTrustInfo.trusted
+                                    ? `Trusted (2FA skipped on sign-in${deviceTrustInfo.trustedAt ? ` · since ${new Date(deviceTrustInfo.trustedAt).toLocaleDateString()}` : ''})`
+                                    : 'Not trusted (2FA required on sign-in)'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                            type="button"
+                            onClick={deviceTrustInfo.trusted ? handleUntrustCurrentDevice : handleTrustCurrentDevice}
+                            className="btn-secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '0.84rem' }}
+                        >
+                            <Laptop size={15} />
+                            <span>{deviceTrustInfo.trusted ? 'Remove Trust for This Device' : 'Trust This Device'}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={revokingAll}
+                            onClick={handleRevokeAllTrustedDevices}
+                            className="btn-secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '0.84rem' }}
+                        >
+                            <ShieldAlert size={15} />
+                            <span>{revokingAll ? 'Revoking...' : 'Revoke All Trusted Devices'}</span>
+                        </button>
+
                         <button
                             type="button"
                             onClick={() => setShowBackupCodes(!showBackupCodes)}
@@ -854,13 +968,40 @@ export default function TwoFactorAuthCard() {
                             Step 3: Enter the 6-digit code currently shown in your app
                         </label>
 
+                        <div>
+                            <div className="brand-checkbox-row">
+                                <input
+                                    id="trust-device-setup-2fa"
+                                    name="trustSetupDevice"
+                                    type="checkbox"
+                                    className="brand-checkbox-input"
+                                    checked={trustSetupDevice}
+                                    onChange={(e) => setTrustSetupDevice(e.target.checked)}
+                                    aria-describedby="trust-device-setup-2fa-hint"
+                                />
+                                <label htmlFor="trust-device-setup-2fa" className="brand-checkbox-label">
+                                    <span>Don&apos;t ask for 2FA again on this device</span>
+                                </label>
+                            </div>
+                            <p id="trust-device-setup-2fa-hint" className="brand-checkbox-hint">
+                                Recommended only on your personal devices. You can revoke trusted devices anytime here.
+                            </p>
+                        </div>
+
                         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                             <input
                                 id="verify-totp-input"
+                                name="verifyTotpCode"
                                 type="text"
                                 inputMode="numeric"
                                 pattern="[0-9]*"
                                 maxLength={6}
+                                autoComplete="one-time-code"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                enterKeyHint="done"
+                                aria-invalid={Boolean(setupError)}
                                 placeholder="000000"
                                 value={verifyCode}
                                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}

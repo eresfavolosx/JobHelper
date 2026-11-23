@@ -1,7 +1,7 @@
 import { cleanObject, sanitizeUrl, sanitizeCustomAiBaseUrl } from './utils.js';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot, collection, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from './firebase.js';
 import { canAddJob, isOwner, isProUser, FREE_TIER_MAX_JOBS } from './subscription.js';
 import { resolveAppliedAtForStatusChange, findMiscountedApplications } from './goal-tracker.js';
@@ -17,7 +17,7 @@ import {
     reconcileOctoberSpikeIfNeeded,
     normalizeToDayStartIso
 } from './cycle-utils.js';
-import { clearSession2FAVerification, isSession2FAVerified } from './totp.js';
+import { clearSession2FAVerification, is2FAVerified } from './totp.js';
 import { disconnectGmailAccount } from './gmail-service.js';
 import { clearMapsCache } from './maps-service.js';
 import { shouldSyncLocalProfileCatchup, toProfileTimestampMs } from './kanban-utils.js';
@@ -109,46 +109,44 @@ function runAppliedAtCleanupOnce(userId, cloudJobs, applyLocal) {
 
     console.log(`[Store] Repairing ${repairs.length} job(s) miscounted towards the application goal`);
     applyLocal(repairs);
-    import('firebase/firestore').then(({ setDoc, doc }) => {
-        Promise.all(repairs.map(({ id, appliedAt }) =>
-            setDoc(doc(db, "users", userId, "jobs", id), { appliedAt }, { merge: true })
-        ))
-            .then(markDone)
-            .catch(e => {
-                appliedAtCleanupInFlight.delete(flagKey);
-                console.error("[Store] appliedAt cleanup failed (will retry next load):", e);
-            });
-    });
+    if (!db) {
+        appliedAtCleanupInFlight.delete(flagKey);
+        return;
+    }
+    Promise.all(repairs.map(({ id, appliedAt }) =>
+        setDoc(doc(db, "users", userId, "jobs", id), { appliedAt }, { merge: true })
+    ))
+        .then(markDone)
+        .catch(e => {
+            appliedAtCleanupInFlight.delete(flagKey);
+            console.error("[Store] appliedAt cleanup failed (will retry next load):", e);
+        });
 }
 
 function saveCyclesToFirestore(userId, cycles, extra = {}) {
-    if (typeof window === 'undefined' || !userId || !Array.isArray(cycles)) return;
-    import('firebase/firestore').then(({ setDoc, doc }) => {
-        const cyclesRef = doc(db, "users", userId, "data", "cycles");
-        const payload = cleanObject({
-            list: cycles,
-            updatedAt: new Date().toISOString(),
-            ...extra
-        });
-        setDoc(cyclesRef, payload, { merge: true })
-            .catch(e => console.error("[Store] Failed to save cycles:", e));
-    }).catch(e => console.error("[Store] Import failed for saveCyclesToFirestore:", e));
+    if (typeof window === 'undefined' || !db || !userId || !Array.isArray(cycles)) return;
+    const cyclesRef = doc(db, "users", userId, "data", "cycles");
+    const payload = cleanObject({
+        list: cycles,
+        updatedAt: new Date().toISOString(),
+        ...extra
+    });
+    setDoc(cyclesRef, payload, { merge: true })
+        .catch(e => console.error("[Store] Failed to save cycles:", e));
 }
 
 function saveJobCycleAssignmentsToFirestore(userId, jobs, changedJobIds) {
-    if (typeof window === 'undefined' || !userId || !Array.isArray(changedJobIds) || changedJobIds.length === 0) return;
+    if (typeof window === 'undefined' || !db || !userId || !Array.isArray(changedJobIds) || changedJobIds.length === 0) return;
     const byId = new Map((jobs || []).map(j => [j?.id, j]));
-    import('firebase/firestore').then(({ setDoc, doc }) => {
-        changedJobIds.forEach(jobId => {
-            const job = byId.get(jobId);
-            if (!job) return;
-            const jobRef = doc(db, "users", userId, "jobs", jobId);
-            setDoc(jobRef, {
-                cycleId: job.cycleId || null,
-                cycleNumber: Number.isInteger(job.cycleNumber) ? job.cycleNumber : Number(job.cycleNumber) || 1
-            }, { merge: true }).catch(e => console.error("[Store] Failed to reassign job cycle:", e));
-        });
-    }).catch(e => console.error("[Store] Import failed for saveJobCycleAssignmentsToFirestore:", e));
+    changedJobIds.forEach(jobId => {
+        const job = byId.get(jobId);
+        if (!job) return;
+        const jobRef = doc(db, "users", userId, "jobs", jobId);
+        setDoc(jobRef, {
+            cycleId: job.cycleId || null,
+            cycleNumber: Number.isInteger(job.cycleNumber) ? job.cycleNumber : Number(job.cycleNumber) || 1
+        }, { merge: true }).catch(e => console.error("[Store] Failed to reassign job cycle:", e));
+    });
 }
 
 const VALID_TRANSITION_EVENT_TYPES = new Set([
@@ -450,6 +448,64 @@ export function sanitizeProfileForFirestore(rawProfile, options = {}) {
 }
 
 const URL_JOB_FIELDS = new Set(['url', 'link', 'resumeUrl']);
+const JOB_DATE_KEYS = new Set([
+    'createdAt', 'dateAdded', 'updatedAt', 'appliedAt', 'lastFollowUpAt', 'lastInteraction'
+]);
+const JOB_DATETIME_OR_NUMBER_KEYS = new Set(['deletedAt', 'archivedAt']);
+
+export function normalizeJobDateForFirestore(value, { allowNumber = false } = {}) {
+    if (value === null) return null;
+    if (typeof value === 'string') return value.slice(0, 100);
+    if (value && typeof value === 'object') {
+        if (typeof value.toDate === 'function') {
+            return value;
+        }
+        if (typeof value.seconds === 'number' && Number.isFinite(value.seconds)) {
+            const ms = value.seconds * 1000 + Math.floor((Number(value.nanoseconds) || 0) / 1e6);
+            return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined;
+        }
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? undefined : value.toISOString();
+        }
+        return undefined;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return allowNumber ? value : new Date(value).toISOString();
+    }
+    return undefined;
+}
+
+export function sanitizeFollowUpsForFirestore(rawFollowUps) {
+    if (rawFollowUps === null) return null;
+    if (!Array.isArray(rawFollowUps)) return undefined;
+    const out = [];
+    for (let i = 0; i < rawFollowUps.length && out.length < 100; i++) {
+        const item = rawFollowUps[i];
+        if (!item || typeof item !== 'object') continue;
+        const fallbackId = `fu-${i}-${Date.now()}`;
+        const rawId = item.id !== undefined && item.id !== null ? String(item.id).trim() : '';
+        const id = (rawId || fallbackId).slice(0, 100);
+        const date = normalizeJobDateForFirestore(
+            item.date ?? item.createdAt,
+            { allowNumber: false }
+        ) || new Date().toISOString();
+        const entry = { id, date };
+        const channel = item.channel !== undefined ? item.channel : item.method;
+        if (channel !== undefined && channel !== null) {
+            entry.channel = String(channel).slice(0, 50);
+        }
+        const note = item.note !== undefined ? item.note : item.notes;
+        if (note !== undefined && note !== null) {
+            entry.note = String(note).slice(0, 2000);
+        }
+        const createdAt = normalizeJobDateForFirestore(item.createdAt, { allowNumber: false });
+        if (createdAt !== undefined) {
+            entry.createdAt = createdAt;
+        }
+        out.push(entry);
+    }
+    return out;
+}
 
 export function sanitizeJobForFirestore(rawJob) {
     if (!rawJob || typeof rawJob !== 'object') return {};
@@ -458,7 +514,12 @@ export function sanitizeJobForFirestore(rawJob) {
         if (!ALLOWED_JOB_KEYS.has(key)) continue;
         const val = rawJob[key];
         if (val === undefined) continue;
-        if (key === 'status') {
+        if (key === 'id') {
+            const trimmedId = typeof val === 'string' ? val.trim() : '';
+            if (trimmedId) {
+                cleaned[key] = trimmedId.slice(0, 100);
+            }
+        } else if (key === 'status') {
             cleaned[key] = VALID_JOB_STATUSES.has(val) ? val : 'wishlist';
         } else if (key === 'previousStatus') {
             if (val === null) {
@@ -476,8 +537,43 @@ export function sanitizeJobForFirestore(rawJob) {
             cleaned[key] = val === null ? null : sliceUtf8Bytes(val, 200000);
         } else if (key === 'notes') {
             cleaned[key] = val === null ? null : sliceUtf8Bytes(String(val).slice(0, 10000), 15000);
-        } else if (typeof val === 'string' && JOB_STRING_LIMITS[key]) {
-            cleaned[key] = val.slice(0, JOB_STRING_LIMITS[key]);
+        } else if (key === 'tags') {
+            cleaned[key] = val === null ? null : sanitizeBoundedStringList(val, 25, 80);
+        } else if (key === 'followUps') {
+            const sanitizedFollowUps = sanitizeFollowUpsForFirestore(val);
+            if (sanitizedFollowUps !== undefined) {
+                cleaned[key] = sanitizedFollowUps;
+            }
+        } else if (key === 'cycleNumber') {
+            if (val === null) {
+                cleaned[key] = null;
+            } else {
+                const num = Number(val);
+                if (typeof val !== 'boolean' && val !== '' && Number.isFinite(num)) {
+                    const truncated = Math.trunc(num);
+                    if (truncated >= 1 && truncated <= 10000) {
+                        cleaned[key] = truncated;
+                    }
+                }
+            }
+        } else if (key === 'relevanceScore') {
+            if (val === null) {
+                cleaned[key] = null;
+            } else if (typeof val === 'number' && Number.isFinite(val) && val >= 0 && val <= 100) {
+                cleaned[key] = val;
+            }
+        } else if (JOB_DATE_KEYS.has(key)) {
+            const normalizedDate = normalizeJobDateForFirestore(val, { allowNumber: false });
+            if (normalizedDate !== undefined) {
+                cleaned[key] = normalizedDate;
+            }
+        } else if (JOB_DATETIME_OR_NUMBER_KEYS.has(key)) {
+            const normalizedDate = normalizeJobDateForFirestore(val, { allowNumber: true });
+            if (normalizedDate !== undefined) {
+                cleaned[key] = normalizedDate;
+            }
+        } else if (JOB_STRING_LIMITS[key]) {
+            cleaned[key] = val === null ? null : String(val).slice(0, JOB_STRING_LIMITS[key]);
         } else {
             cleaned[key] = val;
         }
@@ -525,6 +621,8 @@ export const useAppStore = create(
             currentUserId: null, // Track which user's data this is
             profileLoaded: false,
             profileLoadError: null,
+            jobSyncError: null,
+            clearJobSyncError: () => set({ jobSyncError: null }),
 
             // Cycle Management Actions
             setSelectedCycleId: (cycleId) => set({ selectedCycleId: cycleId }),
@@ -768,7 +866,7 @@ export const useAppStore = create(
                 // Do nothing if same user (only reset profileLoaded so fresh Firestore snapshot gates 2FA)
                 if (currentUserId === userId) {
                     console.log("Same user, resetting profileLoaded until fresh snapshot");
-                    set({ profileLoaded: false, profileLoadError: null });
+                    set({ profileLoaded: false, profileLoadError: null, jobSyncError: null });
                     return;
                 }
 
@@ -788,6 +886,7 @@ export const useAppStore = create(
                     offerCelebrationModal: null,
                     profileLoaded: false,
                     profileLoadError: null,
+                    jobSyncError: null,
                     profile: { ...DEFAULT_PROFILE },
                     currentUserId: userId
                 });
@@ -809,6 +908,7 @@ export const useAppStore = create(
                     currentUserId: null,
                     profileLoaded: false,
                     profileLoadError: null,
+                    jobSyncError: null,
                     profile: { ...DEFAULT_PROFILE }
                 });
             },
@@ -884,17 +984,23 @@ export const useAppStore = create(
                 }
 
                 // Persist to Firestore
-                if (userId) {
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                        const jobRef = doc(db, "users", userId, "jobs", newJob.id);
-                        const cleanJob = sanitizeJobForFirestore(cleanObject(newJob));
-                        setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("[Store] Failed to save new job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId) {
+                    const jobRef = doc(db, "users", userId, "jobs", newJob.id);
+                    const cleanJob = sanitizeJobForFirestore(cleanObject(newJob));
+                    setDoc(jobRef, cleanJob, { merge: true })
+                        .then(() => {
+                            if (get().jobSyncError) set({ jobSyncError: null });
+                        })
+                        .catch(e => {
+                            console.error("[Store] Failed to save new job:", e);
+                            set({ jobSyncError: 'Could not save new job to Firestore. Please try again.' });
+                        });
                 }
                 return newJob;
             },
             updateJob: (id, updates) => {
                 const existingJob = get().jobs.find(j => j?.id === id);
+                const previousJob = existingJob ? { ...existingJob } : null;
                 const nowIso = new Date().toISOString();
                 const resolvedAppliedAt = updates?.status && !updates.appliedAt
                     ? resolveAppliedAtForStatusChange(existingJob, updates.status, nowIso)
@@ -945,12 +1051,22 @@ export const useAppStore = create(
                 set((state) => ({
                     jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...enrichedUpdates } : job))
                 }));
-                if (userId) {
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                        const jobRef = doc(db, "users", userId, "jobs", id);
-                        const cleanUpdates = sanitizeJobForFirestore(cleanObject(enrichedUpdates));
-                        setDoc(jobRef, cleanUpdates, { merge: true }).catch(e => console.error("[Store] Failed to update job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    const jobRef = doc(db, "users", userId, "jobs", id);
+                    const cleanUpdates = sanitizeJobForFirestore(cleanObject(enrichedUpdates));
+                    if (Object.keys(cleanUpdates).length > 0) {
+                        setDoc(jobRef, cleanUpdates, { merge: true })
+                            .then(() => {
+                                if (get().jobSyncError) set({ jobSyncError: null });
+                            })
+                            .catch(e => {
+                                console.error("[Store] Failed to update job:", e);
+                                set((state) => ({
+                                    jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
+                                    jobSyncError: 'Could not save job update to Firestore. Please try again.'
+                                }));
+                            });
+                    }
                 }
             },
             logJobFollowUp: (id, followUpData = {}) => {
@@ -997,6 +1113,7 @@ export const useAppStore = create(
             },
             archiveJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
+                const previousJob = job ? { ...job } : null;
                 const previousStatus = (job?.status && job.status !== 'archived' && job.status !== 'deleted')
                     ? job.status
                     : (job?.previousStatus || 'wishlist');
@@ -1013,43 +1130,63 @@ export const useAppStore = create(
                     )
                 }));
                 const userId = get().currentUserId || auth?.currentUser?.uid;
-                if (userId) {
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                        setDoc(doc(db, "users", userId, "jobs", id), updates, { merge: true })
-                            .catch(e => console.error("[Store] Failed to archive job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    const cleanUpdates = sanitizeJobForFirestore(cleanObject(updates));
+                    setDoc(doc(db, "users", userId, "jobs", id), cleanUpdates, { merge: true })
+                        .then(() => {
+                            if (get().jobSyncError) set({ jobSyncError: null });
+                        })
+                        .catch(e => {
+                            console.error("[Store] Failed to archive job:", e);
+                            set((state) => ({
+                                jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
+                                jobSyncError: 'Could not save job update to Firestore. Please try again.'
+                            }));
+                        });
                 }
             },
             deleteJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
+                const previousJob = job ? { ...job } : null;
                 const previousStatus = (job?.status && job.status !== 'deleted')
                     ? job.status
                     : (job?.previousStatus || 'wishlist');
-                const updates = { status: 'deleted', deletedAt: new Date().toISOString(), previousStatus };
+                const nowIso = new Date().toISOString();
+                const updates = { status: 'deleted', deletedAt: nowIso, updatedAt: nowIso, previousStatus };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
                         j.id === id ? { ...j, ...updates } : j
                     )
                 }));
                 const userId = get().currentUserId || auth?.currentUser?.uid;
-                if (userId) {
-                    import('firebase/firestore').then(({ updateDoc, doc }) => {
-                        updateDoc(doc(db, "users", userId, "jobs", id), updates)
-                            .catch(e => console.error("[Store] Failed to soft-delete job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    const cleanUpdates = sanitizeJobForFirestore(cleanObject(updates));
+                    setDoc(doc(db, "users", userId, "jobs", id), cleanUpdates, { merge: true })
+                        .then(() => {
+                            if (get().jobSyncError) set({ jobSyncError: null });
+                        })
+                        .catch(e => {
+                            console.error("[Store] Failed to soft-delete job:", e);
+                            set((state) => ({
+                                jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
+                                jobSyncError: 'Could not save job update to Firestore. Please try again.'
+                            }));
+                        });
                 }
             },
             restoreJob: (id) => {
                 const job = get().jobs.find(j => j?.id === id);
+                const previousJob = job ? { ...job } : null;
                 const targetStatus = (job?.previousStatus && job.previousStatus !== 'deleted' && job.previousStatus !== 'archived')
                     ? job.previousStatus
                     : 'wishlist';
+                const nowIso = new Date().toISOString();
                 const updates = {
                     status: targetStatus,
                     deletedAt: null,
                     archivedAt: null,
                     previousStatus: null,
-                    updatedAt: new Date().toISOString()
+                    updatedAt: nowIso
                 };
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
@@ -1057,16 +1194,24 @@ export const useAppStore = create(
                     )
                 }));
                 const userId = get().currentUserId || auth?.currentUser?.uid;
-                if (userId) {
-                    import('firebase/firestore').then(({ updateDoc, doc, deleteField }) => {
-                        updateDoc(doc(db, "users", userId, "jobs", id), {
-                            status: updates.status,
-                            updatedAt: updates.updatedAt,
-                            deletedAt: deleteField(),
-                            archivedAt: deleteField(),
-                            previousStatus: deleteField()
-                        }).catch(e => console.error("[Store] Failed to restore job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    setDoc(doc(db, "users", userId, "jobs", id), {
+                        status: updates.status,
+                        updatedAt: updates.updatedAt,
+                        deletedAt: deleteField(),
+                        archivedAt: deleteField(),
+                        previousStatus: deleteField()
+                    }, { merge: true })
+                        .then(() => {
+                            if (get().jobSyncError) set({ jobSyncError: null });
+                        })
+                        .catch(e => {
+                            console.error("[Store] Failed to restore job:", e);
+                            set((state) => ({
+                                jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
+                                jobSyncError: 'Could not save job update to Firestore. Please try again.'
+                            }));
+                        });
                 }
             },
             permanentDeleteJob: (id) => {
@@ -1074,11 +1219,9 @@ export const useAppStore = create(
                     jobs: state.jobs.filter((job) => job?.id !== id)
                 }));
                 const userId = get().currentUserId || auth?.currentUser?.uid;
-                if (userId) {
-                    import('firebase/firestore').then(({ deleteDoc, doc }) => {
-                        deleteDoc(doc(db, "users", userId, "jobs", id))
-                            .catch(e => console.error("[Store] Failed to permanently delete job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    deleteDoc(doc(db, "users", userId, "jobs", id))
+                        .catch(e => console.error("[Store] Failed to permanently delete job:", e));
                 }
             },
             moveJob: (id, newStatus) => {
@@ -1091,6 +1234,7 @@ export const useAppStore = create(
                     return;
                 }
                 const existingJob = get().jobs.find(j => j?.id === id);
+                const previousJob = existingJob ? { ...existingJob } : null;
                 const nowIso = new Date().toISOString();
                 const resolvedAppliedAt = resolveAppliedAtForStatusChange(existingJob, newStatus, nowIso);
                 const shouldRecordPrevStatus = Boolean(
@@ -1143,11 +1287,18 @@ export const useAppStore = create(
                 set((state) => ({
                     jobs: state.jobs.map((job) => (job?.id === id ? { ...job, ...updates } : job))
                 }));
-                if (userId) {
-                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                        setDoc(doc(db, "users", userId, "jobs", id), sanitizeJobForFirestore(cleanObject(updates)), { merge: true })
-                            .catch(e => console.error("[Store] Failed to move job:", e));
-                    });
+                if (typeof window !== 'undefined' && db && userId && id) {
+                    setDoc(doc(db, "users", userId, "jobs", id), sanitizeJobForFirestore(cleanObject(updates)), { merge: true })
+                        .then(() => {
+                            if (get().jobSyncError) set({ jobSyncError: null });
+                        })
+                        .catch(e => {
+                            console.error("[Store] Failed to move job:", e);
+                            set((state) => ({
+                                jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
+                                jobSyncError: 'Could not save job update to Firestore. Please try again.'
+                            }));
+                        });
                 }
             },
 
@@ -1183,11 +1334,10 @@ export const useAppStore = create(
                     profile: { ...state.profile, ...payloadWithTimestamp }
                 }));
                 const userId = currentUser?.uid || get().currentUserId;
-                if (!userId) {
+                if (!db || !userId) {
                     return { success: false, synced: false, error: 'Not signed in.' };
                 }
                 try {
-                    const { setDoc, doc } = await import('firebase/firestore');
                     const profileRef = doc(db, "users", userId, "data", "profile");
                     const cleanProfile = sanitizeProfileForFirestore(
                         payloadWithTimestamp,
@@ -1207,7 +1357,7 @@ export const useAppStore = create(
             },
             updateSecurity2FA: async (nextSecurity2FA) => {
                 const userId = auth?.currentUser?.uid || get().currentUserId;
-                if (!userId) {
+                if (!db || !userId) {
                     return {
                         success: false,
                         synced: false,
@@ -1219,7 +1369,6 @@ export const useAppStore = create(
                     updatedAt: new Date().toISOString()
                 });
                 try {
-                    const { setDoc, doc } = await import('firebase/firestore');
                     const securityRef = doc(db, "users", userId, "data", "security");
                     await setDoc(securityRef, cleanSec);
                     set((state) => ({
@@ -1325,7 +1474,7 @@ export const useAppStore = create(
                     if (unsubscribed || dataListenersStarted) return;
                     const currentProfile = get().profile;
                     const has2FA = Boolean(currentProfile?.security2FA?.enabled && currentProfile?.security2FA?.secret);
-                    if (has2FA && !isSession2FAVerified(userId)) {
+                    if (has2FA && !is2FAVerified(userId, currentProfile?.security2FA)) {
                         return;
                     }
                     dataListenersStarted = true;
@@ -1338,7 +1487,7 @@ export const useAppStore = create(
                             const firestoreJobs = [];
                             const currentSnapshotIds = new Set();
                             snapshot.forEach(docSnap => {
-                                firestoreJobs.push({ id: docSnap.id, ...docSnap.data() });
+                                firestoreJobs.push({ ...docSnap.data(), id: docSnap.id });
                                 currentSnapshotIds.add(docSnap.id);
                             });
                             set(state => {
@@ -1350,14 +1499,12 @@ export const useAppStore = create(
 
                                 currentSnapshotIds.forEach(id => syncedCloudJobIds.add(id));
 
-                                if (localOnlyJobs.length > 0 && userId) {
+                                if (localOnlyJobs.length > 0 && db && userId) {
                                     console.log("[Store] Uploading", localOnlyJobs.length, "local jobs to cloud");
-                                    import('firebase/firestore').then(({ setDoc, doc }) => {
-                                        localOnlyJobs.forEach(job => {
-                                            const jobRef = doc(db, "users", userId, "jobs", job.id);
-                                            const cleanJob = sanitizeJobForFirestore(cleanObject(job));
-                                            setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
-                                        });
+                                    localOnlyJobs.forEach(job => {
+                                        const jobRef = doc(db, "users", userId, "jobs", job.id);
+                                        const cleanJob = sanitizeJobForFirestore(cleanObject(job));
+                                        setDoc(jobRef, cleanJob, { merge: true }).catch(e => console.error("Sync up failed:", e));
                                     });
                                 }
 
@@ -1463,11 +1610,9 @@ export const useAppStore = create(
                             ) {
                                 const migratedSec = sanitizeSecurity2FA(remoteData.security2FA);
                                 if (migratedSec) {
-                                    import('firebase/firestore').then(({ setDoc }) => {
-                                        setDoc(securityRef, migratedSec).catch(e =>
-                                            console.error("[Store] Failed to migrate profile security2FA to /data/security:", e)
-                                        );
-                                    });
+                                    setDoc(securityRef, migratedSec).catch(e =>
+                                        console.error("[Store] Failed to migrate profile security2FA to /data/security:", e)
+                                    );
                                 }
                             }
 
@@ -1493,21 +1638,17 @@ export const useAppStore = create(
                             finalizeInitialSecurityAndProfile();
 
                             if (needsCloudCatchup) {
-                                import('firebase/firestore').then(({ setDoc }) => {
-                                    const cleanMerged = sanitizeProfileForFirestore(mergedProfile, { allowSubscriptionFields: false });
-                                    delete cleanMerged.security2FA;
-                                    if (Object.keys(cleanMerged).length > 0) {
-                                        setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
-                                            console.error("[Store] Failed to sync local profile fields to Firestore:", e)
-                                        );
-                                    }
-                                });
-                            } else if (Object.keys(leakedKeyScrub).length > 0) {
-                                import('firebase/firestore').then(({ setDoc }) => {
-                                    setDoc(profileRef, leakedKeyScrub, { merge: true }).catch(e =>
-                                        console.error("[Store] Failed to scrub leaked env key from Firestore profile:", e)
+                                const cleanMerged = sanitizeProfileForFirestore(mergedProfile, { allowSubscriptionFields: false });
+                                delete cleanMerged.security2FA;
+                                if (Object.keys(cleanMerged).length > 0) {
+                                    setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
+                                        console.error("[Store] Failed to sync local profile fields to Firestore:", e)
                                     );
-                                });
+                                }
+                            } else if (Object.keys(leakedKeyScrub).length > 0) {
+                                setDoc(profileRef, leakedKeyScrub, { merge: true }).catch(e =>
+                                    console.error("[Store] Failed to scrub leaked env key from Firestore profile:", e)
+                                );
                             }
                         } else {
                             console.log("[Store] No profile data in Firestore yet - initializing trial");
@@ -1528,13 +1669,11 @@ export const useAppStore = create(
                             set({ profile: initialProfile });
                             hasProfileSnapshot = true;
                             finalizeInitialSecurityAndProfile();
-                            import('firebase/firestore').then(({ setDoc }) => {
-                                const cleanInitial = sanitizeProfileForFirestore(initialProfile, {
-                                    allowSubscriptionFields: true,
-                                    isAdmin
-                                });
-                                setDoc(profileRef, cleanInitial, { merge: true }).catch(e => console.error("Failed to init trial:", e));
+                            const cleanInitial = sanitizeProfileForFirestore(initialProfile, {
+                                allowSubscriptionFields: true,
+                                isAdmin
                             });
+                            setDoc(profileRef, cleanInitial, { merge: true }).catch(e => console.error("Failed to init trial:", e));
                         }
                     },
                     (error) => {
@@ -1559,11 +1698,9 @@ export const useAppStore = create(
                             if (legacySec?.enabled && legacySec?.secret) {
                                 const migratedSec = sanitizeSecurity2FA(legacySec);
                                 if (migratedSec) {
-                                    import('firebase/firestore').then(({ setDoc }) => {
-                                        setDoc(securityRef, migratedSec).catch(e =>
-                                            console.error("[Store] Failed to auto-migrate legacy security2FA:", e)
-                                        );
-                                    });
+                                    setDoc(securityRef, migratedSec).catch(e =>
+                                        console.error("[Store] Failed to auto-migrate legacy security2FA:", e)
+                                    );
                                 }
                             }
                         }

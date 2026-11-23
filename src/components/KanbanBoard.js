@@ -8,7 +8,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } fr
 import {
     ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, X,
     Clock, FileText, Sparkles, SlidersHorizontal, Columns3, Rows3,
-    Archive, Building2, MapPin, DollarSign, ArrowUpDown, BarChart3
+    Archive, Building2, MapPin, DollarSign, ArrowUpDown, BarChart3, AlertCircle
 } from 'lucide-react';
 import JobCard from './JobCard';
 import KanbanColumn from './KanbanColumn';
@@ -50,6 +50,8 @@ export default function KanbanBoard() {
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
     const moveJob = useAppStore(state => state.moveJob);
     const hasAiKey = useAppStore(state => hasConfiguredAiKey(state.profile));
+    const jobSyncError = useAppStore(state => state.jobSyncError);
+    const clearJobSyncError = useAppStore(state => state.clearJobSyncError);
 
     const jobs = useMemo(() => {
         return filterJobsByCycle(rawJobs, cycles, selectedCycleId);
@@ -357,6 +359,45 @@ export default function KanbanBoard() {
             }}>
                 {/* Search Cycles Selector */}
                 <CycleFilterBar />
+
+                {jobSyncError && (
+                    <div
+                        role="alert"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            background: 'rgba(200, 90, 62, 0.14)',
+                            border: '1px solid rgba(200, 90, 62, 0.4)',
+                            color: 'var(--error)',
+                            fontSize: '0.8rem',
+                            fontWeight: 600
+                        }}
+                    >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                            <span>{jobSyncError}</span>
+                        </span>
+                        <button
+                            type="button"
+                            onClick={clearJobSyncError}
+                            aria-label="Dismiss save error"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--error)',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'inline-flex'
+                            }}
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
 
                 {/* Row 1: Instant Board Search Input + Parameter Filters Toggle + View Switcher */}
                 <div style={{

@@ -593,6 +593,86 @@ service cloud.firestore {
                data.relevanceScore >= 0 && data.relevanceScore <= 100));
     }
 
+    function isValidJobUpdate(current, incoming, jobId) {
+      let changed = incoming.diff(current).affectedKeys();
+      return isBoundedString(jobId, 1, 100) &&
+             changed.hasOnly([
+               'id', 'role', 'title', 'company', 'location', 'salary',
+               'url', 'link', 'description', 'notes', 'commuteTime',
+               'relevanceScore', 'matchReason', 'status', 'createdAt',
+               'dateAdded', 'updatedAt', 'appliedAt', 'deletedAt', 'archivedAt',
+               'previousStatus', 'source', 'pubDate', 'tags',
+               'resumeUrl', 'resumeName',
+               'cycleId', 'cycleNumber', 'followUps', 'lastFollowUpAt', 'lastInteraction'
+             ]) &&
+             ('status' in incoming &&
+              incoming.status is string &&
+              incoming.status in [
+                'wishlist', 'applied', 'screening', 'interviewing',
+                'offer', 'accepted', 'rejected', 'archived', 'deleted'
+              ]) &&
+             (!changed.hasAny(['previousStatus']) ||
+              !('previousStatus' in incoming) ||
+              incoming.previousStatus == null ||
+              (incoming.previousStatus is string &&
+               incoming.previousStatus in [
+                 'wishlist', 'applied', 'screening', 'interviewing',
+                 'offer', 'accepted', 'rejected', 'archived'
+               ])) &&
+             (!changed.hasAny(['id']) ||
+              !('id' in incoming) ||
+              (incoming.id is string &&
+               incoming.id.size() >= 1 &&
+               incoming.id.size() <= 100 &&
+               incoming.id == jobId)) &&
+             (!changed.hasAny(['role']) || isValidOptionalString(incoming, 'role', 0, 200)) &&
+             (!changed.hasAny(['title']) || isValidOptionalString(incoming, 'title', 0, 200)) &&
+             (!changed.hasAny(['company']) || isValidOptionalString(incoming, 'company', 0, 200)) &&
+             (!changed.hasAny(['location']) || isValidOptionalString(incoming, 'location', 0, 200)) &&
+             (!changed.hasAny(['salary']) || isValidOptionalString(incoming, 'salary', 0, 100)) &&
+             (!changed.hasAny(['url']) || isValidOptionalString(incoming, 'url', 0, 2048)) &&
+             (!changed.hasAny(['link']) || isValidOptionalString(incoming, 'link', 0, 2048)) &&
+             (!changed.hasAny(['description']) || isValidOptionalString(incoming, 'description', 0, 200000)) &&
+             (!changed.hasAny(['notes']) ||
+              !('notes' in incoming) ||
+              incoming.notes == null ||
+              (isBoundedString(incoming.notes, 0, 10000) &&
+               isBoundedUtf8String(incoming.notes, 0, 15000))) &&
+             (!changed.hasAny(['commuteTime']) || isValidOptionalString(incoming, 'commuteTime', 0, 200)) &&
+             (!changed.hasAny(['matchReason']) || isValidOptionalString(incoming, 'matchReason', 0, 2000)) &&
+             (!changed.hasAny(['source']) || isValidOptionalString(incoming, 'source', 0, 100)) &&
+             (!changed.hasAny(['pubDate']) || isValidOptionalString(incoming, 'pubDate', 0, 100)) &&
+             (!changed.hasAny(['resumeUrl']) || isValidOptionalString(incoming, 'resumeUrl', 0, 2048)) &&
+             (!changed.hasAny(['resumeName']) || isValidOptionalString(incoming, 'resumeName', 0, 200)) &&
+             (!changed.hasAny(['cycleId']) || isValidOptionalString(incoming, 'cycleId', 0, 100)) &&
+             (!changed.hasAny(['cycleNumber']) ||
+              !('cycleNumber' in incoming) ||
+              incoming.cycleNumber == null ||
+              (incoming.cycleNumber is int && incoming.cycleNumber >= 1 && incoming.cycleNumber <= 10000)) &&
+             (!changed.hasAny(['createdAt']) || isValidDateOrTimestamp(incoming, 'createdAt')) &&
+             (!changed.hasAny(['dateAdded']) || isValidDateOrTimestamp(incoming, 'dateAdded')) &&
+             (!changed.hasAny(['updatedAt']) || isValidDateOrTimestamp(incoming, 'updatedAt')) &&
+             (!changed.hasAny(['appliedAt']) || isValidDateOrTimestamp(incoming, 'appliedAt')) &&
+             (!changed.hasAny(['lastFollowUpAt']) || isValidDateOrTimestamp(incoming, 'lastFollowUpAt')) &&
+             (!changed.hasAny(['lastInteraction']) || isValidDateOrTimestamp(incoming, 'lastInteraction')) &&
+             (!changed.hasAny(['deletedAt']) || isValidDateTimestampOrNumber(incoming, 'deletedAt')) &&
+             (!changed.hasAny(['archivedAt']) || isValidDateTimestampOrNumber(incoming, 'archivedAt')) &&
+             (!changed.hasAny(['tags']) || isValidOptionalStringList(incoming, 'tags', 25, 80)) &&
+             (!changed.hasAny(['followUps']) ||
+              !('followUps' in incoming) ||
+              incoming.followUps == null ||
+              (incoming.followUps is list &&
+               incoming.followUps.size() <= 100 &&
+               (incoming.followUps.size() == 0 ||
+                (isValidFollowUpItem(incoming.followUps[0]) &&
+                 isValidFollowUpItem(incoming.followUps[incoming.followUps.size() - 1]))))) &&
+             (!changed.hasAny(['relevanceScore']) ||
+              !('relevanceScore' in incoming) ||
+              incoming.relevanceScore == null ||
+              ((incoming.relevanceScore is int || incoming.relevanceScore is float) &&
+               incoming.relevanceScore >= 0 && incoming.relevanceScore <= 100));
+    }
+
     function isJobUpdateImmutable(current, incoming) {
       return (!('id' in current) || (('id' in incoming) && incoming.id == current.id)) &&
              (!('createdAt' in current) || (('createdAt' in incoming) && incoming.createdAt == current.createdAt)) &&
@@ -979,7 +1059,7 @@ service cloud.firestore {
         allow create: if isOwner(userId) &&
                         isValidJob(request.resource.data, jobId);
         allow update: if isOwner(userId) &&
-                        isValidJob(request.resource.data, jobId) &&
+                        isValidJobUpdate(resource.data, request.resource.data, jobId) &&
                         isJobUpdateImmutable(resource.data, request.resource.data);
         allow delete: if isOwner(userId);
       }

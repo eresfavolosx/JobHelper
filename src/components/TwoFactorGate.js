@@ -8,8 +8,11 @@ import {
     verifyAndConsumeBackupCode,
     getTotpSecondsRemaining,
     markSession2FAVerified,
-    clearSession2FAVerification
+    clearSession2FAVerification,
+    trustCurrent2FADevice,
+    clearTrusted2FADevice
 } from '@/lib/totp';
+import { getRememberSignInPreference } from '@/lib/saved-accounts';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -59,6 +62,7 @@ export default function TwoFactorGate({ onUnlocked }) {
     const [code, setCode] = useState('');
     const [isBackupMode, setIsBackupMode] = useState(false);
     const [backupCode, setBackupCode] = useState('');
+    const [trustDevice, setTrustDevice] = useState(() => getRememberSignInPreference());
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(() => getTotpSecondsRemaining());
@@ -128,18 +132,25 @@ export default function TwoFactorGate({ onUnlocked }) {
                     return;
                 }
 
-                // Update remaining backup codes in dedicated /data/security Firestore document
-                const syncResult = await updateSecurity2FA({
+                const nextSecurity2FA = {
                     ...security2FA,
                     backupCodes: result.remainingCodes
-                });
-                if (syncResult?.synced === false) {
+                };
+
+                // Update remaining backup codes in dedicated /data/security Firestore document
+                const syncResult = await updateSecurity2FA(nextSecurity2FA);
+                if (!syncResult?.synced) {
                     setError(syncResult?.error || 'Could not update recovery code status. Please try again.');
                     return;
                 }
 
                 clearThrottleState(user.uid);
-                markSession2FAVerified(user.uid);
+                if (trustDevice) {
+                    trustCurrent2FADevice(user.uid, nextSecurity2FA);
+                } else {
+                    clearTrusted2FADevice(user.uid);
+                    markSession2FAVerified(user.uid);
+                }
                 if (onUnlocked) onUnlocked();
             } catch (err) {
                 console.error('[2FA Gate] Backup verification failed:', err);
@@ -166,7 +177,12 @@ export default function TwoFactorGate({ onUnlocked }) {
             }
 
             clearThrottleState(user.uid);
-            markSession2FAVerified(user.uid);
+            if (trustDevice) {
+                trustCurrent2FADevice(user.uid, security2FA);
+            } else {
+                clearTrusted2FADevice(user.uid);
+                markSession2FAVerified(user.uid);
+            }
             if (onUnlocked) onUnlocked();
         } catch (err) {
             console.error('[2FA Gate] TOTP verification failed:', err);
@@ -296,11 +312,17 @@ export default function TwoFactorGate({ onUnlocked }) {
                                 />
                                 <input
                                     id="totp-input"
+                                    name="totpCode"
                                     type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     maxLength={6}
                                     autoComplete="one-time-code"
+                                    autoCorrect="off"
+                                    autoCapitalize="none"
+                                    spellCheck={false}
+                                    enterKeyHint="done"
+                                    aria-invalid={Boolean(error)}
                                     autoFocus
                                     placeholder="000000"
                                     value={code}
@@ -331,7 +353,13 @@ export default function TwoFactorGate({ onUnlocked }) {
                             </label>
                             <input
                                 id="backup-code-input"
+                                name="backupCode"
                                 type="text"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                enterKeyHint="done"
+                                aria-invalid={Boolean(error)}
                                 autoFocus
                                 placeholder="e.g. ABCD-1234"
                                 value={backupCode}
@@ -352,6 +380,26 @@ export default function TwoFactorGate({ onUnlocked }) {
                             />
                         </div>
                     )}
+
+                    <div>
+                        <div className="brand-checkbox-row">
+                            <input
+                                id="trust-device-2fa"
+                                name="trustDevice"
+                                type="checkbox"
+                                className="brand-checkbox-input"
+                                checked={trustDevice}
+                                onChange={(e) => setTrustDevice(e.target.checked)}
+                                aria-describedby="trust-device-2fa-hint"
+                            />
+                            <label htmlFor="trust-device-2fa" className="brand-checkbox-label">
+                                <span>Don&apos;t ask for 2FA again on this device</span>
+                            </label>
+                        </div>
+                        <p id="trust-device-2fa-hint" className="brand-checkbox-hint">
+                            Recommended only on your personal devices. You can revoke trusted devices anytime in Profile Settings.
+                        </p>
+                    </div>
 
                     {error && (
                         <div

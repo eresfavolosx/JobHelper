@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {
     generateTotpSecret,
     base32ToBytes,
@@ -8,8 +9,30 @@ import {
     generateBackupCodes,
     verifyAndConsumeBackupCode,
     buildOtpAuthUri,
-    getTotpSecondsRemaining
+    getTotpSecondsRemaining,
+    isSession2FAVerified,
+    markSession2FAVerified,
+    clearSession2FAVerification,
+    compute2FATrustFingerprint,
+    getTrusted2FADeviceInfo,
+    isTrusted2FADevice,
+    trustCurrent2FADevice,
+    clearTrusted2FADevice,
+    is2FAVerified
 } from './totp.js';
+
+function createMemoryStorage() {
+    const map = new Map();
+    return {
+        get length() { return map.size; },
+        key(i) { return Array.from(map.keys())[i] ?? null; },
+        getItem(k) { return map.has(k) ? map.get(k) : null; },
+        setItem(k, v) { map.set(k, String(v)); },
+        removeItem(k) { map.delete(k); },
+        clear() { map.clear(); },
+        dump() { return Object.fromEntries(map.entries()); }
+    };
+}
 
 test('RFC 6238 Free TOTP 2-Factor Authentication Engine', async (t) => {
     await t.test('1. Secret generation produces valid RFC 4648 Base32 strings', () => {
@@ -104,5 +127,69 @@ test('RFC 6238 Free TOTP 2-Factor Authentication Engine', async (t) => {
                 Object.defineProperty(globalThis, 'crypto', descriptor);
             }
         }
+    });
+
+    await t.test('8. Trust fingerprint uses standard SHA-256 and never exposes the raw TOTP secret', () => {
+        const uid = 'uid-abc-123';
+        const sec = { enabled: true, secret: 'JBSWY3DPEHPK3PXP', enabledAt: '2026-11-14T20:00:00.000Z' };
+        const fp = compute2FATrustFingerprint(uid, sec);
+        const expectedSha = crypto
+            .createHash('sha256')
+            .update(`novujobs:2fa-device-trust:v1:${uid}:${sec.secret}:${sec.enabledAt}`)
+            .digest('hex');
+
+        assert.equal(fp, expectedSha);
+        assert.ok(!fp.includes(sec.secret));
+        assert.notEqual(fp, compute2FATrustFingerprint('uid-other', sec));
+        assert.notEqual(fp, compute2FATrustFingerprint(uid, { ...sec, secret: 'OTHERSECRET234567' }));
+        assert.notEqual(fp, compute2FATrustFingerprint(uid, { ...sec, enabledAt: '2026-11-23T00:00:00.000Z' }));
+        assert.equal(compute2FATrustFingerprint('', sec), '');
+        assert.equal(compute2FATrustFingerprint(uid, { enabled: true, secret: '' }), '');
+    });
+
+    await t.test('9. Per-device trust persists across sign-outs/cleared sessionStorage and revokes cleanly', () => {
+        const sessionStore = createMemoryStorage();
+        const localStore = createMemoryStorage();
+        const uid = 'user-1';
+        const otherUid = 'user-2';
+        const sec1 = { enabled: true, secret: 'JBSWY3DPEHPK3PXP', enabledAt: '2026-11-14T20:00:00.000Z' };
+        const sec2 = { enabled: true, secret: 'NB2W45DFOIZA====', enabledAt: '2026-11-15T10:00:00.000Z' };
+
+        assert.equal(is2FAVerified(uid, sec1, { sessionStore, localStore }), false);
+
+        // Trust device for uid and uid2
+        assert.equal(trustCurrent2FADevice(uid, sec1, localStore), true);
+        assert.equal(trustCurrent2FADevice(otherUid, sec2, localStore), true);
+        markSession2FAVerified(uid, sessionStore);
+
+        // Stored value must not contain the raw secret
+        const storedRaw = JSON.stringify(localStore.dump());
+        assert.ok(!storedRaw.includes(sec1.secret));
+        assert.ok(!storedRaw.includes(sec2.secret));
+
+        const info = getTrusted2FADeviceInfo(uid, sec1, localStore);
+        assert.equal(info.trusted, true);
+        assert.ok(info.trustedAt);
+
+        // Simulate sign-out / closing tab (clears sessionStorage) -> trusted device stays verified
+        clearSession2FAVerification(uid, sessionStore);
+        assert.equal(isSession2FAVerified(uid, sessionStore), false);
+        assert.equal(isTrusted2FADevice(uid, sec1, localStore), true);
+        assert.equal(is2FAVerified(uid, sec1, { sessionStore, localStore }), true);
+
+        // Rotating enabledAt ("Revoke All Trusted Devices") or secret automatically invalidates trust
+        assert.equal(
+            is2FAVerified(uid, { ...sec1, enabledAt: '2026-11-23T12:00:00.000Z' }, { sessionStore, localStore }),
+            false
+        );
+        assert.equal(
+            is2FAVerified(uid, { ...sec1, secret: 'NEWSECRET2345678' }, { sessionStore, localStore }),
+            false
+        );
+
+        // Revoking trust for uid leaves otherUid intact
+        clearTrusted2FADevice(uid, localStore);
+        assert.equal(is2FAVerified(uid, sec1, { sessionStore, localStore }), false);
+        assert.equal(is2FAVerified(otherUid, sec2, { sessionStore, localStore }), true);
     });
 });

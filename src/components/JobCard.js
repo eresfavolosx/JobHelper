@@ -191,6 +191,7 @@ const JobCard = memo(function JobCard({ job, hasAiKey: hasAiKeyProp, isDeferred 
         e.stopPropagation();
         e.preventDefault();
         const nextStatus = e.target.value;
+        if (!nextStatus || nextStatus === job.status) return;
         const { archiveJob, moveJob } = useAppStore.getState();
         if (nextStatus === 'archived') {
             archiveJob(job.id);
