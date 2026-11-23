@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAppStore } from './store.js';
 import { detectPromptInjection, sanitizePII, recordSafetyEvent } from './ai-safety.js';
 import { sanitizeCustomAiBaseUrl } from './utils.js';
+import { selectRelevantSlices, estimateTokens } from './document-slicer.js';
 
 const DEFAULT_GEMINI_CAP = 300; // 300 calls/month with Gemini 3.8 Flash costs ~$0.05-$0.15
 
@@ -13,16 +14,26 @@ function getGeminiUsageStorageKey() {
     return `jobhelper_gemini_usage_${getCurrentMonthKey()}`;
 }
 
+function getGeminiCharsSavedStorageKey() {
+    return `jobhelper_gemini_chars_saved_${getCurrentMonthKey()}`;
+}
+
 /**
- * Returns current monthly Gemini API call count and safety cap.
+ * Returns current monthly Gemini API call count, safety cap, and estimated tokens saved by slicing.
  */
 export function getGeminiUsageStats() {
     if (typeof window === 'undefined') {
-        return { used: 0, cap: DEFAULT_GEMINI_CAP, month: getCurrentMonthKey() };
+        return { used: 0, cap: DEFAULT_GEMINI_CAP, month: getCurrentMonthKey(), estimatedTokensSaved: 0 };
     }
     const used = parseInt(localStorage.getItem(getGeminiUsageStorageKey()) || '0', 10);
     const cap = parseInt(localStorage.getItem('jobhelper_gemini_monthly_cap') || String(DEFAULT_GEMINI_CAP), 10);
-    return { used, cap, month: getCurrentMonthKey() };
+    const charsSaved = parseInt(localStorage.getItem(getGeminiCharsSavedStorageKey()) || '0', 10);
+    return {
+        used,
+        cap,
+        month: getCurrentMonthKey(),
+        estimatedTokensSaved: estimateTokens('x'.repeat(Math.max(0, charsSaved))),
+    };
 }
 
 /**
@@ -41,6 +52,18 @@ export function recordGeminiCall() {
     if (typeof window === 'undefined') return;
     const stats = getGeminiUsageStats();
     localStorage.setItem(getGeminiUsageStorageKey(), String(stats.used + 1));
+}
+
+/**
+ * Records cumulative character savings from document slicing for the current month.
+ */
+export function recordGeminiTokenSavings(savedChars) {
+    if (typeof window === 'undefined') return;
+    const count = Number(savedChars);
+    if (!Number.isFinite(count) || count <= 0) return;
+    const key = getGeminiCharsSavedStorageKey();
+    const prev = parseInt(localStorage.getItem(key) || '0', 10);
+    localStorage.setItem(key, String(Math.max(0, prev) + Math.round(count)));
 }
 
 /**
@@ -268,6 +291,8 @@ async function generateClaudeContent(safePromptOrParts, options = {}, claudeKey)
         for (const part of safePromptOrParts) {
             if (typeof part === 'string') {
                 contentBlocks.push({ type: 'text', text: part });
+            } else if (typeof part?.text === 'string') {
+                contentBlocks.push({ type: 'text', text: part.text });
             } else if (part?.inlineData) {
                 const { mimeType, data } = part.inlineData;
                 if (mimeType === 'application/pdf') {
@@ -366,6 +391,8 @@ async function generateOpenAIContent(safePromptOrParts, options = {}, apiKey, en
         for (const part of safePromptOrParts) {
             if (typeof part === 'string') {
                 userContent.push({ type: 'text', text: part });
+            } else if (typeof part?.text === 'string') {
+                userContent.push({ type: 'text', text: part.text });
             } else if (part?.inlineData) {
                 const { mimeType, data } = part.inlineData;
                 if (mimeType?.startsWith('image/')) {
@@ -500,6 +527,15 @@ async function generateGeminiInternal(safePromptOrParts, options = {}) {
     throw lastError || new Error('Failed to generate content with Gemini model after retry.');
 }
 
+function sanitizeTextSegment(text) {
+    const injection = detectPromptInjection(text);
+    if (injection.riskLevel === 'critical' || injection.riskLevel === 'high') {
+        recordSafetyEvent({ injectionsBlocked: 1, type: `${injection.riskLevel}_injection_blocked`, details: { matches: injection.matchedPatterns } });
+        throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
+    }
+    return sanitizePII(text);
+}
+
 // Multi-Provider Resilient AI Generation: Routes to Gemini, Claude, OpenAI, or Custom Provider
 export const generateWithFallback = async (promptOrParts, options = {}) => {
     // 1. AI Safety & Alignment Guardrail Layer (Constitutional AI across all providers)
@@ -507,25 +543,20 @@ export const generateWithFallback = async (promptOrParts, options = {}) => {
     let piiRedactedCount = 0;
 
     if (typeof promptOrParts === 'string') {
-        const injection = detectPromptInjection(promptOrParts);
-        if (injection.riskLevel === 'critical' || injection.riskLevel === 'high') {
-            recordSafetyEvent({ injectionsBlocked: 1, type: `${injection.riskLevel}_injection_blocked`, details: { matches: injection.matchedPatterns } });
-            throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
-        }
-        const piiResult = sanitizePII(promptOrParts);
+        const piiResult = sanitizeTextSegment(promptOrParts);
         safePromptOrParts = piiResult.sanitizedText;
         piiRedactedCount = piiResult.redactedCount;
     } else if (Array.isArray(promptOrParts)) {
         safePromptOrParts = promptOrParts.map(part => {
             if (typeof part === 'string') {
-                const injection = detectPromptInjection(part);
-                if (injection.riskLevel === 'critical' || injection.riskLevel === 'high') {
-                    recordSafetyEvent({ injectionsBlocked: 1, type: `${injection.riskLevel}_injection_blocked`, details: { matches: injection.matchedPatterns } });
-                    throw new Error(`[AI Safety Guardrail] Adversarial prompt injection detected (${injection.matchedPatterns.join(', ')}). Aborted under Constitutional AI guidelines.`);
-                }
-                const piiResult = sanitizePII(part);
+                const piiResult = sanitizeTextSegment(part);
                 piiRedactedCount += piiResult.redactedCount;
                 return piiResult.sanitizedText;
+            }
+            if (part && typeof part === 'object' && typeof part.text === 'string') {
+                const piiResult = sanitizeTextSegment(part.text);
+                piiRedactedCount += piiResult.redactedCount;
+                return { ...part, text: piiResult.sanitizedText };
             }
             return part;
         });
@@ -748,6 +779,29 @@ export const fileToGenerativePart = async (file) => {
         mimeType = 'text/markdown';
     } else if (!mimeType || mimeType === 'application/octet-stream') {
         mimeType = 'application/pdf';
+    }
+
+    // Plain text / markdown resumes: slice intelligently on-device before calling Gemini
+    if (
+        (fileName.endsWith('.txt') ||
+            fileName.endsWith('.md') ||
+            mimeType === 'text/plain' ||
+            mimeType === 'text/markdown') &&
+        typeof file.text === 'function'
+    ) {
+        const rawText = await file.text();
+        const sliced = selectRelevantSlices(
+            rawText,
+            'skills experience roles achievements summary education projects',
+            {
+                maxChars: 14000,
+                priorityHeadings: ['experience', 'skills', 'summary', 'projects', 'education', 'certifications'],
+            }
+        );
+        if (sliced.savedChars > 0) {
+            recordGeminiTokenSavings(sliced.savedChars);
+        }
+        return { text: sliced.text };
     }
 
     const base64 = await fileToBase64(file);

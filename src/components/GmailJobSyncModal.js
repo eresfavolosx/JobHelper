@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
-import { generateWithFallback, extractJson } from '@/lib/gemini-client';
+import { generateWithFallback, extractJson, recordGeminiTokenSavings } from '@/lib/gemini-client';
+import { selectRelevantSlices } from '@/lib/document-slicer';
 import { hasConfiguredAiKey } from '@/lib/subscription';
 import { auth } from '@/lib/firebase';
 import { connectGmailAccount, fetchRecentJobEmails, getStoredGmailToken } from '@/lib/gmail-service';
@@ -132,6 +133,29 @@ export default function GmailJobSyncModal({ isOpen, onClose }) {
             .filter(j => j && j.status !== 'deleted')
             .map(j => ({ id: j.id, company: j.company, role: j.role || j.title, status: j.status }));
 
+        const trackedCompaniesQuery = [
+            ...activeJobsList.map(j => `${j.company || ''} ${j.role || ''}`),
+            'interview offer assessment schedule next round status rejected unfortunately'
+        ].filter(Boolean).join(' ');
+
+        const slicedEmail = selectRelevantSlices(textToAnalyze, trackedCompaniesQuery, {
+            maxChars: 3500,
+            chunkSize: 700,
+            overlap: 60,
+            priorityHeadings: [
+                'interview',
+                'offer',
+                'assessment',
+                'schedule',
+                'next round',
+                'status',
+                'unfortunately'
+            ]
+        });
+        if (slicedEmail.savedChars > 0) {
+            recordGeminiTokenSavings(slicedEmail.savedChars);
+        }
+
         const prompt = `You are an AI Email Assistant specializing in job applications and recruiter correspondence.
 Analyze the following email from a recruiter, company, or job board against the user's active tracked applications.
 
@@ -140,7 +164,7 @@ ${JSON.stringify(activeJobsList, null, 2)}
 </tracked_applications>
 
 <email_content>
-${textToAnalyze.slice(0, 3000)}
+${slicedEmail.text}
 </email_content>
 
 Identify:

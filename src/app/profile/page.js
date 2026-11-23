@@ -2489,6 +2489,11 @@ function GoogleServicesConfig() {
                             </div>
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 8px 0' }}>
                                 Covers resume parsing, tailor bullets, and job match.
+                                {getGeminiUsageStats().estimatedTokensSaved > 0 && (
+                                    <span style={{ color: 'var(--success)', fontWeight: '600', marginLeft: '6px' }}>
+                                        (~{getGeminiUsageStats().estimatedTokensSaved.toLocaleString()} tokens saved via slicing)
+                                    </span>
+                                )}
                             </p>
                             <input
                                 aria-label="Monthly Gemini API cap"

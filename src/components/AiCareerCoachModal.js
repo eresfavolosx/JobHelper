@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
-import { generateWithFallback, extractJson } from '@/lib/gemini-client';
+import { generateWithFallback, extractJson, recordGeminiTokenSavings } from '@/lib/gemini-client';
+import { selectRelevantSlices, sliceDocumentsForPrompt } from '@/lib/document-slicer';
 import { hasConfiguredAiKey } from '@/lib/subscription';
 import { CareerCoachSkeleton } from '@/components/SkeletonLoaders';
 
@@ -95,6 +96,40 @@ export default function AiCareerCoachModal({ job, isOpen, onClose }) {
             const jobTitle = currentJob.role || currentJob.title || 'Software Engineer';
             const jobDescription = currentJob.description || currentJob.notes || '';
             const personalNotes = currentJob.notes && currentJob.description ? currentJob.notes : '';
+            const coachQuery = [
+                jobTitle,
+                currentJob.company || '',
+                currentProfile?.targetRole || '',
+                currentProfile?.keywords || ''
+            ].filter(Boolean).join(' ');
+
+            const slicedJd = selectRelevantSlices(jobDescription, coachQuery, {
+                maxChars: 4500,
+                priorityHeadings: [
+                    'responsibilities',
+                    'requirements',
+                    'qualifications',
+                    'skills',
+                    'about the role',
+                    'compensation',
+                    'tech stack'
+                ]
+            });
+
+            const contextDocs = Array.isArray(currentProfile?.contextDocuments)
+                ? currentProfile.contextDocuments
+                : [];
+            const slicedDocs = contextDocs.length > 0
+                ? sliceDocumentsForPrompt(contextDocs, coachQuery, {
+                    totalBudgetChars: 3000,
+                    maxPerDocChars: 1500
+                })
+                : null;
+
+            const totalSaved = (slicedJd?.savedChars || 0) + (slicedDocs?.savedChars || 0);
+            if (totalSaved > 0) {
+                recordGeminiTokenSavings(totalSaved);
+            }
 
             const prompt = `You are the world's most elite executive career coach and recruiter.
 Analyze this job application and candidate profile to generate a tactical career coaching strategy:
@@ -104,7 +139,7 @@ Title: ${jobTitle}
 Company: ${currentJob.company || 'Tech Company'}
 Status: ${currentJob.status || 'applied'}
 Days Since Update: ${currentDaysElapsed} days
-Description: ${jobDescription.slice(0, 4000)}
+Description: ${slicedJd.text}
 ${personalNotes ? `Applicant Notes: ${personalNotes.slice(0, 1000)}` : ''}
 </job>
 
@@ -114,6 +149,7 @@ Target Role: ${currentProfile?.targetRole || jobTitle}
 Experience: ${currentProfile?.experienceLevel || 'Mid-Senior'}
 Keywords/Skills: ${currentProfile?.keywords || ''}
 Resume Summary: ${currentProfile?.resumeAnalysis?.summary || 'Experienced software professional.'}
+${slicedDocs?.text ? `<context_documents>\n${slicedDocs.text}\n</context_documents>` : ''}
 </candidate>
 
 Return ONLY valid JSON matching this schema:
