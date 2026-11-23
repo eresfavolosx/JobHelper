@@ -48,6 +48,7 @@ export default function KanbanBoard() {
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
     const selectedCycleId = useAppStore(state => state.selectedCycleId);
+    const setSelectedCycleId = useAppStore(state => state.setSelectedCycleId);
     const moveJob = useAppStore(state => state.moveJob);
     const hasAiKey = useAppStore(state => hasConfiguredAiKey(state.profile));
     const jobSyncError = useAppStore(state => state.jobSyncError);
@@ -231,6 +232,28 @@ export default function KanbanBoard() {
 
         return { columnsData: data, jobsMap: map, filteredCount: matched, matchedJobs: matchedList };
     }, [jobs, searchQuery, companyFilter, stageFilter, locationFilter, quickFilter, sortBy, nowMs]);
+
+    const otherCycleMatches = useMemo(() => {
+        if (selectedCycleId === 'all' || !searchQuery.trim() || filteredCount > 0 || !Array.isArray(rawJobs)) {
+            return 0;
+        }
+        const currentIds = new Set((Array.isArray(jobs) ? jobs : []).map(j => j?.id).filter(Boolean));
+        let count = 0;
+        for (const j of rawJobs) {
+            if (!j || j.status === 'deleted' || currentIds.has(j.id)) continue;
+            const res = evaluateJobMatch(j, {
+                query: searchQuery,
+                companyFilter,
+                stageFilter,
+                locationFilter,
+                quickFilter,
+                includeDeleted: false,
+                nowMs
+            });
+            if (res.matches) count++;
+        }
+        return count;
+    }, [selectedCycleId, searchQuery, filteredCount, rawJobs, jobs, companyFilter, stageFilter, locationFilter, quickFilter, nowMs]);
 
     // Determine whether a section is collapsed in 'stacked' (All Sections) mode:
     // By default on load, all sections start expanded (not collapsed) so users can easily
@@ -845,6 +868,45 @@ export default function KanbanBoard() {
                             }}
                         >
                             Clear All
+                        </button>
+                    </div>
+                )}
+
+                {otherCycleMatches > 0 && (
+                    <div
+                        role="status"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            background: 'rgba(212, 163, 115, 0.12)',
+                            border: '1px solid rgba(212, 163, 115, 0.35)',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-primary)'
+                        }}
+                    >
+                        <span>
+                            Found <strong>{otherCycleMatches}</strong> {otherCycleMatches === 1 ? 'match' : 'matches'} in other search cycles.
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCycleId('all')}
+                            style={{
+                                padding: '4px 10px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--accent-primary)',
+                                background: 'var(--accent-primary)',
+                                color: '#fff',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Show All Cycles
                         </button>
                     </div>
                 )}

@@ -142,4 +142,62 @@ describe('Multi-Parameter Job Search & Facet Engine', () => {
         const facets = extractJobFacets([...SAMPLE_JOBS, screeningJob]);
         assert.equal(facets.stages.screening, 1);
     });
+
+    it('matches spacing/punctuation variants ("open works" <-> "OpenWorks", "Open-Works", "OpenWork")', () => {
+        const openWorksJob = {
+            id: 'ow-1',
+            company: 'OpenWorks',
+            title: 'Operations Lead',
+            location: 'San José, CA',
+            link: 'https://boards.greenhouse.io/openworks/jobs/42',
+            status: 'applied',
+            updatedAt: '2026-10-20T12:00:00Z'
+        };
+        const hyphenJob = {
+            id: 'ow-2',
+            company: 'Open-Works',
+            role: 'Growth Manager',
+            status: 'applied',
+            updatedAt: '2026-10-20T12:00:00Z'
+        };
+        const singularJob = {
+            id: 'ow-3',
+            company: 'OpenWork',
+            role: 'Growth Manager',
+            status: 'applied',
+            updatedAt: '2026-10-20T12:00:00Z'
+        };
+        const spacedJob = {
+            id: 'ow-4',
+            company: 'Open Works',
+            role: 'Product Manager',
+            status: 'applied',
+            updatedAt: '2026-10-20T12:00:00Z'
+        };
+
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'open works' }).matches, true);
+        assert.equal(evaluateJobMatch(hyphenJob, { query: 'open works' }).matches, true);
+        assert.equal(evaluateJobMatch(singularJob, { query: 'open works' }).matches, true);
+        assert.equal(evaluateJobMatch(spacedJob, { query: 'openworks' }).matches, true);
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'company:"open works"' }).matches, true);
+
+        // Diacritics folding & job.title / job.link indexing
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'san jose' }).matches, true);
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'operations' }).matches, true);
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'greenhouse' }).matches, true);
+    });
+
+    it('handles minor typos ("open wroks", "ropen works", "anthrpic") while keeping non-matches strict', () => {
+        const openWorksJob = {
+            id: 'ow-t1',
+            company: 'OpenWorks',
+            role: 'Operations Engineer',
+            location: 'Remote',
+            status: 'applied'
+        };
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'open wroks' }).matches, true);
+        assert.equal(evaluateJobMatch(openWorksJob, { query: 'ropen works' }).matches, true);
+        assert.equal(evaluateJobMatch(SAMPLE_JOBS[0], { query: 'anthrpic' }).matches, true);
+        assert.equal(evaluateJobMatch(SAMPLE_JOBS[0], { query: 'anthropic remote' }).matches, false);
+    });
 });

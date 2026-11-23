@@ -36,8 +36,123 @@ const FIELD_PREFIX_MAP = {
     desc: 'description',
     jd: 'description',
     tag: 'tags',
-    tags: 'tags'
+    tags: 'tags',
+    source: 'source'
 };
+
+const COMPACT_FIELDS = ['company', 'role', 'location', 'status', 'tags', 'resume', 'url', 'source'];
+const FUZZY_WORD_FIELDS = ['company', 'role', 'location', 'status', 'tags', 'resume', 'source'];
+
+/**
+ * Normalizes text for accent-insensitive, case-insensitive search matching.
+ */
+export function normalizeSearchText(val = '') {
+    return String(val || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+/**
+ * Strips whitespace, hyphens, and punctuation so "open works" matches "OpenWorks".
+ */
+export function toCompactSearchText(val = '') {
+    return normalizeSearchText(val).replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Computes Optimal String Alignment (restricted Damerau-Levenshtein) edit distance
+ * with an early exit once every row exceeds maxDist.
+ */
+export function damerauLevenshtein(a, b, maxDist = 2) {
+    const lenA = a.length;
+    const lenB = b.length;
+    if (Math.abs(lenA - lenB) > maxDist) return maxDist + 1;
+    if (lenA === 0) return lenB;
+    if (lenB === 0) return lenA;
+
+    const dp = Array.from({ length: lenA + 1 }, () => new Array(lenB + 1).fill(0));
+    for (let i = 0; i <= lenA; i++) dp[i][0] = i;
+    for (let j = 0; j <= lenB; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= lenA; i++) {
+        let rowMin = maxDist + 1;
+        for (let j = 1; j <= lenB; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            let best = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + cost
+            );
+            if (
+                i > 1 &&
+                j > 1 &&
+                a[i - 1] === b[j - 2] &&
+                a[i - 2] === b[j - 1]
+            ) {
+                best = Math.min(best, dp[i - 2][j - 2] + cost);
+            }
+            dp[i][j] = best;
+            if (best < rowMin) rowMin = best;
+        }
+        if (rowMin > maxDist) return maxDist + 1;
+    }
+
+    return dp[lenA][lenB];
+}
+
+function extractSearchWords(rawText) {
+    const rawStr = String(rawText || '');
+    if (!rawStr.trim()) return [];
+    const seen = new Set();
+    const out = [];
+
+    const addToken = (tok) => {
+        const clean = normalizeSearchText(tok).replace(/[^a-z0-9]/g, '');
+        if (clean.length >= 2 && !seen.has(clean)) {
+            seen.add(clean);
+            out.push(clean);
+        }
+    };
+
+    // Whole alphanumeric runs
+    const wholeWords = normalizeSearchText(rawStr).match(/[a-z0-9]+/g) || [];
+    for (const w of wholeWords) addToken(w);
+
+    // Split camelCase / PascalCase boundaries (e.g. OpenWorks -> open, works)
+    const splitCamel = rawStr.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    const subWords = normalizeSearchText(splitCamel).match(/[a-z0-9]+/g) || [];
+    for (const sw of subWords) addToken(sw);
+
+    return out;
+}
+
+function maxFuzzyDistanceForLength(len) {
+    if (len >= 7) return 2;
+    if (len >= 4) return 1;
+    return 0;
+}
+
+function matchesFuzzyTerm(targetWords, targetCompact, queryTerm) {
+    const cleanTerm = toCompactSearchText(queryTerm);
+    const maxDist = maxFuzzyDistanceForLength(cleanTerm.length);
+    if (maxDist <= 0) return false;
+
+    for (const word of targetWords) {
+        if (Math.abs(word.length - cleanTerm.length) > maxDist) continue;
+        if (damerauLevenshtein(word, cleanTerm, maxDist) <= maxDist) {
+            return true;
+        }
+    }
+
+    if (targetCompact && Math.abs(targetCompact.length - cleanTerm.length) <= maxDist) {
+        if (damerauLevenshtein(targetCompact, cleanTerm, maxDist) <= maxDist) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /**
  * Parses a search query string into structured field filters (e.g. `company:stripe location:remote`)
@@ -61,9 +176,9 @@ export function parseSearchQuery(rawQuery = '') {
 
     while ((match = tokenRegex.exec(raw)) !== null) {
         const prefixKey = match[1]?.toLowerCase();
-        const prefixVal = (match[2] ?? match[3] ?? match[4] ?? '').trim().toLowerCase();
-        const quotedPhrase = (match[5] ?? match[6] ?? '').trim().toLowerCase();
-        const bareWord = (match[7] ?? '').trim().toLowerCase();
+        const prefixVal = normalizeSearchText(match[2] ?? match[3] ?? match[4] ?? '').trim();
+        const quotedPhrase = normalizeSearchText(match[5] ?? match[6] ?? '').trim();
+        const bareWord = normalizeSearchText(match[7] ?? '').trim();
 
         if (prefixKey && FIELD_PREFIX_MAP[prefixKey] && prefixVal) {
             fieldFilters.push({
@@ -86,8 +201,8 @@ export function parseSearchQuery(rawQuery = '') {
 const searchableFieldsCache = new WeakMap();
 
 /**
- * Normalizes a job object's searchable fields into lowercased strings,
- * memoized per job object and invalidated automatically if any raw field reference changes.
+ * Normalizes a job object's searchable fields into lowercased diacritic-folded strings,
+ * compact punctuation-free strings, and camelCase-aware words for fast fuzzy matching.
  */
 function getSearchableFields(job) {
     if (job && typeof job === 'object') {
@@ -96,6 +211,7 @@ function getSearchableFields(job) {
             cached &&
             cached.company === job.company &&
             cached.role === job.role &&
+            cached.title === job.title &&
             cached.location === job.location &&
             cached.status === job.status &&
             cached.salary === job.salary &&
@@ -104,33 +220,66 @@ function getSearchableFields(job) {
             cached.notes === job.notes &&
             cached.description === job.description &&
             cached.tags === job.tags &&
-            cached.url === job.url
+            cached.url === job.url &&
+            cached.link === job.link &&
+            cached.source === job.source
         ) {
-            return cached.fields;
+            return cached.entry;
         }
     }
 
-    const status = String(job?.status || '').toLowerCase();
-    const stageLabel = (STAGE_LABELS[status] || status).toLowerCase();
-    const tagsStr = Array.isArray(job?.tags) ? job.tags.join(' ') : String(job?.tags || '');
+    const statusRaw = String(job?.status || '');
+    const stageLabel = STAGE_LABELS[statusRaw.toLowerCase()] || statusRaw;
+    const roleRaw = [job?.role, job?.title].filter(Boolean).join(' ');
+    const urlRaw = [job?.url, job?.link].filter(Boolean).join(' ');
+    const tagsRaw = Array.isArray(job?.tags) ? job.tags.join(' ') : String(job?.tags || '');
+    const resumeRaw = [job?.resumeName, job?.resumeUrl].filter(Boolean).join(' ');
+    const statusFull = `${statusRaw} ${stageLabel}`.trim();
 
     const fields = {
-        company: String(job?.company || '').toLowerCase(),
-        role: String(job?.role || '').toLowerCase(),
-        location: String(job?.location || '').toLowerCase(),
-        status: `${status} ${stageLabel}`.trim(),
-        salary: String(job?.salary || '').toLowerCase(),
-        resume: `${job?.resumeName || ''} ${job?.resumeUrl || ''}`.toLowerCase(),
-        notes: String(job?.notes || '').toLowerCase(),
-        description: String(job?.description || '').toLowerCase(),
-        tags: tagsStr.toLowerCase(),
-        url: String(job?.url || '').toLowerCase()
+        company: normalizeSearchText(job?.company),
+        role: normalizeSearchText(roleRaw),
+        location: normalizeSearchText(job?.location),
+        status: normalizeSearchText(statusFull),
+        salary: normalizeSearchText(job?.salary),
+        resume: normalizeSearchText(resumeRaw),
+        notes: normalizeSearchText(job?.notes),
+        description: normalizeSearchText(job?.description),
+        tags: normalizeSearchText(tagsRaw),
+        url: normalizeSearchText(urlRaw),
+        source: normalizeSearchText(job?.source)
     };
+
+    const compactFields = {
+        company: toCompactSearchText(job?.company),
+        role: toCompactSearchText(roleRaw),
+        location: toCompactSearchText(job?.location),
+        status: toCompactSearchText(statusFull),
+        salary: toCompactSearchText(job?.salary),
+        resume: toCompactSearchText(resumeRaw),
+        tags: toCompactSearchText(tagsRaw),
+        url: toCompactSearchText(urlRaw),
+        source: toCompactSearchText(job?.source)
+    };
+
+    const fieldWords = {
+        company: extractSearchWords(job?.company),
+        role: extractSearchWords(roleRaw),
+        location: extractSearchWords(job?.location),
+        status: extractSearchWords(statusFull),
+        salary: extractSearchWords(job?.salary),
+        resume: extractSearchWords(resumeRaw),
+        tags: extractSearchWords(tagsRaw),
+        source: extractSearchWords(job?.source)
+    };
+
+    const entry = { fields, compactFields, fieldWords };
 
     if (job && typeof job === 'object') {
         searchableFieldsCache.set(job, {
             company: job.company,
             role: job.role,
+            title: job.title,
             location: job.location,
             status: job.status,
             salary: job.salary,
@@ -140,11 +289,13 @@ function getSearchableFields(job) {
             description: job.description,
             tags: job.tags,
             url: job.url,
-            fields
+            link: job.link,
+            source: job.source,
+            entry
         });
     }
 
-    return fields;
+    return entry;
 }
 
 /**
@@ -183,8 +334,8 @@ export function evaluateJobMatch(job, options = {}) {
 
     // 1. Explicit Company parameter filter
     if (companyFilter && companyFilter !== 'all') {
-        const jobCompany = String(job.company || '').trim().toLowerCase();
-        if (jobCompany !== String(companyFilter).trim().toLowerCase()) {
+        const jobCompany = normalizeSearchText(job.company).trim();
+        if (jobCompany !== normalizeSearchText(companyFilter).trim()) {
             return { matches: false, score: 0, matchedFields: [] };
         }
     }
@@ -197,17 +348,17 @@ export function evaluateJobMatch(job, options = {}) {
     }
 
     // 3. Explicit Location / Modality parameter filter
-    let cachedFields = null;
-    const ensureFields = () => {
-        if (!cachedFields) cachedFields = getSearchableFields(job);
-        return cachedFields;
+    let cachedEntry = null;
+    const ensureEntry = () => {
+        if (!cachedEntry) cachedEntry = getSearchableFields(job);
+        return cachedEntry;
     };
 
     if (locationFilter && locationFilter !== 'all') {
-        const fieldsForLoc = ensureFields();
+        const { fields: fieldsForLoc } = ensureEntry();
         const locLower = fieldsForLoc.location;
         const notesLower = fieldsForLoc.notes;
-        const filterVal = String(locationFilter).toLowerCase();
+        const filterVal = normalizeSearchText(locationFilter);
 
         if (filterVal === 'remote') {
             if (!locLower.includes('remote') && !notesLower.includes('remote')) {
@@ -264,21 +415,68 @@ export function evaluateJobMatch(job, options = {}) {
         return { matches: true, score: 1, matchedFields: [] };
     }
 
-    const fields = ensureFields();
+    const { fields, compactFields, fieldWords } = ensureEntry();
     const matchedFieldsSet = new Set();
     let score = 0;
 
-    // Check explicit field:value filters (all must match)
+    // Check explicit field:value filters (all must match, supporting spacing-insensitive and typo matching)
     for (const { field, value } of fieldFilters) {
         const targetText = fields[field] || '';
-        if (!targetText.includes(value)) {
+        const compactVal = toCompactSearchText(value);
+        const targetCompact = compactFields[field] || '';
+        const directMatch = targetText.includes(value);
+        const compactMatch = !directMatch && compactVal.length >= 2 && targetCompact.includes(compactVal);
+        const fuzzyMatch =
+            !directMatch &&
+            !compactMatch &&
+            FUZZY_WORD_FIELDS.includes(field) &&
+            matchesFuzzyTerm(fieldWords[field] || [], targetCompact, value);
+
+        if (!directMatch && !compactMatch && !fuzzyMatch) {
             return { matches: false, score: 0, matchedFields: [] };
         }
         matchedFieldsSet.add(field);
-        score += field === 'company' || field === 'role' ? 30 : 15;
+        score += field === 'company' || field === 'role'
+            ? (directMatch ? 30 : compactMatch ? 25 : 15)
+            : (directMatch ? 15 : 10);
     }
 
-    // Check free-text tokens (every token must match at least one parameter on the job)
+    if (textTokens.length === 0) {
+        return {
+            matches: true,
+            score,
+            matchedFields: Array.from(matchedFieldsSet)
+        };
+    }
+
+    // Joined compact match: catches split-word queries like "open works" -> "OpenWorks" or typos like "ropen works" -> "OpenWorks"
+    let joinedCompactMatchField = null;
+    if (textTokens.length >= 2) {
+        const joinedCompact = textTokens.map(toCompactSearchText).join('');
+        if (joinedCompact.length >= 4) {
+            const joinedMaxDist = joinedCompact.length >= 8 ? 2 : joinedCompact.length >= 5 ? 1 : 0;
+            for (const candidateField of ['company', 'role', 'url', 'source']) {
+                const compactTarget = compactFields[candidateField] || '';
+                if (!compactTarget) continue;
+                if (compactTarget.includes(joinedCompact)) {
+                    joinedCompactMatchField = candidateField;
+                    matchedFieldsSet.add(candidateField);
+                    score += candidateField === 'company' ? 40 : candidateField === 'role' ? 35 : 12;
+                    break;
+                }
+                if (joinedMaxDist > 0 && Math.abs(compactTarget.length - joinedCompact.length) <= joinedMaxDist) {
+                    if (damerauLevenshtein(compactTarget, joinedCompact, joinedMaxDist) <= joinedMaxDist) {
+                        joinedCompactMatchField = candidateField;
+                        matchedFieldsSet.add(candidateField);
+                        score += candidateField === 'company' ? 28 : candidateField === 'role' ? 24 : 8;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check free-text tokens (every token must match directly, compactly, or via structured-field typo tolerance)
     for (const token of textTokens) {
         let tokenMatched = false;
 
@@ -331,6 +529,37 @@ export function evaluateJobMatch(job, options = {}) {
             tokenMatched = true;
             matchedFieldsSet.add('url');
             score += 4;
+        }
+        if (fields.source && fields.source.includes(token)) {
+            tokenMatched = true;
+            matchedFieldsSet.add('source');
+            score += 6;
+        }
+
+        const compactToken = toCompactSearchText(token);
+        if (!tokenMatched && compactToken.length >= 2) {
+            for (const fieldName of COMPACT_FIELDS) {
+                if (compactFields[fieldName]?.includes(compactToken)) {
+                    tokenMatched = true;
+                    matchedFieldsSet.add(fieldName);
+                    score += fieldName === 'company' ? 22 : fieldName === 'role' ? 18 : 8;
+                }
+            }
+        }
+
+        if (!tokenMatched) {
+            for (const fieldName of FUZZY_WORD_FIELDS) {
+                if (matchesFuzzyTerm(fieldWords[fieldName] || [], compactFields[fieldName], token)) {
+                    tokenMatched = true;
+                    matchedFieldsSet.add(fieldName);
+                    score += fieldName === 'company' ? 12 : fieldName === 'role' ? 10 : 5;
+                }
+            }
+        }
+
+        if (!tokenMatched && joinedCompactMatchField) {
+            // Whole query already matched a compound field name like OpenWorks directly/within typo tolerance
+            tokenMatched = true;
         }
 
         if (!tokenMatched) {

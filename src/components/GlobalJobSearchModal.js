@@ -133,10 +133,13 @@ export default function GlobalJobSearchModal() {
     const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
     const results = useMemo(() => {
-        if (!Array.isArray(jobs)) return [];
+        const searchPool = (query.trim().length > 0 || companyFilter !== 'all') && Array.isArray(rawJobs)
+            ? rawJobs
+            : jobs;
+        if (!Array.isArray(searchPool)) return [];
         const matched = [];
 
-        for (const job of jobs) {
+        for (const job of searchPool) {
             if (!job || job.status === 'deleted') continue;
             const evalResult = evaluateJobMatch(job, {
                 query,
@@ -162,7 +165,23 @@ export default function GlobalJobSearchModal() {
         });
 
         return matched;
-    }, [jobs, query, companyFilter, stageFilter, locationFilter]);
+    }, [jobs, rawJobs, query, companyFilter, stageFilter, locationFilter]);
+
+    const trashMatchCount = useMemo(() => {
+        if (results.length > 0 || !query.trim() || !Array.isArray(rawJobs)) return 0;
+        let count = 0;
+        for (const job of rawJobs) {
+            if (!job || job.status !== 'deleted') continue;
+            const evalResult = evaluateJobMatch(job, {
+                query,
+                companyFilter,
+                locationFilter,
+                includeDeleted: true
+            });
+            if (evalResult.matches) count++;
+        }
+        return count;
+    }, [results.length, query, rawJobs, companyFilter, locationFilter]);
 
     const safeSelectedIndex = results.length > 0
         ? Math.min(selectedIndex, results.length - 1)
@@ -170,6 +189,10 @@ export default function GlobalJobSearchModal() {
 
     const handleViewOnBoard = useCallback((job) => {
         if (!job) return;
+        const visibleInCurrentCycle = Array.isArray(jobs) && jobs.some(j => j?.id === job.id);
+        if (selectedCycleId !== 'all' && !visibleInCurrentCycle) {
+            useAppStore.getState().setSelectedCycleId('all');
+        }
         setBoardFilters({
             boardSearchQuery: '',
             boardCompanyFilter: 'all',
@@ -183,12 +206,19 @@ export default function GlobalJobSearchModal() {
         if (pathname !== '/kanban') {
             router.push(`/kanban#${job.status || 'wishlist'}`);
         } else {
-            const cardEl = document.getElementById(`job-card-${job.id}`) || document.getElementById(job.status);
-            if (cardEl) {
-                cardEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            const scrollToCard = () => {
+                const cardEl = document.getElementById(`job-card-${job.id}`) || document.getElementById(job.status);
+                if (cardEl) {
+                    cardEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                }
+            };
+            if (!visibleInCurrentCycle && typeof window !== 'undefined') {
+                window.requestAnimationFrame(scrollToCard);
+            } else {
+                scrollToCard();
             }
         }
-    }, [setBoardFilters, setHighlightedJobId, closeGlobalSearch, pathname, router]);
+    }, [jobs, selectedCycleId, setBoardFilters, setHighlightedJobId, closeGlobalSearch, pathname, router]);
 
     const handleApplyFilterToBoard = useCallback(() => {
         setBoardFilters({
@@ -663,6 +693,11 @@ export default function GlobalJobSearchModal() {
                             <p style={{ fontSize: '0.8rem' }}>
                                 Try searching by company name, role title, location, salary, or clearing active filters.
                             </p>
+                            {trashMatchCount > 0 && (
+                                <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: '8px', fontWeight: 500 }}>
+                                    Found {trashMatchCount} matching {trashMatchCount === 1 ? 'role' : 'roles'} in Trash. Clear search and check the Deleted column on the Board to restore.
+                                </p>
+                            )}
                         </div>
                     ) : (
                         results.slice(0, 50).map(({ job, matchedFields }, idx) => {
