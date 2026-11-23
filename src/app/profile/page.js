@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { User, Upload, CheckCircle, AlertCircle, FileText, Loader, CreditCard, Sparkles, Clock, MapPin, ExternalLink, ShieldCheck, AlertTriangle, Sliders, Target, ChevronDown, Check, Bot, Cpu, Zap, Globe, Copy, Terminal } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup } from 'firebase/auth';
 import { auth, createGoogleProviderForAccount } from '@/lib/firebase';
 import { hasGoogleProvider, hasPasswordProvider } from '@/lib/account-security';
@@ -333,6 +333,7 @@ function MultiSelectDropdown({ id, label, name, options, value, fallbackDefault,
 }
 
 function ProfileContent() {
+    const router = useRouter();
     const profile = useAppStore(state => state.profile);
     const updateProfile = useAppStore(state => state.updateProfile);
     const rawJobs = useAppStore(state => state.jobs);
@@ -359,9 +360,9 @@ function ProfileContent() {
 
     useEffect(() => {
         if (mounted && !loading && !user) {
-            window.location.href = '/login';
+            router.replace('/login');
         }
-    }, [mounted, loading, user]);
+    }, [mounted, loading, user, router]);
 
     // Local state to handle Core Preferences form inputs before saving to global store
     const [formData, setFormData] = useState(() => ({
@@ -974,6 +975,7 @@ function ExportDataButton() {
 }
 
 function DeleteAccountButton() {
+    const router = useRouter();
     const { user } = useAuth();
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -1024,7 +1026,7 @@ function DeleteAccountButton() {
             if (typeof localStorage !== 'undefined') localStorage.clear();
 
             // Redirect to login
-            window.location.href = '/login';
+            router.replace('/login');
         } catch (err) {
             console.error('Delete account error:', err);
             const code = err?.code || '';

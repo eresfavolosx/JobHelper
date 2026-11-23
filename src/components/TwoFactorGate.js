@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ShieldCheck, KeyRound, AlertCircle, LogOut, RefreshCw, LifeBuoy } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
@@ -55,6 +56,7 @@ function clearThrottleState(userId) {
 }
 
 export default function TwoFactorGate({ onUnlocked }) {
+    const router = useRouter();
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
     const updateSecurity2FA = useAppStore(state => state.updateSecurity2FA);
@@ -197,9 +199,7 @@ export default function TwoFactorGate({ onUnlocked }) {
             clearSession2FAVerification(user?.uid);
             useAppStore.getState().clearUserData();
             await signOut(auth);
-            if (typeof window !== 'undefined') {
-                window.location.href = '/login';
-            }
+            router.replace('/login');
         } catch (err) {
             console.error('Sign out failed:', err);
         }

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+process.env.NOVUJOBS_USER_ID ||= 'test_user_123';
 
 test('NovuJobs MCP Server Protocol Test Suite', async (t) => {
     const serverPath = resolve(__dirname, 'server.js');
@@ -196,5 +197,80 @@ test('NovuJobs MCP Server Protocol Test Suite', async (t) => {
             handleToolCall('novujobs_update_job', { jobId: 'bad/id', status: 'applied' }),
             /Invalid jobId/
         );
+    });
+
+    await t.test('5. URL sanitization, single-doc lookup, and newest-first follow-up ordering', async () => {
+        const { sanitizeJobUrl, handleToolCall } = await import('./server.js');
+        assert.equal(sanitizeJobUrl('https://jobs.example.com/123'), 'https://jobs.example.com/123');
+        assert.equal(sanitizeJobUrl('javascript:alert(1)'), '');
+        assert.equal(sanitizeJobUrl('data:text/html,<script>'), '');
+        assert.equal(sanitizeJobUrl('vbscript:msgbox'), '');
+        assert.equal(sanitizeJobUrl('\x00javascript:alert(1)'), '');
+
+        const originalFetch = global.fetch;
+        const calls = [];
+        global.fetch = async (url, init = {}) => {
+            calls.push({ url: String(url), method: init.method || 'GET', body: init.body });
+            if ((init.method || 'GET') === 'GET') {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        name: 'projects/jobhelper-c3cd7/databases/(default)/documents/users/test_user_123/jobs/job_single_1',
+                        fields: {
+                            company: { stringValue: 'OpenAI' },
+                            role: { stringValue: 'Engineer' },
+                            status: { stringValue: 'interviewing' },
+                            followUps: {
+                                arrayValue: {
+                                    values: [
+                                        {
+                                            mapValue: {
+                                                fields: {
+                                                    id: { stringValue: 'fu_older' },
+                                                    date: { stringValue: '2026-11-01T10:00:00.000Z' },
+                                                    channel: { stringValue: 'email' },
+                                                    note: { stringValue: 'Older follow-up' }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    })
+                };
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({})
+            };
+        };
+
+        try {
+            const job = await handleToolCall('novujobs_get_job', { jobId: 'job_single_1' });
+            assert.equal(job.id, 'job_single_1');
+            assert.ok(calls[0].url.endsWith('/jobs/job_single_1'));
+
+            const fuRes = await handleToolCall('novujobs_log_follow_up', {
+                jobId: 'job_single_1',
+                channel: 'linkedin',
+                note: 'Newest follow-up'
+            });
+            assert.equal(fuRes.success, true);
+            assert.ok(fuRes.followUp.createdAt);
+
+            const patchCall = calls.find(c => c.method === 'PATCH');
+            assert.ok(patchCall, 'Expected PATCH request');
+            assert.ok(patchCall.url.includes('updateMask.fieldPaths=lastInteraction'));
+            const patchBody = JSON.parse(patchCall.body);
+            const followUpValues = patchBody.fields.followUps.arrayValue.values;
+            assert.equal(followUpValues.length, 2);
+            assert.equal(followUpValues[0].mapValue.fields.note.stringValue, 'Newest follow-up');
+            assert.equal(followUpValues[1].mapValue.fields.note.stringValue, 'Older follow-up');
+        } finally {
+            global.fetch = originalFetch;
+        }
     });
 });

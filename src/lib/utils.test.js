@@ -4,6 +4,7 @@ import { escapeXml, sanitizeUrl, sanitizeCustomAiBaseUrl } from './utils.js';
 import {
   sanitizeJobForFirestore,
   sanitizeProfileForFirestore,
+  sanitizeContextDocumentsForFirestore,
   sanitizeResumeAnalysisForFirestore,
   sanitizeSecurity2FA,
   normalizeTransitionEventType
@@ -221,6 +222,31 @@ describe('utils', () => {
       assert.equal(normalizeTransitionEventType('auto_spike'), 'activity_spike');
       assert.equal(normalizeTransitionEventType('offer_accepted'), 'offer_accepted');
       assert.equal(normalizeTransitionEventType('unknown', 'search_paused'), 'search_paused');
+    });
+  });
+
+  describe('sanitizeContextDocumentsForFirestore', () => {
+    it('caps documents to 10 items, enforces allowed keys, bounds UTF-8 bytes and file sizes', () => {
+      const oversizedDocs = Array.from({ length: 14 }, (_, i) => ({
+        id: `doc_${i}`,
+        name: `Document-${i}.txt`,
+        type: 'text/plain',
+        content: i === 0 ? '😀'.repeat(20000) : `Content ${i}`,
+        size: i === 0 ? 999999999 : -5,
+        uploadedAt: '2026-11-23T08:00:00.000Z',
+        createdAt: '2026-11-23T08:00:00.000Z',
+        disallowedField: 'should_be_removed'
+      }));
+
+      const sanitized = sanitizeContextDocumentsForFirestore(oversizedDocs);
+      assert.equal(sanitized.length, 10);
+      assert.equal(sanitized[0].disallowedField, undefined);
+      assert.equal(sanitized[0].size, 5242880);
+      assert.equal(sanitized[1].size, 0);
+      assert.ok(Buffer.byteLength(sanitized[0].content, 'utf8') <= 50000);
+
+      const profileClean = sanitizeProfileForFirestore({ contextDocuments: oversizedDocs });
+      assert.equal(profileClean.contextDocuments.length, 10);
     });
   });
 });

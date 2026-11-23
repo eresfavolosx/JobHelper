@@ -126,6 +126,7 @@ import AiCareerCoachModal from '@/components/AiCareerCoachModal';
 /* ... imports ... */
 
 function AuthenticatedLayout({ children }) {
+    const router = useRouter();
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
     const profileLoaded = useAppStore(state => state.profileLoaded);
@@ -308,7 +309,7 @@ function AuthenticatedLayout({ children }) {
                                 onClick={async () => {
                                     useAppStore.getState().clearUserData();
                                     if (auth) await signOut(auth);
-                                    window.location.href = '/login';
+                                    router.replace('/login');
                                 }}
                             >
                                 Sign Out

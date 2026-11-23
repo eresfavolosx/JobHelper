@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
@@ -45,6 +46,7 @@ function KpiCard({ icon: Icon, label, value, hint, color }) {
 }
 
 export default function InsightsPage() {
+    const router = useRouter();
     const { user, loading } = useAuth();
     const rawJobs = useAppStore(state => state.jobs);
     const storeCycles = useAppStore(state => state.cycles);
@@ -62,9 +64,9 @@ export default function InsightsPage() {
 
     useEffect(() => {
         if (mounted && !loading && !user) {
-            window.location.href = '/login';
+            router.replace('/login');
         }
-    }, [mounted, loading, user]);
+    }, [mounted, loading, user, router]);
 
     const selectTab = useCallback((id) => {
         setActiveTab(id);

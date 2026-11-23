@@ -40,6 +40,21 @@ function assertValidUserId(userId) {
     return userId;
 }
 
+function sanitizeJobUrl(rawUrl) {
+    if (typeof rawUrl !== 'string') return '';
+    const trimmed = rawUrl.replace(/[\u0000-\u001F\u007F]/g, '').trim();
+    if (!trimmed) return '';
+    try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            return parsed.href.slice(0, 2048);
+        }
+        return '';
+    } catch {
+        return '';
+    }
+}
+
 // Validate configuration
 if (!USER_ID) {
     console.error('[NovuJobs-MCP] Warning: NOVUJOBS_USER_ID is not set.');
@@ -250,6 +265,38 @@ class JobDatabase {
         return this.restFetchJobs();
     }
 
+    async fetchJobById(jobId) {
+        await this.initPromise;
+        const safeUserId = assertValidUserId(USER_ID);
+        const safeJobId = assertValidDocId(jobId, 'jobId');
+        if (this.db) {
+            const docSnap = await this.db.collection('users').doc(safeUserId).collection('jobs').doc(safeJobId).get();
+            return docSnap.exists ? { id: docSnap.id, ...docSnap.data() } : null;
+        }
+        return this.restFetchJobById(safeJobId);
+    }
+
+    async restFetchJobById(jobId) {
+        const safeUserId = assertValidUserId(USER_ID);
+        const safeJobId = assertValidDocId(jobId, 'jobId');
+        const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(safeUserId)}/jobs/${encodeURIComponent(safeJobId)}`;
+        const headers = { 'Content-Type': 'application/json' };
+        if (AUTH_TOKEN) {
+            headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
+        }
+
+        const res = await fetch(url, { headers });
+        if (res.status === 404) {
+            return null;
+        }
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Firestore REST API returned ${res.status}: ${text}`);
+        }
+        const data = await res.json();
+        return this.parseRestDocument(data);
+    }
+
     async restFetchJobs() {
         const safeUserId = assertValidUserId(USER_ID);
         const baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/(default)/documents/users/${encodeURIComponent(safeUserId)}/jobs`;
@@ -288,16 +335,23 @@ class JobDatabase {
         const safeUserId = assertValidUserId(USER_ID);
         const docId = assertValidDocId(`job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 'jobId');
         const timestamp = new Date().toISOString();
+        const status = VALID_JOB_STATUSES.has(jobData.status) ? jobData.status : 'applied';
+        const cycleNumber = Number.isInteger(jobData.cycleNumber) && jobData.cycleNumber >= 1 && jobData.cycleNumber <= 10000
+            ? jobData.cycleNumber
+            : 1;
         const cleanJob = {
             id: docId,
             company: String(jobData.company || 'Unknown').slice(0, 200),
             role: String(jobData.role || 'Role').slice(0, 200),
-            status: VALID_JOB_STATUSES.has(jobData.status) ? jobData.status : 'applied',
+            status,
             salary: String(jobData.salary || '').slice(0, 100),
             location: String(jobData.location || '').slice(0, 200),
-            url: String(jobData.url || '').slice(0, 2048),
+            url: sanitizeJobUrl(jobData.url),
             description: String(jobData.description || '').slice(0, 200000),
             notes: String(jobData.notes || '').slice(0, 10000),
+            cycleId: String(jobData.cycleId || 'cycle_1').slice(0, 100),
+            cycleNumber,
+            ...(status !== 'wishlist' && status !== 'archived' ? { appliedAt: timestamp } : {}),
             createdAt: timestamp,
             dateAdded: timestamp,
             updatedAt: timestamp,
@@ -559,8 +613,7 @@ async function handleToolCall(name, args) {
 
         case 'novujobs_get_job': {
             const safeJobId = assertValidDocId(args.jobId, 'jobId');
-            const jobs = await db.fetchAllJobs();
-            const job = jobs.find(j => j && j.id === safeJobId);
+            const job = await db.fetchJobById(safeJobId);
             if (!job) {
                 throw new Error(`Job application with ID "${safeJobId}" was not found.`);
             }
@@ -600,8 +653,7 @@ async function handleToolCall(name, args) {
 
         case 'novujobs_log_follow_up': {
             const safeJobId = assertValidDocId(args.jobId, 'jobId');
-            const jobs = await db.fetchAllJobs();
-            const job = jobs.find(j => j && j.id === safeJobId);
+            const job = await db.fetchJobById(safeJobId);
             if (!job) {
                 throw new Error(`Job application with ID "${safeJobId}" was not found.`);
             }
@@ -611,15 +663,17 @@ async function handleToolCall(name, args) {
                 id: `fu_${Date.now()}`,
                 date: todayStr,
                 channel: args.channel || 'email',
-                note: args.note
+                note: String(args.note || '').slice(0, 2000),
+                createdAt: todayStr
             };
 
             const existingFollowUps = Array.isArray(job.followUps) ? job.followUps : [];
-            const newFollowUps = [...existingFollowUps, followUpEntry];
+            const newFollowUps = [followUpEntry, ...existingFollowUps];
 
             await db.updateJob(safeJobId, {
                 followUps: newFollowUps,
                 lastFollowUpAt: todayStr,
+                lastInteraction: todayStr,
                 updatedAt: todayStr
             });
 
@@ -775,4 +829,4 @@ if (isDirectRun) {
     startStdioServer();
 }
 
-export { JobDatabase, TOOLS, handleToolCall, startStdioServer, db, assertValidDocId };
+export { JobDatabase, TOOLS, handleToolCall, startStdioServer, db, assertValidDocId, sanitizeJobUrl };

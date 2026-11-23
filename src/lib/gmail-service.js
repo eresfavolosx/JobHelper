@@ -96,6 +96,7 @@ export async function connectGmailAccount(auth) {
 export function disconnectGmailAccount() {
     if (typeof window !== 'undefined') {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+        sessionStorage.removeItem(TOKEN_META_KEY);
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(TOKEN_META_KEY);
     }
@@ -121,10 +122,12 @@ export async function fetchRecentJobEmails(accessToken, daysBack = 30, targetCom
         '"pleased to offer"', '"status of your application"', '"thank you for your interest"'
     ];
 
-    // Filter valid company names
-    const validCompanies = (targetCompanies || [])
-        .map(c => (typeof c === 'string' ? c.trim() : c?.company?.trim()))
-        .filter(c => c && c.length > 1);
+    // Filter valid unique company names (capped to avoid exceeding Gmail query length limits)
+    const validCompanies = Array.from(new Set(
+        (targetCompanies || [])
+            .map(c => (typeof c === 'string' ? c.trim() : c?.company?.trim()))
+            .filter(c => c && c.length > 1)
+    )).slice(0, 15);
 
     // Build search queries:
     // Try targeted company search first, combined with recruiter keywords

@@ -51,6 +51,10 @@ export default function TwoFactorAuthCard() {
     const [isConfirmingDisable, setIsConfirmingDisable] = useState(false);
     const [disableCode, setDisableCode] = useState('');
     const [disableError, setDisableError] = useState('');
+    const [isConfirmingReconfigure, setIsConfirmingReconfigure] = useState(false);
+    const [reconfigureCode, setReconfigureCode] = useState('');
+    const [reconfigureError, setReconfigureError] = useState('');
+    const [reconfiguring, setReconfiguring] = useState(false);
     const [trustSetupDevice, setTrustSetupDevice] = useState(() => getRememberSignInPreference());
     const [revokingAll, setRevokingAll] = useState(false);
     const [trustRevision, setTrustRevision] = useState(0);
@@ -203,7 +207,51 @@ export default function TwoFactorAuthCard() {
         }
     };
 
+    const verifyCurrent2FACode = async (rawInput) => {
+        const digitsOnly = String(rawInput || '').replace(/\D/g, '');
+        if (/^\d{6}$/.test(digitsOnly)) {
+            const validTotp = await verifyTotpCode(security2FA?.secret, digitsOnly, 1);
+            if (validTotp) return true;
+        }
+        const backupResult = verifyAndConsumeBackupCode(rawInput, security2FA?.backupCodes || []);
+        return backupResult.valid;
+    };
+
+    const handleOpenReconfigureConfirm = () => {
+        setIsConfirmingDisable(false);
+        setReconfigureCode('');
+        setReconfigureError('');
+        setIsConfirmingReconfigure(true);
+    };
+
+    const handleConfirmReconfigure = async (e) => {
+        e.preventDefault();
+        setReconfigureError('');
+        const rawInput = reconfigureCode.trim();
+        if (!rawInput) {
+            setReconfigureError('Enter your current 6-digit authenticator code or an 8-character backup code to reconfigure 2FA.');
+            return;
+        }
+        setReconfiguring(true);
+        try {
+            const verified = await verifyCurrent2FACode(rawInput);
+            if (!verified) {
+                setReconfigureError('Invalid authenticator or backup code. Please verify and try again.');
+                return;
+            }
+            setIsConfirmingReconfigure(false);
+            setReconfigureCode('');
+            startSetupFlow();
+        } catch (err) {
+            console.error('[2FA Reconfigure] Error:', err);
+            setReconfigureError('Failed to verify 2FA code. Please try again.');
+        } finally {
+            setReconfiguring(false);
+        }
+    };
+
     const handleOpenDisableConfirm = () => {
+        setIsConfirmingReconfigure(false);
         setDisableCode('');
         setDisableError('');
         setIsConfirmingDisable(true);
@@ -220,15 +268,7 @@ export default function TwoFactorAuthCard() {
 
         setDisabling(true);
         try {
-            const digitsOnly = rawInput.replace(/\D/g, '');
-            let verified = false;
-            if (/^\d{6}$/.test(digitsOnly)) {
-                verified = await verifyTotpCode(security2FA?.secret, digitsOnly, 1);
-            }
-            if (!verified) {
-                const backupResult = verifyAndConsumeBackupCode(rawInput, security2FA?.backupCodes || []);
-                verified = backupResult.valid;
-            }
+            const verified = await verifyCurrent2FACode(rawInput);
             if (!verified) {
                 setDisableError('Invalid authenticator or backup code. Please verify and try again.');
                 return;
@@ -586,7 +626,8 @@ export default function TwoFactorAuthCard() {
 
                         <button
                             type="button"
-                            onClick={startSetupFlow}
+                            disabled={reconfiguring || isConfirmingReconfigure}
+                            onClick={() => (isEnabled ? handleOpenReconfigureConfirm() : startSetupFlow())}
                             className="btn-secondary"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '0.84rem' }}
                         >
@@ -689,6 +730,79 @@ export default function TwoFactorAuthCard() {
                                 <div role="alert" style={{ color: '#ef4444', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <AlertCircle size={14} style={{ flexShrink: 0 }} />
                                     <span>{disableError}</span>
+                                </div>
+                            )}
+                        </form>
+                    )}
+
+                    {isConfirmingReconfigure && (
+                        <form
+                            onSubmit={handleConfirmReconfigure}
+                            className="animate-fade-in"
+                            style={{
+                                padding: '16px',
+                                borderRadius: '12px',
+                                background: 'rgba(107, 126, 103, 0.08)',
+                                border: '1px solid var(--border-medium)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px'
+                            }}
+                        >
+                            <label
+                                htmlFor="reconfigure-2fa-code-input"
+                                style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}
+                            >
+                                Enter your current 6-digit authenticator code (or an 8-character backup code) to reconfigure 2FA:
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input
+                                    id="reconfigure-2fa-code-input"
+                                    type="text"
+                                    autoComplete="one-time-code"
+                                    placeholder="000000 or XXXX-XXXX"
+                                    value={reconfigureCode}
+                                    onChange={(e) => setReconfigureCode(e.target.value)}
+                                    disabled={reconfiguring}
+                                    style={{
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-medium)',
+                                        background: 'var(--bg-card)',
+                                        color: 'var(--text-primary)',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.95rem',
+                                        letterSpacing: '0.12em',
+                                        width: '210px',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={reconfiguring || !reconfigureCode.trim()}
+                                    className="btn-primary"
+                                    style={{ fontSize: '0.84rem', padding: '8px 14px' }}
+                                >
+                                    {reconfiguring ? 'Verifying...' : 'Verify & Reconfigure'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={reconfiguring}
+                                    onClick={() => {
+                                        setIsConfirmingReconfigure(false);
+                                        setReconfigureCode('');
+                                        setReconfigureError('');
+                                    }}
+                                    className="btn-secondary"
+                                    style={{ fontSize: '0.84rem', padding: '8px 12px' }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                            {reconfigureError && (
+                                <div role="alert" style={{ color: '#ef4444', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                                    <span>{reconfigureError}</span>
                                 </div>
                             )}
                         </form>

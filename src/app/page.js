@@ -43,10 +43,9 @@ export default function Home() {
     // Separate effect for auth redirect - only runs once when auth state is settled
     useEffect(() => {
         if (!loading && !user && mounted) {
-            // Use window.location for static export compatibility
-            window.location.href = '/login';
+            router.replace('/login');
         }
-    }, [loading, user, mounted]);
+    }, [loading, user, mounted, router]);
 
     const stats = useMemo(() => {
         if (!jobs) return { total: 0, interviewing: 0, offers: 0 };

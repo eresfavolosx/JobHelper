@@ -1,6 +1,8 @@
 "use client";
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import {
     AlertCircle,
@@ -81,6 +83,8 @@ function getGateBadge(status) {
 }
 
 export default function RecommendationsPage() {
+    const router = useRouter();
+    const { user, loading: authLoading } = useAuth();
     const profile = useAppStore(state => state.profile);
     const trackedJobs = useAppStore(state => state.jobs);
     const addJob = useAppStore((state) => state.addJob);
@@ -262,12 +266,21 @@ export default function RecommendationsPage() {
     };
 
     useEffect(() => {
-        if (hasAccess && jobs.length === 0) {
+        if (!authLoading && !user) {
+            router.replace('/login');
+        }
+    }, [authLoading, user, router]);
+
+    useEffect(() => {
+        if (user && hasAccess && jobs.length === 0) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             findJobs(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAccess]);
+    }, [user, hasAccess]);
+
+    if (authLoading) return <RecommendationsSkeleton />;
+    if (!user) return null;
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>

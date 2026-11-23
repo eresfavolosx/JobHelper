@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef, useSyncExternalStore, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import KanbanBoard from '@/components/KanbanBoard';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
@@ -20,6 +21,7 @@ import { KanbanSkeleton } from '@/components/SkeletonLoaders';
 const emptySubscribe = () => () => {};
 
 export default function KanbanPage() {
+    const router = useRouter();
     const { user, loading } = useAuth();
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
@@ -39,9 +41,9 @@ export default function KanbanPage() {
 
     useEffect(() => {
         if (mounted && !loading && !user) {
-            window.location.href = '/login';
+            router.replace('/login');
         }
-    }, [mounted, loading, user]);
+    }, [mounted, loading, user, router]);
 
     // Close export dropdown on outside click
     useEffect(() => {

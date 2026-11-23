@@ -28,6 +28,7 @@ const RECOMMENDATIONS_CACHE_KEY = 'jobhelper_recommendations_cache_v2';
 const RECOMMENDATIONS_FP_CACHE_KEY = 'jobhelper_recommendations_fp_cache_v1';
 const appliedAtCleanupInFlight = new Set();
 const oct2ReconcileInFlight = new Set();
+const deletedJobIds = new Set();
 let activeSubscriptionController = null;
 
 const PLATFORM_ADMIN_EMAILS = new Set([
@@ -352,6 +353,47 @@ export function sanitizeSecurity2FA(val) {
     };
 }
 
+export function sanitizeContextDocumentsForFirestore(rawDocs) {
+    if (rawDocs === null) return null;
+    if (!Array.isArray(rawDocs)) return [];
+    const cleaned = [];
+    for (let i = 0; i < rawDocs.length && cleaned.length < 10; i++) {
+        const item = rawDocs[i];
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        const docClean = {};
+        if (item.id !== undefined && item.id !== null) {
+            docClean.id = String(item.id).slice(0, 100);
+        }
+        if (item.name !== undefined && item.name !== null) {
+            docClean.name = String(item.name).slice(0, 200);
+        }
+        if (item.type !== undefined && item.type !== null) {
+            docClean.type = String(item.type).slice(0, 100);
+        }
+        if (item.content !== undefined) {
+            docClean.content = item.content === null ? null : sliceUtf8Bytes(item.content, 50000);
+        }
+        if (item.size !== undefined) {
+            if (item.size === null) {
+                docClean.size = null;
+            } else {
+                const num = Number(item.size);
+                if (Number.isFinite(num)) {
+                    docClean.size = Math.max(0, Math.min(5242880, Math.round(num)));
+                }
+            }
+        }
+        if (item.uploadedAt !== undefined) {
+            docClean.uploadedAt = item.uploadedAt === null ? null : (typeof item.uploadedAt === 'string' ? item.uploadedAt.slice(0, 100) : item.uploadedAt);
+        }
+        if (item.createdAt !== undefined) {
+            docClean.createdAt = item.createdAt === null ? null : (typeof item.createdAt === 'string' ? item.createdAt.slice(0, 100) : item.createdAt);
+        }
+        cleaned.push(docClean);
+    }
+    return cleaned;
+}
+
 export function sanitizeProfileForFirestore(rawProfile, options = {}) {
     if (!rawProfile || typeof rawProfile !== 'object') return {};
     const { allowSubscriptionFields = false, isAdmin = false } = options;
@@ -360,7 +402,7 @@ export function sanitizeProfileForFirestore(rawProfile, options = {}) {
     const envFirebase = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim() : '';
 
     for (const key of Object.keys(rawProfile)) {
-        if (!ALLOWED_PROFILE_KEYS.has(key) || key === 'contextDocuments') continue;
+        if (!ALLOWED_PROFILE_KEYS.has(key)) continue;
         if (SUBSCRIPTION_KEYS.has(key) && !allowSubscriptionFields) continue;
 
         const val = rawProfile[key];
@@ -406,6 +448,8 @@ export function sanitizeProfileForFirestore(rawProfile, options = {}) {
             } else {
                 cleaned[key] = String(val).slice(0, 50);
             }
+        } else if (key === 'contextDocuments') {
+            cleaned[key] = sanitizeContextDocumentsForFirestore(val);
         } else if (key === 'resumeAnalysis') {
             cleaned[key] = sanitizeResumeAnalysisForFirestore(val);
         } else if (key === 'security2FA') {
@@ -875,6 +919,7 @@ export const useAppStore = create(
                 if (currentUserId) {
                     clearTransientUserCaches();
                 }
+                deletedJobIds.clear();
                 console.log("User changed or initialized, resetting local cache for user:", userId);
                 set({
                     jobs: [],
@@ -895,6 +940,7 @@ export const useAppStore = create(
             // Clear all user data on logout
             clearUserData: () => {
                 console.log("Clearing user data on logout");
+                deletedJobIds.clear();
                 clearSession2FAVerification();
                 clearTransientUserCaches();
                 set({
@@ -1153,6 +1199,7 @@ export const useAppStore = create(
                     : (job?.previousStatus || 'wishlist');
                 const nowIso = new Date().toISOString();
                 const updates = { status: 'deleted', deletedAt: nowIso, updatedAt: nowIso, previousStatus };
+                if (id) deletedJobIds.add(id);
                 set((state) => ({
                     jobs: state.jobs.map((j) =>
                         j.id === id ? { ...j, ...updates } : j
@@ -1167,6 +1214,7 @@ export const useAppStore = create(
                         })
                         .catch(e => {
                             console.error("[Store] Failed to soft-delete job:", e);
+                            deletedJobIds.delete(id);
                             set((state) => ({
                                 jobs: previousJob ? state.jobs.map((j) => (j?.id === id ? previousJob : j)) : state.jobs,
                                 jobSyncError: 'Could not save job update to Firestore. Please try again.'
@@ -1175,6 +1223,17 @@ export const useAppStore = create(
                 }
             },
             restoreJob: (id) => {
+                const currentActiveJobs = get().jobs.filter(j => j?.status !== 'deleted' && j?.status !== 'archived');
+                const currentUser = auth?.currentUser;
+                const profile = get().profile;
+                const check = canAddJob(currentUser, profile, currentActiveJobs.length);
+                if (!check.allowed) {
+                    set({
+                        jobSyncError: `Free tier limit reached (${FREE_TIER_MAX_JOBS} active jobs). Upgrade to NovuJobs Pro ($9.99/mo) to restore archived or deleted jobs.`
+                    });
+                    return false;
+                }
+                if (id) deletedJobIds.delete(id);
                 const job = get().jobs.find(j => j?.id === id);
                 const previousJob = job ? { ...job } : null;
                 const targetStatus = (job?.previousStatus && job.previousStatus !== 'deleted' && job.previousStatus !== 'archived')
@@ -1213,8 +1272,10 @@ export const useAppStore = create(
                             }));
                         });
                 }
+                return true;
             },
             permanentDeleteJob: (id) => {
+                if (id) deletedJobIds.add(id);
                 set((state) => ({
                     jobs: state.jobs.filter((job) => job?.id !== id)
                 }));
@@ -1384,18 +1445,23 @@ export const useAppStore = create(
                     };
                 }
             },
-            addContextDocument: (docData) => set((state) => ({
-                profile: {
-                    ...state.profile,
-                    contextDocuments: [...(state.profile.contextDocuments || []), docData]
-                }
-            })),
-            removeContextDocument: (index) => set((state) => ({
-                profile: {
-                    ...state.profile,
-                    contextDocuments: state.profile.contextDocuments.filter((_, i) => i !== index)
-                }
-            })),
+            addContextDocument: (docData) => {
+                const existing = Array.isArray(get().profile?.contextDocuments) ? get().profile.contextDocuments : [];
+                const itemWithMeta = docData && typeof docData === 'object'
+                    ? {
+                        id: docData.id || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        createdAt: docData.createdAt || docData.uploadedAt || new Date().toISOString(),
+                        ...docData
+                    }
+                    : docData;
+                const nextDocs = sanitizeContextDocumentsForFirestore([...existing, itemWithMeta]);
+                void get().updateProfile({ contextDocuments: nextDocs });
+            },
+            removeContextDocument: (index) => {
+                const existing = Array.isArray(get().profile?.contextDocuments) ? get().profile.contextDocuments : [];
+                const nextDocs = existing.filter((_, i) => i !== index);
+                void get().updateProfile({ contextDocuments: nextDocs });
+            },
 
             resumePost2FASubscriptions: () => {
                 const uid = get().currentUserId || auth?.currentUser?.uid;
@@ -1493,6 +1559,9 @@ export const useAppStore = create(
                             set(state => {
                                 const localOnlyJobs = state.jobs.filter(localJob =>
                                     localJob?.id &&
+                                    localJob.status !== 'deleted' &&
+                                    !localJob.deletedAt &&
+                                    !deletedJobIds.has(localJob.id) &&
                                     !currentSnapshotIds.has(localJob.id) &&
                                     !syncedCloudJobIds.has(localJob.id)
                                 );
