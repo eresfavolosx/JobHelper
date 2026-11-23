@@ -54,7 +54,7 @@ function clearThrottleState(userId) {
 export default function TwoFactorGate({ onUnlocked }) {
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
-    const updateProfile = useAppStore(state => state.updateProfile);
+    const updateSecurity2FA = useAppStore(state => state.updateSecurity2FA);
 
     const [code, setCode] = useState('');
     const [isBackupMode, setIsBackupMode] = useState(false);
@@ -128,13 +128,15 @@ export default function TwoFactorGate({ onUnlocked }) {
                     return;
                 }
 
-                // Update remaining backup codes in Firestore
-                await updateProfile({
-                    security2FA: {
-                        ...security2FA,
-                        backupCodes: result.remainingCodes
-                    }
+                // Update remaining backup codes in dedicated /data/security Firestore document
+                const syncResult = await updateSecurity2FA({
+                    ...security2FA,
+                    backupCodes: result.remainingCodes
                 });
+                if (syncResult?.synced === false) {
+                    setError(syncResult?.error || 'Could not update recovery code status. Please try again.');
+                    return;
+                }
 
                 clearThrottleState(user.uid);
                 markSession2FAVerified(user.uid);

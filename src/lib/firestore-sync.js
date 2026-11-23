@@ -1,5 +1,5 @@
 import { cleanObject } from './utils';
-import { sanitizeProfileForFirestore, sanitizeJobForFirestore } from './store';
+import { sanitizeProfileForFirestore, sanitizeJobForFirestore, sanitizeSecurity2FA } from './store';
 import { doc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -30,6 +30,14 @@ export async function syncLocalDataToFirestore(userId, jobs, profile) {
         if (Object.keys(cleanProfile).length > 0) {
             firstBatch.set(profileRef, cleanProfile, { merge: true });
             firstBatchCount++;
+        }
+        if (profile.security2FA && typeof profile.security2FA === 'object') {
+            const securityRef = doc(db, "users", userId, "data", "security");
+            const cleanSec = sanitizeSecurity2FA(profile.security2FA);
+            if (cleanSec) {
+                firstBatch.set(securityRef, cleanSec);
+                firstBatchCount++;
+            }
         }
     }
 
@@ -77,6 +85,10 @@ export async function deleteAllUserData(userId) {
     // Delete profile
     const profileRef = doc(db, "users", userId, "data", "profile");
     deletePromises.push(deleteDoc(profileRef));
+
+    // Delete security settings
+    const securityRef = doc(db, "users", userId, "data", "security");
+    deletePromises.push(deleteDoc(securityRef));
 
     // Delete cycles
     const cyclesRef = doc(db, "users", userId, "data", "cycles");

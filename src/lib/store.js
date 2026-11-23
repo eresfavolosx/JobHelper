@@ -151,6 +151,17 @@ function saveJobCycleAssignmentsToFirestore(userId, jobs, changedJobIds) {
     }).catch(e => console.error("[Store] Import failed for saveJobCycleAssignmentsToFirestore:", e));
 }
 
+const VALID_TRANSITION_EVENT_TYPES = new Set([
+    'job_loss', 'new_search', 'search_paused', 'activity_spike', 'offer_accepted'
+]);
+
+export function normalizeTransitionEventType(rawType, fallback = 'new_search') {
+    if (VALID_TRANSITION_EVENT_TYPES.has(rawType)) return rawType;
+    if (rawType === 'auto_spike') return 'activity_spike';
+    if (rawType === 'manual' || rawType === 'manual_toggle') return 'new_search';
+    return fallback;
+}
+
 const ALLOWED_PROFILE_KEYS = new Set([
     'fullName', 'targetRole', 'location', 'keywords', 'isRemote',
     'experienceLevel', 'country', 'modality', 'minimumSalary',
@@ -327,6 +338,22 @@ export function sanitizeResumeAnalysisForFirestore(rawResume) {
     return cleaned;
 }
 
+export function sanitizeSecurity2FA(val) {
+    if (!val || typeof val !== 'object') return null;
+    return {
+        enabled: Boolean(val.enabled),
+        secret: typeof val.secret === 'string' ? val.secret.trim().slice(0, 128) : '',
+        backupCodes: Array.isArray(val.backupCodes)
+            ? val.backupCodes
+                .map(c => String(c || '').trim())
+                .filter(c => c.length >= 4 && c.length <= 32)
+                .slice(0, 16)
+            : [],
+        enabledAt: typeof val.enabledAt === 'string' ? val.enabledAt.slice(0, 100) : null,
+        updatedAt: typeof val.updatedAt === 'string' ? val.updatedAt.slice(0, 100) : new Date().toISOString()
+    };
+}
+
 export function sanitizeProfileForFirestore(rawProfile, options = {}) {
     if (!rawProfile || typeof rawProfile !== 'object') return {};
     const { allowSubscriptionFields = false, isAdmin = false } = options;
@@ -385,17 +412,12 @@ export function sanitizeProfileForFirestore(rawProfile, options = {}) {
             cleaned[key] = sanitizeResumeAnalysisForFirestore(val);
         } else if (key === 'security2FA') {
             if (val && typeof val === 'object') {
-                const codes = Array.isArray(val.backupCodes)
-                    ? val.backupCodes
-                        .map(c => String(c || '').trim().slice(0, 32))
-                        .filter(c => c.length >= 4)
-                        .slice(0, 16)
-                    : [];
+                const sec = sanitizeSecurity2FA(val);
                 cleaned[key] = {
-                    enabled: Boolean(val.enabled),
-                    secret: typeof val.secret === 'string' ? val.secret.trim().slice(0, 128) : '',
-                    backupCodes: codes,
-                    enabledAt: typeof val.enabledAt === 'string' ? val.enabledAt.slice(0, 100) : null
+                    enabled: sec.enabled,
+                    secret: sec.secret,
+                    backupCodes: sec.backupCodes,
+                    enabledAt: sec.enabledAt
                 };
             } else {
                 cleaned[key] = null;
@@ -535,7 +557,7 @@ export const useAppStore = create(
                     ? transitionLog
                     : [
                         createTransitionEvent({
-                            type: options.triggerType || 'new_search',
+                            type: normalizeTransitionEventType(options.triggerType, 'new_search'),
                             date: startedAtIso,
                             note: options.notes || `Opened ${newCycle.name}`,
                             cycleId: newCycle.id,
@@ -590,7 +612,7 @@ export const useAppStore = create(
                     ? transitionLog
                     : [
                         createTransitionEvent({
-                            type: options.triggerType || 'activity_spike',
+                            type: normalizeTransitionEventType(options.triggerType, 'activity_spike'),
                             date: result.newCycle.startedAt,
                             note: options.notes || `Started ${result.newCycle.name}`,
                             cycleId: result.newCycle.id,
@@ -1160,32 +1182,58 @@ export const useAppStore = create(
                 set((state) => ({
                     profile: { ...state.profile, ...payloadWithTimestamp }
                 }));
-                const userId = get().currentUserId || currentUser?.uid;
-                if (userId) {
-                    try {
-                        const { setDoc, doc } = await import('firebase/firestore');
-                        const profileRef = doc(db, "users", userId, "data", "profile");
-                        const fullCurrentProfile = get().profile;
-                        const cleanProfile = sanitizeProfileForFirestore(
-                            {
-                                ...fullCurrentProfile,
-                                ...payloadWithTimestamp
-                            },
-                            {
-                                allowSubscriptionFields: Boolean(isAdmin && hasExplicitSubChange),
-                                isAdmin
-                            }
-                        );
-                        if (Object.keys(cleanProfile).length > 0) {
-                            await setDoc(profileRef, cleanProfile, { merge: true });
-                        }
-                        return { success: true, synced: true };
-                    } catch (e) {
-                        console.error("[Store] Failed to update profile:", e);
-                        return { success: true, synced: false, error: e?.message };
-                    }
+                const userId = currentUser?.uid || get().currentUserId;
+                if (!userId) {
+                    return { success: false, synced: false, error: 'Not signed in.' };
                 }
-                return { success: true, synced: false };
+                try {
+                    const { setDoc, doc } = await import('firebase/firestore');
+                    const profileRef = doc(db, "users", userId, "data", "profile");
+                    const cleanProfile = sanitizeProfileForFirestore(
+                        payloadWithTimestamp,
+                        {
+                            allowSubscriptionFields: Boolean(isAdmin && hasExplicitSubChange),
+                            isAdmin
+                        }
+                    );
+                    if (Object.keys(cleanProfile).length > 0) {
+                        await setDoc(profileRef, cleanProfile, { merge: true });
+                    }
+                    return { success: true, synced: true };
+                } catch (e) {
+                    console.error("[Store] Failed to update profile:", e);
+                    return { success: false, synced: false, error: e?.message || 'Cloud sync failed.' };
+                }
+            },
+            updateSecurity2FA: async (nextSecurity2FA) => {
+                const userId = auth?.currentUser?.uid || get().currentUserId;
+                if (!userId) {
+                    return {
+                        success: false,
+                        synced: false,
+                        error: 'You must be signed in to update 2FA settings.'
+                    };
+                }
+                const cleanSec = sanitizeSecurity2FA({
+                    ...nextSecurity2FA,
+                    updatedAt: new Date().toISOString()
+                });
+                try {
+                    const { setDoc, doc } = await import('firebase/firestore');
+                    const securityRef = doc(db, "users", userId, "data", "security");
+                    await setDoc(securityRef, cleanSec);
+                    set((state) => ({
+                        profile: { ...state.profile, security2FA: cleanSec }
+                    }));
+                    return { success: true, synced: true };
+                } catch (e) {
+                    console.error("[Store] Failed to save security2FA:", e);
+                    return {
+                        success: false,
+                        synced: false,
+                        error: e?.message || 'Cloud sync failed.'
+                    };
+                }
             },
             addContextDocument: (docData) => set((state) => ({
                 profile: {
@@ -1359,8 +1407,19 @@ export const useAppStore = create(
 
                 activeSubscriptionController = { userId, startDataListeners };
 
-                // 1. Profile Listener (always attached first so 2FA status is known before jobs/cycles load)
+                // 1. Profile & Dedicated Security Listeners (both must settle before releasing 2FA/data gate)
                 const profileRef = doc(db, "users", userId, "data", "profile");
+                const securityRef = doc(db, "users", userId, "data", "security");
+                let hasProfileSnapshot = false;
+                let hasSecuritySnapshot = false;
+                let hasDedicatedSecurityDoc = false;
+
+                const finalizeInitialSecurityAndProfile = () => {
+                    if (unsubscribed || !hasProfileSnapshot || !hasSecuritySnapshot) return;
+                    set({ profileLoaded: true, profileLoadError: null });
+                    startDataListeners();
+                };
+
                 const profileUnsub = onSnapshot(profileRef,
                     (docSnap) => {
                         if (docSnap.exists()) {
@@ -1379,7 +1438,7 @@ export const useAppStore = create(
                                 'experienceLevel', 'country', 'modality', 'minimumSalary',
                                 'geminiApiKey', 'claudeApiKey', 'openaiApiKey',
                                 'customAiApiKey', 'customAiBaseUrl', 'customAiModel', 'activeAiProvider',
-                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis', 'security2FA'
+                                'googleMapsApiKey', 'applicationGoal', 'resumeAnalysis'
                             ];
 
                             if (shouldSyncLocalProfileCatchup({ localTime, remoteTime })) {
@@ -1392,6 +1451,24 @@ export const useAppStore = create(
                                 }
                                 mergedProfile.updatedAt = localProfile.updatedAt;
                                 needsCloudCatchup = true;
+                            }
+
+                            // Preserve authoritative /data/security state over legacy/empty profile.security2FA
+                            if (hasDedicatedSecurityDoc) {
+                                mergedProfile.security2FA = localProfile.security2FA;
+                            } else if (
+                                hasSecuritySnapshot &&
+                                remoteData?.security2FA?.enabled &&
+                                remoteData?.security2FA?.secret
+                            ) {
+                                const migratedSec = sanitizeSecurity2FA(remoteData.security2FA);
+                                if (migratedSec) {
+                                    import('firebase/firestore').then(({ setDoc }) => {
+                                        setDoc(securityRef, migratedSec).catch(e =>
+                                            console.error("[Store] Failed to migrate profile security2FA to /data/security:", e)
+                                        );
+                                    });
+                                }
                             }
 
                             const envGemini = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '').trim() : '';
@@ -1411,12 +1488,14 @@ export const useAppStore = create(
                                 mergedProfile.googleMapsApiKey = '';
                             }
 
-                            set({ profile: mergedProfile, profileLoaded: true, profileLoadError: null });
-                            startDataListeners();
+                            set({ profile: mergedProfile });
+                            hasProfileSnapshot = true;
+                            finalizeInitialSecurityAndProfile();
 
                             if (needsCloudCatchup) {
                                 import('firebase/firestore').then(({ setDoc }) => {
                                     const cleanMerged = sanitizeProfileForFirestore(mergedProfile, { allowSubscriptionFields: false });
+                                    delete cleanMerged.security2FA;
                                     if (Object.keys(cleanMerged).length > 0) {
                                         setDoc(profileRef, cleanMerged, { merge: true }).catch(e =>
                                             console.error("[Store] Failed to sync local profile fields to Firestore:", e)
@@ -1446,8 +1525,9 @@ export const useAppStore = create(
                                     : 'trial',
                                 updatedAt: now.toISOString()
                             };
-                            set({ profile: initialProfile, profileLoaded: true, profileLoadError: null });
-                            startDataListeners();
+                            set({ profile: initialProfile });
+                            hasProfileSnapshot = true;
+                            finalizeInitialSecurityAndProfile();
                             import('firebase/firestore').then(({ setDoc }) => {
                                 const cleanInitial = sanitizeProfileForFirestore(initialProfile, {
                                     allowSubscriptionFields: true,
@@ -1463,12 +1543,45 @@ export const useAppStore = create(
                     }
                 );
 
+                // 1b. Dedicated Security Listener (/users/{userId}/data/security)
+                const securityUnsub = onSnapshot(securityRef,
+                    (docSnap) => {
+                        hasSecuritySnapshot = true;
+                        if (docSnap.exists()) {
+                            hasDedicatedSecurityDoc = true;
+                            const secData = docSnap.data() || null;
+                            set((state) => ({
+                                profile: { ...state.profile, security2FA: secData }
+                            }));
+                        } else {
+                            hasDedicatedSecurityDoc = false;
+                            const legacySec = get().profile?.security2FA;
+                            if (legacySec?.enabled && legacySec?.secret) {
+                                const migratedSec = sanitizeSecurity2FA(legacySec);
+                                if (migratedSec) {
+                                    import('firebase/firestore').then(({ setDoc }) => {
+                                        setDoc(securityRef, migratedSec).catch(e =>
+                                            console.error("[Store] Failed to auto-migrate legacy security2FA:", e)
+                                        );
+                                    });
+                                }
+                            }
+                        }
+                        finalizeInitialSecurityAndProfile();
+                    },
+                    (error) => {
+                        console.error("[Store] Security snapshot error:", error);
+                        set({ profileLoadError: error?.message || 'Unable to verify account security.' });
+                    }
+                );
+
                 return () => {
                     unsubscribed = true;
                     if (activeSubscriptionController?.startDataListeners === startDataListeners) {
                         activeSubscriptionController = null;
                     }
                     profileUnsub();
+                    securityUnsub();
                     if (jobsUnsub) jobsUnsub();
                     if (cyclesUnsub) cyclesUnsub();
                 };

@@ -22,7 +22,7 @@ import {
 export default function TwoFactorAuthCard() {
     const { user } = useAuth();
     const profile = useAppStore(state => state.profile);
-    const updateProfile = useAppStore(state => state.updateProfile);
+    const updateSecurity2FA = useAppStore(state => state.updateSecurity2FA);
 
     const security2FA = profile?.security2FA;
     const isEnabled = Boolean(security2FA?.enabled && security2FA?.secret);
@@ -106,19 +106,27 @@ export default function TwoFactorAuthCard() {
 
     if (!user) return null;
 
-    const handleCopyKey = () => {
+    const handleCopyKey = async () => {
         if (!setupSecret) return;
-        navigator.clipboard.writeText(setupSecret);
-        setCopiedKey(true);
-        setTimeout(() => setCopiedKey(false), 2500);
+        try {
+            await navigator?.clipboard?.writeText?.(setupSecret);
+            setCopiedKey(true);
+            setTimeout(() => setCopiedKey(false), 2500);
+        } catch (err) {
+            console.warn('[2FA Setup] Clipboard copy failed:', err);
+        }
     };
 
-    const handleCopyBackupCodes = (codes) => {
+    const handleCopyBackupCodes = async (codes) => {
         if (!Array.isArray(codes) || codes.length === 0) return;
         const text = `JobHelper Emergency 2FA Backup Codes for ${user.email}:\n\n` + codes.join('\n') + '\n\nEach code can be used once if you lose your phone.';
-        navigator.clipboard.writeText(text);
-        setCopiedBackup(true);
-        setTimeout(() => setCopiedBackup(false), 2500);
+        try {
+            await navigator?.clipboard?.writeText?.(text);
+            setCopiedBackup(true);
+            setTimeout(() => setCopiedBackup(false), 2500);
+        } catch (err) {
+            console.warn('[2FA Setup] Clipboard copy failed:', err);
+        }
     };
 
     const handleConfirmAndActivate = async (e) => {
@@ -136,11 +144,10 @@ export default function TwoFactorAuthCard() {
             const isValid = await verifyTotpCode(setupSecret, cleanCode, 1);
             if (!isValid) {
                 setSetupError('Invalid code. Ensure your device time is synchronized and enter the current code displayed in your app.');
-                setSaving(false);
                 return;
             }
 
-            // Save active 2FA to profile and Firestore
+            // Save active 2FA to dedicated /data/security Firestore document
             const payload = {
                 enabled: true,
                 secret: setupSecret,
@@ -148,21 +155,22 @@ export default function TwoFactorAuthCard() {
                 enabledAt: new Date().toISOString()
             };
 
-            const syncResult = await updateProfile({ security2FA: payload });
-            markSession2FAVerified(user.uid);
-
-            setIsSettingUp(false);
-            if (syncResult?.synced === false && syncResult?.error) {
-                setStatusMessage({
-                    type: 'warning',
-                    text: `Two-Factor Authentication was enabled locally, but cloud sync encountered an error: ${syncResult.error}`
-                });
-            } else {
-                setStatusMessage({
-                    type: 'success',
-                    text: 'Two-Factor Authentication is now enabled! Your account is protected.'
-                });
+            const syncResult = await updateSecurity2FA(payload);
+            if (!syncResult?.synced) {
+                setSetupError(
+                    syncResult?.error
+                        ? `Could not save 2FA to your account: ${syncResult.error}`
+                        : 'Could not save 2FA to your cloud account. Please try again.'
+                );
+                return;
             }
+
+            markSession2FAVerified(user.uid);
+            setIsSettingUp(false);
+            setStatusMessage({
+                type: 'success',
+                text: 'Two-Factor Authentication is now enabled! Your account is protected.'
+            });
         } catch (err) {
             console.error('[2FA Setup] Activation error:', err);
             setSetupError('Failed to activate 2FA. Please try again.');
@@ -199,33 +207,32 @@ export default function TwoFactorAuthCard() {
             }
             if (!verified) {
                 setDisableError('Invalid authenticator or backup code. Please verify and try again.');
-                setDisabling(false);
                 return;
             }
 
-            const syncResult = await updateProfile({
-                security2FA: {
-                    enabled: false,
-                    secret: '',
-                    backupCodes: [],
-                    enabledAt: null
-                }
+            const syncResult = await updateSecurity2FA({
+                enabled: false,
+                secret: '',
+                backupCodes: [],
+                enabledAt: null
             });
+            if (!syncResult?.synced) {
+                setDisableError(
+                    syncResult?.error
+                        ? `Could not disable 2FA on your account: ${syncResult.error}`
+                        : 'Could not disable 2FA in your cloud account. Please try again.'
+                );
+                return;
+            }
+
             clearSession2FAVerification(user.uid);
             setIsConfirmingDisable(false);
             setDisableCode('');
             setShowBackupCodes(false);
-            if (syncResult?.synced === false && syncResult?.error) {
-                setStatusMessage({
-                    type: 'warning',
-                    text: `Two-Factor Authentication was disabled locally, but cloud sync encountered an error: ${syncResult.error}`
-                });
-            } else {
-                setStatusMessage({
-                    type: 'info',
-                    text: 'Two-Factor Authentication has been disabled. You can re-enable it at any time.'
-                });
-            }
+            setStatusMessage({
+                type: 'info',
+                text: 'Two-Factor Authentication has been disabled. You can re-enable it at any time.'
+            });
         } catch (err) {
             console.error('[2FA Disable] Error:', err);
             setStatusMessage({
@@ -242,16 +249,16 @@ export default function TwoFactorAuthCard() {
             return;
         }
         const freshCodes = generateBackupCodes(8);
-        const syncResult = await updateProfile({
-            security2FA: {
-                ...security2FA,
-                backupCodes: freshCodes
-            }
+        const syncResult = await updateSecurity2FA({
+            ...security2FA,
+            backupCodes: freshCodes
         });
-        if (syncResult?.synced === false && syncResult?.error) {
+        if (!syncResult?.synced) {
             setStatusMessage({
-                type: 'warning',
-                text: `Backup recovery codes were updated locally, but cloud sync encountered an error: ${syncResult.error}`
+                type: 'error',
+                text: syncResult?.error
+                    ? `Could not save new backup recovery codes to your account: ${syncResult.error}`
+                    : 'Could not save new backup recovery codes to your cloud account. Please try again.'
             });
         } else {
             setStatusMessage({

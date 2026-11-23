@@ -27,7 +27,7 @@ service cloud.firestore {
     //   - modality: string or list<string> (optional, 0..250 chars or max 10 items <= 64 chars)
     //   - minimumSalary: string/number/null (optional, 0..50 chars or 0..100000000)
     //   - contextDocuments: list<map> or null (optional, max 10 items, bounded map keys/content)
-    //   - resumeAnalysis: map or null (optional, max 16 known keys, bounded strings/lists)
+    //   - resumeAnalysis: map or null (optional, max 50 keys) - AI-extracted resume analysis
     //   - geminiApiKey: string (optional, 0..200 chars) - User-provided Gemini API key
     //   - claudeApiKey: string (optional, 0..200 chars) - User-provided Claude API key
     //   - openaiApiKey: string (optional, 0..200 chars) - User-provided OpenAI API key
@@ -44,6 +44,15 @@ service cloud.firestore {
     //       hoursPerWeek, reminderEnabled, enabled, startDate, updatedAt)
     //   - security2FA: map or null (optional, max 4 keys: enabled, secret, backupCodes, enabledAt;
     //       backupCodes max 16 strings of 4..32 chars)
+    //   - updatedAt: string/timestamp/null (optional, <= 100 chars) - Last updated timestamp
+    //
+    // Collection: /users/{userId}/data/security (single document 'security')
+    // Document ID: 'security'
+    // Fields:
+    //   - enabled: bool (required) - Whether two-factor authentication is enabled
+    //   - secret: string (optional, 0..128 chars) - Base32 TOTP secret
+    //   - backupCodes: list<string> (optional, max 16 items, each 4..32 chars) - Single-use backup codes
+    //   - enabledAt: string/timestamp/null (optional, <= 100 chars) - Activation timestamp
     //   - updatedAt: string/timestamp/null (optional, <= 100 chars) - Last updated timestamp
     //
     // Collection: /users/{userId}/data/cycles (single document 'cycles')
@@ -70,7 +79,7 @@ service cloud.firestore {
     //       'offer', 'accepted', 'rejected', 'archived', 'deleted'])
     //   - url: string (optional, 0..2048 chars)
     //   - link: string (optional, 0..2048 chars)
-    //   - description: string (optional, <= 200000 UTF-8 bytes)
+    //   - description: string (optional, 0..200000 chars)
     //   - salary: string (optional, 0..100 chars)
     //   - notes: string (optional, 0..10000 chars, <= 15000 UTF-8 bytes)
     //   - commuteTime: string (optional, 0..200 chars)
@@ -313,6 +322,24 @@ service cloud.firestore {
               isValidDateOrTimestamp(sec, 'enabledAt'));
     }
 
+    function isValidSecurityDoc(data) {
+      return data is map &&
+             data.keys().size() <= 5 &&
+             data.keys().hasOnly([
+               'enabled', 'secret', 'backupCodes', 'enabledAt', 'updatedAt'
+             ]) &&
+             ('enabled' in data && data.enabled is bool) &&
+             isValidOptionalString(data, 'secret', 0, 128) &&
+             (!('backupCodes' in data) ||
+              (data.backupCodes is list &&
+               data.backupCodes.size() <= 16 &&
+               (data.backupCodes.size() == 0 ||
+                (isBoundedString(data.backupCodes[0], 4, 32) &&
+                 isBoundedString(data.backupCodes[data.backupCodes.size() - 1], 4, 32))))) &&
+             isValidDateOrTimestamp(data, 'enabledAt') &&
+             isValidDateOrTimestamp(data, 'updatedAt');
+    }
+
     function isValidContextDocument(docItem) {
       return docItem is map &&
              docItem.keys().size() <= 7 &&
@@ -334,36 +361,7 @@ service cloud.firestore {
 
     function isValidResumeAnalysis(res) {
       return res is map &&
-             res.keys().size() <= 16 &&
-             res.keys().hasOnly([
-               'skills', 'experienceLevel', 'targetRoles', 'summary', 'keywords',
-               'strengths', 'yearsOfExperience', 'education', 'certifications',
-               'highlights', 'languages', 'industries', 'locations', 'location',
-               'roles', 'experience'
-             ]) &&
-             isValidOptionalStringList(res, 'skills', 50, 120) &&
-             isValidBoundedStringOrList(res, 'experienceLevel', 100, 10, 50) &&
-             isValidOptionalStringList(res, 'targetRoles', 20, 150) &&
-             (!('summary' in res) ||
-              res.summary == null ||
-              isBoundedUtf8String(res.summary, 0, 5000)) &&
-             isValidOptionalStringList(res, 'keywords', 50, 120) &&
-             isValidOptionalStringList(res, 'strengths', 30, 300) &&
-             (!('yearsOfExperience' in res) ||
-              res.yearsOfExperience == null ||
-              (res.yearsOfExperience is number &&
-               res.yearsOfExperience >= 0 && res.yearsOfExperience <= 80) ||
-              (res.yearsOfExperience is string && res.yearsOfExperience.size() <= 50)) &&
-             isValidOptionalStringList(res, 'education', 20, 300) &&
-             isValidOptionalStringList(res, 'certifications', 30, 200) &&
-             isValidOptionalStringList(res, 'highlights', 30, 500) &&
-             isValidOptionalStringList(res, 'languages', 20, 100) &&
-             isValidOptionalStringList(res, 'industries', 20, 120) &&
-             isValidOptionalStringList(res, 'locations', 20, 150) &&
-             isValidOptionalString(res, 'location', 0, 200) &&
-             isValidOptionalStringList(res, 'roles', 20, 150) &&
-             (isValidOptionalString(res, 'experience', 0, 2000) ||
-              isValidOptionalStringList(res, 'experience', 20, 500));
+             res.keys().size() <= 50;
     }
 
     function isValidProfile(data) {
@@ -558,9 +556,7 @@ service cloud.firestore {
              isValidOptionalString(data, 'salary', 0, 100) &&
              isValidOptionalString(data, 'url', 0, 2048) &&
              isValidOptionalString(data, 'link', 0, 2048) &&
-             (!('description' in data) ||
-              data.description == null ||
-              isBoundedUtf8String(data.description, 0, 200000)) &&
+             isValidOptionalString(data, 'description', 0, 200000) &&
              (!('notes' in data) ||
               data.notes == null ||
               (isBoundedString(data.notes, 0, 10000) &&
@@ -958,6 +954,14 @@ service cloud.firestore {
         allow update: if isOwner(userId) &&
                         isValidProfile(request.resource.data) &&
                         canUpdateProfile();
+        allow delete: if isOwner(userId);
+      }
+
+      // User 2FA security document: /users/{userId}/data/security
+      match /data/security {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) &&
+                                isValidSecurityDoc(request.resource.data);
         allow delete: if isOwner(userId);
       }
 

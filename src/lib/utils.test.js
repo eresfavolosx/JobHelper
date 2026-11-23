@@ -1,7 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeXml, sanitizeUrl, sanitizeCustomAiBaseUrl } from './utils.js';
-import { sanitizeJobForFirestore, sanitizeProfileForFirestore, sanitizeResumeAnalysisForFirestore } from './store.js';
+import {
+  sanitizeJobForFirestore,
+  sanitizeProfileForFirestore,
+  sanitizeResumeAnalysisForFirestore,
+  sanitizeSecurity2FA,
+  normalizeTransitionEventType
+} from './store.js';
 
 describe('utils', () => {
   describe('escapeXml', () => {
@@ -146,6 +152,36 @@ describe('utils', () => {
       assert.equal(sanitized.summary, 'Experienced engineer');
       assert.equal(sanitized.maliciousExtraKey, undefined);
       assert.equal(sanitized.rawPromptOverride, undefined);
+    });
+  });
+
+  describe('sanitizeSecurity2FA & transition event normalization', () => {
+    it('normalizes dedicated /data/security payloads and filters invalid backup codes', () => {
+      assert.equal(sanitizeSecurity2FA(null), null);
+      assert.equal(sanitizeSecurity2FA('bad'), null);
+
+      const clean = sanitizeSecurity2FA({
+        enabled: 1,
+        secret: '  JBSWY3DPEHPK3PXP  ',
+        backupCodes: [' ab ', 'ABCD-1234', 'EFGH-5678', ...Array.from({ length: 20 }, (_, i) => `CODE-${1000 + i}`)],
+        enabledAt: '2026-11-23T08:00:00.000Z',
+        updatedAt: '2026-11-23T08:01:00.000Z'
+      });
+
+      assert.equal(clean.enabled, true);
+      assert.equal(clean.secret, 'JBSWY3DPEHPK3PXP');
+      assert.equal(clean.backupCodes.length, 16);
+      assert.equal(clean.backupCodes[0], 'ABCD-1234');
+      assert.equal(clean.enabledAt, '2026-11-23T08:00:00.000Z');
+      assert.equal(clean.updatedAt, '2026-11-23T08:01:00.000Z');
+    });
+
+    it('normalizes cycle transitionLog event types to Firestore-allowed values', () => {
+      assert.equal(normalizeTransitionEventType('manual'), 'new_search');
+      assert.equal(normalizeTransitionEventType('manual_toggle'), 'new_search');
+      assert.equal(normalizeTransitionEventType('auto_spike'), 'activity_spike');
+      assert.equal(normalizeTransitionEventType('offer_accepted'), 'offer_accepted');
+      assert.equal(normalizeTransitionEventType('unknown', 'search_paused'), 'search_paused');
     });
   });
 });
