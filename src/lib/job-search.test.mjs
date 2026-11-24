@@ -5,6 +5,9 @@ import {
     evaluateJobMatch,
     extractJobFacets,
     sortJobsList,
+    getJobRecencyTimestamp,
+    formatRelativeSearchDate,
+    extractMatchSnippet,
     STAGE_LABELS
 } from './job-search.js';
 
@@ -199,5 +202,48 @@ describe('Multi-Parameter Job Search & Facet Engine', () => {
         assert.equal(evaluateJobMatch(openWorksJob, { query: 'ropen works' }).matches, true);
         assert.equal(evaluateJobMatch(SAMPLE_JOBS[0], { query: 'anthrpic' }).matches, true);
         assert.equal(evaluateJobMatch(SAMPLE_JOBS[0], { query: 'anthropic remote' }).matches, false);
+    });
+
+    it('computes recency timestamps, relative labels, and contextual match snippets', () => {
+        const nowMs = new Date('2026-10-25T12:00:00Z').getTime();
+        const recentJob = {
+            id: 'r1',
+            company: 'OpenWorks',
+            role: 'Ops Lead',
+            updatedAt: '2026-10-25T09:00:00Z',
+            appliedAt: '2026-10-20T12:00:00Z',
+            description: 'Join OpenWorks to scale enterprise automation. '.repeat(5) +
+                'Requires deep expertise in Firestore security rules and React telemetry dashboards across multiple teams.'
+        };
+        const olderJob = {
+            id: 'r2',
+            company: 'Acme',
+            role: 'Engineer',
+            appliedAt: '2026-10-22T12:00:00Z',
+            notes: 'Recruiter confirmed technical screen with engineering manager next Tuesday.'
+        };
+
+        assert.equal(getJobRecencyTimestamp(recentJob), new Date('2026-10-25T09:00:00Z').getTime());
+        assert.equal(getJobRecencyTimestamp(olderJob), new Date('2026-10-22T12:00:00Z').getTime());
+        assert.equal(getJobRecencyTimestamp({}), 0);
+
+        assert.equal(formatRelativeSearchDate(recentJob, nowMs), 'Today');
+        assert.equal(formatRelativeSearchDate({ updatedAt: '2026-10-24T12:00:00Z' }, nowMs), 'Yesterday');
+        assert.equal(formatRelativeSearchDate(olderJob, nowMs), '3d ago');
+        assert.equal(formatRelativeSearchDate({ updatedAt: '2026-09-10T12:00:00Z' }, nowMs), 'Sep 10');
+        assert.equal(formatRelativeSearchDate({}, nowMs), '');
+
+        const snippetDesc = extractMatchSnippet(recentJob, 'Firestore telemetry', ['description'], 110);
+        assert.ok(snippetDesc);
+        assert.equal(snippetDesc.field, 'description');
+        assert.ok(snippetDesc.text.includes('Firestore security rules'));
+        assert.ok(snippetDesc.text.length <= 125);
+
+        const snippetNotes = extractMatchSnippet(olderJob, 'technical screen', ['notes'], 110);
+        assert.ok(snippetNotes);
+        assert.equal(snippetNotes.field, 'notes');
+        assert.ok(snippetNotes.text.includes('technical screen'));
+
+        assert.equal(extractMatchSnippet(SAMPLE_JOBS[0], 'anthropic', ['company']), null);
     });
 });

@@ -676,3 +676,88 @@ export function extractJobFacets(jobs = []) {
 
     return { companies, locations, stages };
 }
+
+/**
+ * Returns the most recent activity timestamp (ms) for a job application.
+ */
+export function getJobRecencyTimestamp(job) {
+    if (!job || typeof job !== 'object') return 0;
+    const rawDate = job.updatedAt || job.appliedAt || job.createdAt || job.dateAdded;
+    if (!rawDate) return 0;
+    const ms = new Date(rawDate).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * Formats a job's recency timestamp into a concise label ("Today", "Yesterday", "3d ago", "2w ago", or "Oct 12").
+ */
+export function formatRelativeSearchDate(job, nowMs = Date.now()) {
+    const ts = getJobRecencyTimestamp(job);
+    if (!ts) return '';
+    const diffDays = Math.floor((nowMs - ts) / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Extracts a contextual whitespace-collapsed snippet around the first matching query token
+ * from notes or description when a search matched those long-form fields.
+ */
+export function extractMatchSnippet(job, query = '', matchedFields = [], maxLen = 140) {
+    if (!job || !Array.isArray(matchedFields)) return null;
+    const candidateFields = ['notes', 'description'].filter(f => matchedFields.includes(f));
+    if (candidateFields.length === 0) return null;
+
+    const { textTokens, fieldFilters } = parseSearchQuery(query);
+    const terms = [
+        ...textTokens,
+        ...fieldFilters
+            .filter(ff => ff.field === 'notes' || ff.field === 'description')
+            .map(ff => ff.value)
+    ].filter(Boolean);
+
+    if (terms.length === 0) return null;
+
+    for (const field of candidateFields) {
+        const rawText = String(job[field] || '').replace(/\s+/g, ' ').trim();
+        if (!rawText) continue;
+        const normText = normalizeSearchText(rawText);
+
+        let matchIdx = -1;
+        for (const term of terms) {
+            const idx = normText.indexOf(normalizeSearchText(term));
+            if (idx !== -1 && (matchIdx === -1 || idx < matchIdx)) {
+                matchIdx = idx;
+            }
+        }
+        if (matchIdx === -1) continue;
+
+        const leadContext = Math.floor(maxLen * 0.3);
+        let start = Math.max(0, matchIdx - leadContext);
+        if (start > 0) {
+            const nextSpace = rawText.indexOf(' ', start);
+            if (nextSpace !== -1 && nextSpace < matchIdx) {
+                start = nextSpace + 1;
+            }
+        }
+        let end = Math.min(rawText.length, start + maxLen);
+        if (end < rawText.length) {
+            const prevSpace = rawText.lastIndexOf(' ', end);
+            if (prevSpace > matchIdx) {
+                end = prevSpace;
+            }
+        }
+
+        const prefix = start > 0 ? '…' : '';
+        const suffix = end < rawText.length ? '…' : '';
+        return {
+            field,
+            text: `${prefix}${rawText.slice(start, end).trim()}${suffix}`
+        };
+    }
+
+    return null;
+}

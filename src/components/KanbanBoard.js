@@ -577,7 +577,7 @@ export default function KanbanBoard() {
                     </div>
 
                     {/* Board View Switcher: All Sections (Stacked) vs Columns (Horizontal) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         {viewMode === 'stacked' && (
                             <button
                                 type="button"
@@ -604,6 +604,31 @@ export default function KanbanBoard() {
                                 {COLUMNS.some(c => isSectionCollapsed(c.id)) ? 'Expand All' : 'Collapse Empty'}
                             </button>
                         )}
+
+                        <button
+                            type="button"
+                            onClick={() => setBoardFilters({ boardSortBy: sortBy === 'updated' ? 'default' : 'updated' })}
+                            aria-pressed={sortBy === 'updated'}
+                            title={sortBy === 'updated' ? 'Sorted by most recently updated (click to restore board order)' : 'Sort cards by most recently updated'}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '5px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                border: sortBy === 'updated' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                background: sortBy === 'updated' ? 'rgba(107, 126, 103, 0.22)' : 'var(--bg-card)',
+                                color: sortBy === 'updated' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            <ArrowUpDown size={12} color={sortBy === 'updated' ? 'var(--accent-primary)' : 'currentColor'} aria-hidden="true" />
+                            <span>Recent</span>
+                        </button>
 
                         <div
                             role="group"

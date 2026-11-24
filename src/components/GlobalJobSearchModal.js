@@ -3,12 +3,21 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
     Search, X, Building2, MapPin, DollarSign, FileText,
-    ArrowUpRight, Pencil, ExternalLink, Filter, CornerDownLeft
+    ArrowUpRight, Pencil, ExternalLink, Filter, CornerDownLeft,
+    ArrowUpDown, Clock
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useUIStore } from '@/lib/uiStore';
-import { evaluateJobMatch, extractJobFacets, STAGE_LABELS } from '@/lib/job-search';
-import { filterJobsByCycle } from '@/lib/cycle-utils';
+import {
+    evaluateJobMatch,
+    extractJobFacets,
+    STAGE_LABELS,
+    getJobRecencyTimestamp,
+    formatRelativeSearchDate,
+    extractMatchSnippet,
+    parseSearchQuery
+} from '@/lib/job-search';
+import { filterJobsByCycle, resolveCyclesFromJobs } from '@/lib/cycle-utils';
 import { sanitizeUrl } from '@/lib/utils';
 
 const STAGE_OPTIONS = [
@@ -39,6 +48,178 @@ const SYNTAX_CHIPS = [
     { prefix: 'resume:', label: 'resume:' }
 ];
 
+const SORT_OPTIONS = [
+    { id: 'recent', label: 'Recent Activity' },
+    { id: 'relevance', label: 'Best Match' },
+    { id: 'newest', label: 'Newest Added' },
+    { id: 'company-asc', label: 'Company (A–Z)' }
+];
+
+const BOARD_SORT_MAP = {
+    recent: 'updated',
+    newest: 'newest',
+    'company-asc': 'company-asc',
+    relevance: 'default'
+};
+
+/**
+ * Returns the creation/application timestamp (ms) used for 'newest' sorting.
+ */
+function getJobNewestTimestamp(job) {
+    if (!job || typeof job !== 'object') return 0;
+    const rawDate = job.appliedAt || job.createdAt || job.dateAdded;
+    if (!rawDate) return 0;
+    const ms = new Date(rawDate).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * Resolves the numeric search cycle number for a job outside the active board cycle.
+ */
+function resolveJobCycleNumber(job, resolvedCycles, cycleNumberById) {
+    if (!job) return null;
+    if (job.cycleId && cycleNumberById.has(job.cycleId)) {
+        return cycleNumberById.get(job.cycleId);
+    }
+    const directNum = Number(job.cycleNumber);
+    if (Number.isFinite(directNum) && directNum > 0) {
+        return directNum;
+    }
+    for (const c of resolvedCycles) {
+        if (c?.acceptedJobId && c.acceptedJobId === job.id && c.cycleNumber) {
+            return c.cycleNumber;
+        }
+    }
+    const rawDate = job.appliedAt || job.dateAdded || job.createdAt;
+    const ms = rawDate ? new Date(rawDate).getTime() : NaN;
+    if (Number.isFinite(ms)) {
+        for (const c of resolvedCycles) {
+            if (!c) continue;
+            const startMs = c.startedAt ? new Date(c.startedAt).getTime() : NaN;
+            const endMs = c.endedAt ? new Date(c.endedAt).getTime() : Infinity;
+            if (c.cycleNumber === 1 && Number.isFinite(endMs) && ms <= endMs) {
+                return c.cycleNumber;
+            }
+            if (Number.isFinite(startMs) && ms >= startMs && ms <= endMs) {
+                return c.cycleNumber;
+            }
+        }
+    }
+    if (typeof job.cycleId === 'string') {
+        const match = job.cycleId.match(/cycle[_-]?(\d+)/i);
+        if (match) return Number(match[1]);
+    }
+    return null;
+}
+
+/**
+ * Maps diacritic-folded lowercase characters back to original string indices
+ * so highlight ranges align cleanly with accented or cased source text.
+ */
+function buildNormalizedIndexMap(rawText) {
+    const str = String(rawText ?? '');
+    let norm = '';
+    const map = [];
+
+    for (let i = 0; i < str.length;) {
+        const cp = str.codePointAt(i);
+        const charLen = cp > 0xffff ? 2 : 1;
+        const ch = str.slice(i, i + charLen);
+        const normCh = ch
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+        for (let k = 0; k < normCh.length; k++) {
+            norm += normCh[k];
+            map.push(i);
+        }
+        i += charLen;
+    }
+
+    return { str, norm, map };
+}
+
+/**
+ * Highlights matching query tokens using pure React JSX <mark> elements.
+ */
+function renderHighlightedText(rawText, tokens) {
+    const str = String(rawText ?? '');
+    if (!str || !Array.isArray(tokens) || tokens.length === 0) {
+        return str;
+    }
+
+    const cleanTokens = Array.from(
+        new Set(
+            tokens
+                .map(t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim())
+                .filter(Boolean)
+        )
+    );
+    if (cleanTokens.length === 0) return str;
+
+    const { norm, map } = buildNormalizedIndexMap(str);
+    if (!norm) return str;
+
+    const intervals = [];
+    for (const tok of cleanTokens) {
+        let searchFrom = 0;
+        while (searchFrom <= norm.length - tok.length) {
+            const idx = norm.indexOf(tok, searchFrom);
+            if (idx === -1) break;
+            const origStart = map[idx];
+            const normEnd = idx + tok.length;
+            const origEnd = normEnd < map.length ? map[normEnd] : str.length;
+            if (origEnd > origStart) {
+                intervals.push([origStart, origEnd]);
+            }
+            searchFrom = idx + tok.length;
+        }
+    }
+
+    if (intervals.length === 0) return str;
+
+    intervals.sort((a, b) => (a[0] - b[0]) || (b[1] - a[1]));
+    const merged = [intervals[0]];
+    for (let i = 1; i < intervals.length; i++) {
+        const [start, end] = intervals[i];
+        const last = merged[merged.length - 1];
+        if (start <= last[1]) {
+            if (end > last[1]) last[1] = end;
+        } else {
+            merged.push([start, end]);
+        }
+    }
+
+    const parts = [];
+    let cursor = 0;
+    for (let i = 0; i < merged.length; i++) {
+        const [start, end] = merged[i];
+        if (start > cursor) {
+            parts.push(str.slice(cursor, start));
+        }
+        parts.push(
+            <mark
+                key={`hl-${i}-${start}`}
+                style={{
+                    backgroundColor: 'rgba(212, 163, 115, 0.34)',
+                    color: 'inherit',
+                    borderRadius: '3px',
+                    padding: '0 2px',
+                    fontWeight: 'inherit'
+                }}
+            >
+                {str.slice(start, end)}
+            </mark>
+        );
+        cursor = end;
+    }
+    if (cursor < str.length) {
+        parts.push(str.slice(cursor));
+    }
+
+    return parts;
+}
+
 export default function GlobalJobSearchModal() {
     const rawJobs = useAppStore(state => state.jobs);
     const cycles = useAppStore(state => state.cycles);
@@ -61,8 +242,10 @@ export default function GlobalJobSearchModal() {
     const [companyFilter, setCompanyFilter] = useState('all');
     const [stageFilter, setStageFilter] = useState('all');
     const [locationFilter, setLocationFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('recent');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [wasOpen, setWasOpen] = useState(false);
+    const [nowMs] = useState(() => Date.now());
 
     if (isGlobalSearchOpen !== wasOpen) {
         setWasOpen(isGlobalSearchOpen);
@@ -132,6 +315,42 @@ export default function GlobalJobSearchModal() {
 
     const facets = useMemo(() => extractJobFacets(jobs), [jobs]);
 
+    const { resolvedCycles, cycleNumberById } = useMemo(() => {
+        const resolved = resolveCyclesFromJobs(rawJobs, cycles);
+        const byId = new Map();
+        for (const c of resolved) {
+            if (c?.id && c.cycleNumber) {
+                byId.set(c.id, c.cycleNumber);
+            }
+        }
+        return { resolvedCycles: resolved, cycleNumberById: byId };
+    }, [rawJobs, cycles]);
+
+    const activeCycleJobIds = useMemo(() => {
+        return new Set((Array.isArray(jobs) ? jobs : []).map(j => j?.id).filter(Boolean));
+    }, [jobs]);
+
+    const parsedQuery = useMemo(() => parseSearchQuery(query), [query]);
+
+    const highlightTokens = useMemo(() => {
+        const base = parsedQuery.textTokens;
+        const forField = (field) => {
+            const fieldVals = parsedQuery.fieldFilters
+                .filter(f => f.field === field)
+                .map(f => f.value);
+            return fieldVals.length > 0 ? [...base, ...fieldVals] : base;
+        };
+        return {
+            role: forField('role'),
+            company: forField('company'),
+            location: forField('location'),
+            salary: forField('salary'),
+            resume: forField('resume'),
+            notes: forField('notes'),
+            description: forField('description')
+        };
+    }, [parsedQuery]);
+
     const results = useMemo(() => {
         const searchPool = (query.trim().length > 0 || companyFilter !== 'all') && Array.isArray(rawJobs)
             ? rawJobs
@@ -145,7 +364,8 @@ export default function GlobalJobSearchModal() {
                 query,
                 companyFilter,
                 stageFilter,
-                locationFilter
+                locationFilter,
+                nowMs
             });
             if (evalResult.matches) {
                 matched.push({
@@ -156,16 +376,34 @@ export default function GlobalJobSearchModal() {
             }
         }
 
-        // Sort by match score desc, then most recently updated
         matched.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            const aTime = new Date(a.job.updatedAt || a.job.appliedAt || a.job.createdAt || a.job.dateAdded || 0).getTime() || 0;
-            const bTime = new Date(b.job.updatedAt || b.job.appliedAt || b.job.createdAt || b.job.dateAdded || 0).getTime() || 0;
-            return bTime - aTime;
+            if (sortBy === 'relevance') {
+                if (b.score !== a.score) return b.score - a.score;
+                return getJobRecencyTimestamp(b.job) - getJobRecencyTimestamp(a.job);
+            }
+            if (sortBy === 'newest') {
+                const bTime = getJobNewestTimestamp(b.job);
+                const aTime = getJobNewestTimestamp(a.job);
+                if (bTime !== aTime) return bTime - aTime;
+                return b.score - a.score;
+            }
+            if (sortBy === 'company-asc') {
+                const cmp = String(a.job?.company || '').localeCompare(
+                    String(b.job?.company || ''),
+                    undefined,
+                    { sensitivity: 'base' }
+                );
+                if (cmp !== 0) return cmp;
+                return getJobRecencyTimestamp(b.job) - getJobRecencyTimestamp(a.job);
+            }
+            // 'recent' (default): most recently active first, then relevance score
+            const recencyDiff = getJobRecencyTimestamp(b.job) - getJobRecencyTimestamp(a.job);
+            if (recencyDiff !== 0) return recencyDiff;
+            return b.score - a.score;
         });
 
         return matched;
-    }, [jobs, rawJobs, query, companyFilter, stageFilter, locationFilter]);
+    }, [jobs, rawJobs, query, companyFilter, stageFilter, locationFilter, sortBy, nowMs]);
 
     const trashMatchCount = useMemo(() => {
         if (results.length > 0 || !query.trim() || !Array.isArray(rawJobs)) return 0;
@@ -176,12 +414,13 @@ export default function GlobalJobSearchModal() {
                 query,
                 companyFilter,
                 locationFilter,
-                includeDeleted: true
+                includeDeleted: true,
+                nowMs
             });
             if (evalResult.matches) count++;
         }
         return count;
-    }, [results.length, query, rawJobs, companyFilter, locationFilter]);
+    }, [results.length, query, rawJobs, companyFilter, locationFilter, nowMs]);
 
     const safeSelectedIndex = results.length > 0
         ? Math.min(selectedIndex, results.length - 1)
@@ -225,13 +464,14 @@ export default function GlobalJobSearchModal() {
             boardSearchQuery: query,
             boardCompanyFilter: companyFilter,
             boardStageFilter: stageFilter,
-            boardLocationFilter: locationFilter
+            boardLocationFilter: locationFilter,
+            boardSortBy: BOARD_SORT_MAP[sortBy] || 'default'
         });
         closeGlobalSearch();
         if (pathname !== '/kanban') {
             router.push('/kanban');
         }
-    }, [query, companyFilter, stageFilter, locationFilter, setBoardFilters, closeGlobalSearch, pathname, router]);
+    }, [query, companyFilter, stageFilter, locationFilter, sortBy, setBoardFilters, closeGlobalSearch, pathname, router]);
 
     const handleEditJob = useCallback((job, e) => {
         if (e) e.stopPropagation();
@@ -273,7 +513,7 @@ export default function GlobalJobSearchModal() {
     };
 
     const hasActiveFilters = Boolean(
-        query.trim() || companyFilter !== 'all' || stageFilter !== 'all' || locationFilter !== 'all'
+        query.trim() || companyFilter !== 'all' || stageFilter !== 'all' || locationFilter !== 'all' || sortBy !== 'recent'
     );
 
     return (
@@ -335,6 +575,8 @@ export default function GlobalJobSearchModal() {
                                         setCompanyFilter('all');
                                         setStageFilter('all');
                                         setLocationFilter('all');
+                                        setSortBy('recent');
+                                        setSelectedIndex(0);
                                         inputRef.current?.focus();
                                     }}
                                     style={{
@@ -427,6 +669,7 @@ export default function GlobalJobSearchModal() {
                                         aria-label="Clear search query"
                                         onClick={() => {
                                             setQuery('');
+                                            setSelectedIndex(0);
                                             inputRef.current?.focus();
                                         }}
                                         style={{
@@ -524,7 +767,7 @@ export default function GlobalJobSearchModal() {
                             </div>
 
                             {/* Location / Modality Selector */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 150px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 140px' }}>
                                 <MapPin size={14} color="var(--accent-primary)" aria-hidden="true" />
                                 <label htmlFor="global-search-location-select" className="sr-only">Filter by Location or Modality</label>
                                 <select
@@ -557,6 +800,34 @@ export default function GlobalJobSearchModal() {
                                             ))}
                                         </optgroup>
                                     )}
+                                </select>
+                            </div>
+
+                            {/* Sort Order Selector */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 140px' }}>
+                                <ArrowUpDown size={14} color="var(--accent-primary)" aria-hidden="true" />
+                                <label htmlFor="global-search-sort-select" className="sr-only">Sort Results By</label>
+                                <select
+                                    id="global-search-sort-select"
+                                    value={sortBy}
+                                    onChange={(e) => {
+                                        setSortBy(e.target.value);
+                                        setSelectedIndex(0);
+                                    }}
+                                    style={{
+                                        padding: '5px 10px',
+                                        fontSize: '0.78rem',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-panel)',
+                                        border: sortBy !== 'recent' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: sortBy !== 'recent' ? 700 : 500,
+                                        width: '100%'
+                                    }}
+                                >
+                                    {SORT_OPTIONS.map(opt => (
+                                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
@@ -702,9 +973,20 @@ export default function GlobalJobSearchModal() {
                     ) : (
                         results.slice(0, 50).map(({ job, matchedFields }, idx) => {
                             const isSelected = idx === safeSelectedIndex;
+                            const roleTitle = job.role || job.title || 'Untitled Role';
+                            const companyName = job.company || 'Unknown Company';
                             const stageLabel = STAGE_LABELS[job.status] || job.status || 'Wishlist';
                             const stageMeta = STAGE_OPTIONS.find(s => s.id === job.status);
-                            const safeJobUrl = job.url ? sanitizeUrl(job.url) : '';
+                            const rawJobUrl = job.url || job.link;
+                            const safeJobUrl = rawJobUrl ? sanitizeUrl(rawJobUrl) : '';
+                            const relativeDate = formatRelativeSearchDate(job, nowMs);
+                            const isOutsideActiveCycle = selectedCycleId !== 'all' && !(
+                                job.id ? activeCycleJobIds.has(job.id) : jobs.includes(job)
+                            );
+                            const outsideCycleNumber = isOutsideActiveCycle
+                                ? resolveJobCycleNumber(job, resolvedCycles, cycleNumberById)
+                                : null;
+                            const matchSnippet = extractMatchSnippet(job, query, matchedFields);
 
                             return (
                                 <div
@@ -734,7 +1016,7 @@ export default function GlobalJobSearchModal() {
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap'
                                             }}>
-                                                {job.role || 'Untitled Role'}
+                                                {renderHighlightedText(roleTitle, highlightTokens.role)}
                                             </span>
                                             <span style={{
                                                 fontSize: '0.7rem',
@@ -759,6 +1041,23 @@ export default function GlobalJobSearchModal() {
                                                 />
                                                 {stageLabel}
                                             </span>
+                                            {isOutsideActiveCycle && outsideCycleNumber && (
+                                                <span
+                                                    title={`From Search Cycle #${outsideCycleNumber}`}
+                                                    style={{
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 700,
+                                                        padding: '2px 7px',
+                                                        borderRadius: '999px',
+                                                        background: 'rgba(212, 163, 115, 0.16)',
+                                                        border: '1px solid rgba(212, 163, 115, 0.42)',
+                                                        color: 'var(--warning)',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
+                                                    Cycle #{outsideCycleNumber}
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div style={{
@@ -778,27 +1077,37 @@ export default function GlobalJobSearchModal() {
                                                 color: 'var(--accent-primary)'
                                             }}>
                                                 <Building2 size={12} aria-hidden="true" />
-                                                {job.company || 'Unknown Company'}
+                                                {renderHighlightedText(companyName, highlightTokens.company)}
                                             </span>
 
                                             {job.location && (
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                                     <MapPin size={12} aria-hidden="true" />
-                                                    {job.location}
+                                                    {renderHighlightedText(job.location, highlightTokens.location)}
                                                 </span>
                                             )}
 
                                             {job.salary && (
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--success)' }}>
                                                     <DollarSign size={12} aria-hidden="true" />
-                                                    {job.salary}
+                                                    {renderHighlightedText(job.salary, highlightTokens.salary)}
                                                 </span>
                                             )}
 
                                             {(job.resumeName || job.resumeUrl) && (
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                                     <FileText size={12} aria-hidden="true" />
-                                                    {job.resumeName || 'Resume linked'}
+                                                    {renderHighlightedText(job.resumeName || 'Resume linked', highlightTokens.resume)}
+                                                </span>
+                                            )}
+
+                                            {relativeDate && (
+                                                <span
+                                                    title="Last activity"
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                >
+                                                    <Clock size={12} aria-hidden="true" />
+                                                    {relativeDate}
                                                 </span>
                                             )}
 
@@ -814,6 +1123,33 @@ export default function GlobalJobSearchModal() {
                                                 </span>
                                             )}
                                         </div>
+
+                                        {matchSnippet && (
+                                            <p
+                                                style={{
+                                                    margin: '6px 0 0',
+                                                    padding: '5px 8px',
+                                                    borderRadius: '8px',
+                                                    background: 'var(--bg-panel)',
+                                                    borderLeft: '2px solid var(--accent-primary)',
+                                                    fontSize: '0.75rem',
+                                                    lineHeight: 1.4,
+                                                    color: 'var(--text-secondary)',
+                                                    overflow: 'hidden',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical'
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginRight: '5px' }}>
+                                                    {matchSnippet.field === 'description' ? 'JD:' : 'Notes:'}
+                                                </span>
+                                                {renderHighlightedText(
+                                                    matchSnippet.text,
+                                                    highlightTokens[matchSnippet.field] || parsedQuery.textTokens
+                                                )}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
@@ -821,7 +1157,7 @@ export default function GlobalJobSearchModal() {
                                             type="button"
                                             onClick={(e) => handleEditJob(job, e)}
                                             title="Edit role details"
-                                            aria-label={`Edit ${job.role} at ${job.company}`}
+                                            aria-label={`Edit ${roleTitle} at ${companyName}`}
                                             style={{
                                                 padding: '6px 8px',
                                                 borderRadius: '8px',
@@ -847,7 +1183,7 @@ export default function GlobalJobSearchModal() {
                                                 rel="noopener noreferrer"
                                                 onClick={(e) => e.stopPropagation()}
                                                 title="Open original job posting"
-                                                aria-label={`Open job posting for ${job.role} at ${job.company}`}
+                                                aria-label={`Open job posting for ${roleTitle} at ${companyName}`}
                                                 style={{
                                                     padding: '6px 8px',
                                                     borderRadius: '8px',
